@@ -25,6 +25,13 @@ import {
   displayErrorToast,
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
+import {
+  isArchivedByTag,
+  withArchivedTag,
+  isEffectivelyArchivedConversation,
+  isMissingSandboxStatus,
+  isRuntimeUnavailableSandboxStatus,
+} from "#/utils/conversation-archive-status";
 import { isExecutionActive } from "#/utils/status";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
@@ -61,11 +68,6 @@ import {
 import { useArchivedConversationsStore } from "#/stores/archived-conversations-store";
 import { usePinnedConversationsStore } from "#/stores/pinned-conversations-store";
 import { uniqueById } from "#/utils/unique-by-id";
-import {
-  isEffectivelyArchivedConversation,
-  isMissingSandboxStatus,
-  isRuntimeUnavailableSandboxStatus,
-} from "#/utils/conversation-archive-status";
 import type { SandboxStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
 
 interface ConversationPanelProps {
@@ -203,20 +205,33 @@ export function ConversationPanel({
   const removeArchivedConversation = useArchivedConversationsStore(
     (state) => state.removeArchivedConversation,
   );
+  // A conversation reads archived when either mark says so: the browser-local
+  // store (cloud backends, which carry no server tags) or the agent-server tag,
+  // which every client of the same backend shares.
+  const isArchivedConversation = React.useCallback(
+    (conversation: { id: string; tags?: Record<string, string> | null }) =>
+      archivedIdSet.has(conversation.id) || isArchivedByTag(conversation),
+    [archivedIdSet],
+  );
 
   // The one predicate every archived presentation reads: a row is effectively
-  // archived when the user archived it, or when its runtime is missing and
-  // non-resumable. List visibility, the "Archived" chip, the dimmed title, and
-  // the status dot all derive from this so they cannot disagree.
-  // (`sandbox_status: "ERROR"` is intentionally not archived.) Menu availability
-  // is a separate concern and does not read this predicate alone.
+  // archived when the user archived it (browser store or `archived` tag), or
+  // when its runtime is missing and non-resumable. List visibility, the
+  // "Archived" chip, the dimmed title, and the status dot all derive from this
+  // so they cannot disagree. (`sandbox_status: "ERROR"` is intentionally not
+  // archived.) Menu availability is a separate concern and does not read this
+  // predicate alone.
   const isRowArchived = React.useCallback(
-    (conversation: { id: string; sandbox_status?: SandboxStatus | null }) =>
+    (conversation: {
+      id: string;
+      tags?: Record<string, string> | null;
+      sandbox_status?: SandboxStatus | null;
+    }) =>
       isEffectivelyArchivedConversation(
         conversation.sandbox_status,
-        archivedIdSet.has(conversation.id),
+        isArchivedConversation(conversation),
       ),
-    [archivedIdSet],
+    [isArchivedConversation],
   );
 
   const toggleGroupCollapsed = React.useCallback((groupId: string) => {
@@ -693,6 +708,26 @@ export function ConversationPanel({
   const { mutate: updateConversation } = useUpdateConversation();
   const { mutate: updateConversationTags } = useUpdateConversationTags();
 
+  // Mirrors an archive state change into the conversation's server tags. Only
+  // tag-capable (local) backends carry them; cloud conversations report no
+  // tags, so their archive state stays in the browser store alone. The tag map
+  // sent is the full map, because the agent-server replaces it on PATCH.
+  const persistArchivedTag = React.useCallback(
+    (conversationId: string, archived: boolean) => {
+      if (activeBackend.kind !== "local") {
+        return;
+      }
+      const conversation = allLoadedConversations.find(
+        (item) => item.id === conversationId,
+      );
+      updateConversationTags({
+        conversationId,
+        tags: withArchivedTag(conversation?.tags, archived),
+      });
+    },
+    [activeBackend.kind, allLoadedConversations, updateConversationTags],
+  );
+
   // The next page of conversations is loaded only via the explicit "Load
   // more" link rendered at the end of the list — there is no scroll-driven
   // pagination, which previously caused the panel to feel like it had stray
@@ -799,8 +834,9 @@ export function ConversationPanel({
   const handleUnarchiveProject = React.useCallback(
     (conversationId: string) => {
       removeArchivedConversation(activeBackend.id, conversationId);
+      persistArchivedTag(conversationId, false);
     },
-    [activeBackend.id, removeArchivedConversation],
+    [activeBackend.id, persistArchivedTag, removeArchivedConversation],
   );
 
   const handleStopConversation = React.useCallback((conversationId: string) => {
@@ -845,6 +881,7 @@ export function ConversationPanel({
     }
     archiveConversation(activeBackend.id, selectedConversationId);
     unpinConversation(activeBackend.id, selectedConversationId);
+    persistArchivedTag(selectedConversationId, true);
     if (selectedConversationId === currentConversationId) {
       navigate("/conversations");
     }
@@ -903,12 +940,13 @@ export function ConversationPanel({
       // visibility, the chip, the dot, and the dimmed title.
       const isArchived = isRowArchived(conversation);
       // Action availability is separate from presentation. "Unarchive" is only
-      // meaningful when clearing the browser-local flag actually returns the row
-      // to the unarchived state, so it is offered solely for an explicitly
-      // archived row whose runtime is not missing. A missing, non-resumable
-      // runtime cannot be restored from this menu, so such a row offers neither
-      // "Archive" nor "Unarchive", even when a stored archive flag is set.
-      const explicitlyArchived = archivedIdSet.has(conversation.id);
+      // meaningful when clearing the archive mark actually returns the row to
+      // the unarchived state, so it is offered solely for an explicitly
+      // archived row (browser store or `archived` tag) whose runtime is not
+      // missing. A missing, non-resumable runtime cannot be restored from this
+      // menu, so such a row offers neither "Archive" nor "Unarchive", even when
+      // a stored archive flag is set.
+      const explicitlyArchived = isArchivedConversation(conversation);
       const runtimeMissing = isMissingSandboxStatus(
         conversation.sandbox_status,
       );
@@ -1072,7 +1110,6 @@ export function ConversationPanel({
     [
       activeBackend.id,
       activeBackend.kind,
-      archivedIdSet,
       compact,
       currentConversationId,
       handleArchiveProject,
@@ -1082,6 +1119,7 @@ export function ConversationPanel({
       handleNewConversationInSandbox,
       handleStopConversation,
       handleUnarchiveProject,
+      isArchivedConversation,
       isRowArchived,
       onClose,
       openContextMenuId,
