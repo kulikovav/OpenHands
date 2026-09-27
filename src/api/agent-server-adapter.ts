@@ -589,6 +589,9 @@ export const AUTOMATION_TAG_KEYS: readonly string[] = [
  *   creation; the conversation panel's automation filter is its first-class
  *   UI source. The tag surface is user organization data, so machine stamps
  *   stay out of it — and users can't edit or spoof automation classification.
+ * - ``archived`` / ``bridgearchived`` → the archive marks the panel and the
+ *   Cursor bridge read and write. Deleting one from the chip row would erase
+ *   the archive state of every client through the replace-all tag PATCH.
  * - ``localplannerparent`` → internal routing for the local planner; already
  *   surfaced by the hidden-from-list planner filter
  * - ``automationsetup`` → user-visible setup-mode marker so users can find
@@ -608,6 +611,8 @@ export const RESERVED_CONVERSATION_TAG_KEYS: ReadonlySet<string> = new Set([
   AUTOMATION_DRAFT_ID_TAG_KEY,
   AUTOMATION_MATERIALIZED_DRAFT_ID_TAG_KEY,
   AUTOMATION_EDIT_ID_TAG_KEY,
+  "archived",
+  "bridgearchived",
   "title",
   "git_provider",
   "repo_name",

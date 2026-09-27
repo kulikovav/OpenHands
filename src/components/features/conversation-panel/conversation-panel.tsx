@@ -690,7 +690,9 @@ export function ConversationPanel({
   // Mirrors an archive state change into the conversation's server tags. Only
   // tag-capable (local) backends carry them; cloud conversations report no
   // tags, so their archive state stays in the browser store alone. The tag map
-  // sent is the full map, because the agent-server replaces it on PATCH.
+  // sent is the full map, because the agent-server replaces it on PATCH. A
+  // record the loaded pages do not hold is left alone: a partial map would drop
+  // the ownership tags of a bridge conversation and hide it from Cursor.
   const persistArchivedTag = React.useCallback(
     (conversationId: string, archived: boolean) => {
       if (activeBackend.kind !== "local") {
@@ -699,9 +701,12 @@ export function ConversationPanel({
       const conversation = allLoadedConversations.find(
         (item) => item.id === conversationId,
       );
+      if (!conversation) {
+        return;
+      }
       updateConversationTags({
         conversationId,
-        tags: withArchivedTag(conversation?.tags, archived),
+        tags: withArchivedTag(conversation.tags, archived),
       });
     },
     [activeBackend.kind, allLoadedConversations, updateConversationTags],
