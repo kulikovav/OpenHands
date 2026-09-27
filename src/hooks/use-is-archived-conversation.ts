@@ -1,10 +1,13 @@
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
-import { isRuntimeUnavailableSandboxStatus } from "#/utils/conversation-archive-status";
+import {
+  isArchivedByTag,
+  isRuntimeUnavailableSandboxStatus,
+} from "#/utils/conversation-archive-status";
 
 /**
  * Whether the active conversation's runtime is unavailable, so runtime-backed
- * affordances (chat input, git/panel toggles) are read-only. Covers both a
- * missing (non-resumable) sandbox and an errored one.
+ * affordances (chat input, git/panel toggles) are read-only, or a client
+ * recorded the shared `archived` tag on it.
  *
  * This is the read-only gate, not the archive predicate: use
  * `isEffectivelyArchivedConversation` for the archived presentation (list
@@ -12,5 +15,10 @@ import { isRuntimeUnavailableSandboxStatus } from "#/utils/conversation-archive-
  */
 export function useIsArchivedConversation() {
   const { data: conversation } = useActiveConversation();
-  return isRuntimeUnavailableSandboxStatus(conversation?.sandbox_status);
+  // Two marks mean archived: the runtime is unavailable, or a client archived
+  // the conversation and recorded it in the server tag.
+  return (
+    isRuntimeUnavailableSandboxStatus(conversation?.sandbox_status) ||
+    isArchivedByTag(conversation)
+  );
 }
