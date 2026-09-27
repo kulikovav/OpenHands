@@ -155,6 +155,12 @@ describe("ConversationPanel", () => {
       items: [...mockConversations],
       next_page_id: null,
     });
+    // Archive actions mirror their state into the server tags on local
+    // backends, so the default mock keeps that PATCH off the network.
+    vi.spyOn(
+      AgentServerConversationService,
+      "updateConversationTags",
+    ).mockResolvedValue(mockConversations[0]);
   });
 
   afterEach(() => {
@@ -973,6 +979,86 @@ describe("ConversationPanel", () => {
     expect(
       screen.queryByTestId("conversation-card-archived-chip"),
     ).not.toBeInTheDocument();
+  });
+
+  it("hides a conversation the server tags archived and shows its archived chip", async () => {
+    // The agent-server has no archive field, so a tag is the only archive mark
+    // the server itself can carry. A conversation archived by another client
+    // (for example the Cursor bridge) must read archived here as soon as its
+    // tags arrive.
+    const taggedArchived = createMockConversation({
+      id: "tagged-archived",
+      title: "Tagged archived",
+      tags: { archived: "true" },
+    });
+    const taggedActive = createMockConversation({
+      id: "tagged-active",
+      title: "Tagged active",
+      tags: { archived: "false" },
+    });
+    vi.spyOn(
+      AgentServerConversationService,
+      "searchConversations",
+    ).mockResolvedValue({
+      items: [taggedArchived, taggedActive],
+      next_page_id: null,
+    });
+
+    renderConversationPanel();
+
+    const visibleCards = await screen.findAllByTestId("conversation-card");
+    expect(visibleCards).toHaveLength(1);
+    expect(screen.queryByText("Tagged archived")).not.toBeInTheDocument();
+
+    act(() => {
+      useConversationPanelPreferencesStore.setState({
+        showArchivedConversations: true,
+      });
+    });
+
+    const archivedCard = (
+      await screen.findAllByTestId("conversation-card")
+    ).find((card) => within(card).queryByText("Tagged archived"))!;
+    expect(
+      within(archivedCard).getByTestId("conversation-card-archived-chip"),
+    ).toBeInTheDocument();
+  });
+
+  it("writes the archived tag on a local backend when archiving and unarchiving", async () => {
+    // The tag write is what makes the archive reach the server and every other
+    // client; without it the mark lives only in this browser.
+    const updateTags = vi.spyOn(
+      AgentServerConversationService,
+      "updateConversationTags",
+    );
+    const user = userEvent.setup();
+    renderConversationPanel();
+
+    let cards = await screen.findAllByTestId("conversation-card");
+    await user.click(within(cards[0]).getByTestId("ellipsis-button"));
+    await user.click(screen.getByTestId("archive-button"));
+    await user.click(screen.getByRole("button", { name: /archive/i }));
+
+    await waitFor(() => {
+      expect(updateTags).toHaveBeenCalledWith("1", { archived: "true" });
+    });
+
+    act(() => {
+      useConversationPanelPreferencesStore.setState({
+        showArchivedConversations: true,
+      });
+    });
+
+    cards = await screen.findAllByTestId("conversation-card");
+    const archivedCard = cards.find((card) =>
+      within(card).queryByText("Conversation 1"),
+    )!;
+    await user.click(within(archivedCard).getByTestId("ellipsis-button"));
+    await user.click(screen.getByTestId("unarchive-button"));
+
+    await waitFor(() => {
+      expect(updateTags).toHaveBeenLastCalledWith("1", { archived: "false" });
+    });
   });
 
   it("should call onClose after clicking a card", async () => {
