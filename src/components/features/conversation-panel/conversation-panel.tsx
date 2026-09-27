@@ -25,6 +25,10 @@ import {
   displayErrorToast,
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
+import {
+  isArchivedByTag,
+  withArchivedTag,
+} from "#/utils/conversation-archive-status";
 import { isExecutionActive } from "#/utils/status";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
@@ -197,6 +201,14 @@ export function ConversationPanel({
   const removeArchivedConversation = useArchivedConversationsStore(
     (state) => state.removeArchivedConversation,
   );
+  // A conversation reads archived when either mark says so: the browser-local
+  // store (cloud backends, which carry no server tags) or the agent-server tag,
+  // which every client of the same backend shares.
+  const isArchivedConversation = React.useCallback(
+    (conversation: { id: string; tags?: Record<string, string> | null }) =>
+      archivedIdSet.has(conversation.id) || isArchivedByTag(conversation),
+    [archivedIdSet],
+  );
 
   const toggleGroupCollapsed = React.useCallback((groupId: string) => {
     setCollapsedGroupIds((prev) => {
@@ -296,9 +308,13 @@ export function ConversationPanel({
       return allLoadedConversations;
     }
     return allLoadedConversations.filter(
-      (conversation) => !archivedIdSet.has(conversation.id),
+      (conversation) => !isArchivedConversation(conversation),
     );
-  }, [allLoadedConversations, archivedIdSet, showArchivedConversations]);
+  }, [
+    allLoadedConversations,
+    isArchivedConversation,
+    showArchivedConversations,
+  ]);
 
   // Facets derive from the unfiltered list so the automation-name rows in the
   // advanced-options modal don't vanish while a narrowing selection is active.
@@ -671,6 +687,26 @@ export function ConversationPanel({
   const { mutate: updateConversation } = useUpdateConversation();
   const { mutate: updateConversationTags } = useUpdateConversationTags();
 
+  // Mirrors an archive state change into the conversation's server tags. Only
+  // tag-capable (local) backends carry them; cloud conversations report no
+  // tags, so their archive state stays in the browser store alone. The tag map
+  // sent is the full map, because the agent-server replaces it on PATCH.
+  const persistArchivedTag = React.useCallback(
+    (conversationId: string, archived: boolean) => {
+      if (activeBackend.kind !== "local") {
+        return;
+      }
+      const conversation = allLoadedConversations.find(
+        (item) => item.id === conversationId,
+      );
+      updateConversationTags({
+        conversationId,
+        tags: withArchivedTag(conversation?.tags, archived),
+      });
+    },
+    [activeBackend.kind, allLoadedConversations, updateConversationTags],
+  );
+
   // The next page of conversations is loaded only via the explicit "Load
   // more" link rendered at the end of the list — there is no scroll-driven
   // pagination, which previously caused the panel to feel like it had stray
@@ -756,8 +792,9 @@ export function ConversationPanel({
   const handleUnarchiveProject = React.useCallback(
     (conversationId: string) => {
       removeArchivedConversation(activeBackend.id, conversationId);
+      persistArchivedTag(conversationId, false);
     },
-    [activeBackend.id, removeArchivedConversation],
+    [activeBackend.id, persistArchivedTag, removeArchivedConversation],
   );
 
   const handleStopConversation = React.useCallback((conversationId: string) => {
@@ -802,6 +839,7 @@ export function ConversationPanel({
     }
     archiveConversation(activeBackend.id, selectedConversationId);
     unpinConversation(activeBackend.id, selectedConversationId);
+    persistArchivedTag(selectedConversationId, true);
     if (selectedConversationId === currentConversationId) {
       navigate("/conversations");
     }
@@ -855,7 +893,7 @@ export function ConversationPanel({
       options?: { inPinnedSection?: boolean },
     ) => {
       const isPinned = pinnedIds.includes(conversation.id);
-      const isArchived = archivedIdSet.has(conversation.id);
+      const isArchived = isArchivedConversation(conversation);
       if (compact) {
         return (
           <CompactConversationRow
@@ -999,7 +1037,6 @@ export function ConversationPanel({
     [
       activeBackend.id,
       activeBackend.kind,
-      archivedIdSet,
       compact,
       currentConversationId,
       handleArchiveProject,
@@ -1008,6 +1045,7 @@ export function ConversationPanel({
       handleEditTags,
       handleStopConversation,
       handleUnarchiveProject,
+      isArchivedConversation,
       onClose,
       openContextMenuId,
       pinnedIds,
