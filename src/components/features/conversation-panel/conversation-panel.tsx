@@ -65,6 +65,7 @@ import {
 import { useArchivedConversationsStore } from "#/stores/archived-conversations-store";
 import { usePinnedConversationsStore } from "#/stores/pinned-conversations-store";
 import { uniqueById } from "#/utils/unique-by-id";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 
 interface ConversationPanelProps {
   onClose?: () => void;
@@ -79,6 +80,10 @@ interface ConversationPanelProps {
 const noop = () => {};
 
 const EMPTY_PINNED_CONVERSATION_IDS: readonly string[] = [];
+
+/** Shown when the server refused to store an archive state change. */
+const ARCHIVE_TAG_SAVE_FAILED =
+  "The conversation archive state could not be saved.";
 
 export function ConversationPanel({
   onClose,
@@ -689,27 +694,36 @@ export function ConversationPanel({
 
   // Mirrors an archive state change into the conversation's server tags. Only
   // tag-capable (local) backends carry them; cloud conversations report no
-  // tags, so their archive state stays in the browser store alone. The tag map
-  // sent is the full map, because the agent-server replaces it on PATCH. A
-  // record the loaded pages do not hold is left alone: a partial map would drop
-  // the ownership tags of a bridge conversation and hide it from Cursor.
+  // tags, so their archive state stays in the browser store alone. The record
+  // is read back before every write, and the tag map sent is the full map,
+  // because the agent-server replaces it on PATCH: a map built from an earlier
+  // reading, or a partial map, would drop the tags another client wrote,
+  // including the ownership tags that keep a bridge conversation in Cursor. A
+  // write that cannot be made reports a failure instead of leaving the archive
+  // in this browser alone, where no other client sees it.
   const persistArchivedTag = React.useCallback(
-    (conversationId: string, archived: boolean) => {
+    async (conversationId: string, archived: boolean) => {
       if (activeBackend.kind !== "local") {
         return;
       }
-      const conversation = allLoadedConversations.find(
-        (item) => item.id === conversationId,
-      );
-      if (!conversation) {
-        return;
+      try {
+        const [fetched] =
+          await AgentServerConversationService.batchGetAppConversations([
+            conversationId,
+          ]);
+        if (!fetched) {
+          displayErrorToast(ARCHIVE_TAG_SAVE_FAILED);
+          return;
+        }
+        updateConversationTags(
+          { conversationId, tags: withArchivedTag(fetched.tags, archived) },
+          { onError: () => displayErrorToast(ARCHIVE_TAG_SAVE_FAILED) },
+        );
+      } catch {
+        displayErrorToast(ARCHIVE_TAG_SAVE_FAILED);
       }
-      updateConversationTags({
-        conversationId,
-        tags: withArchivedTag(conversation.tags, archived),
-      });
     },
-    [activeBackend.kind, allLoadedConversations, updateConversationTags],
+    [activeBackend.kind, updateConversationTags],
   );
 
   // The next page of conversations is loaded only via the explicit "Load
@@ -797,7 +811,7 @@ export function ConversationPanel({
   const handleUnarchiveProject = React.useCallback(
     (conversationId: string) => {
       removeArchivedConversation(activeBackend.id, conversationId);
-      persistArchivedTag(conversationId, false);
+      void persistArchivedTag(conversationId, false);
     },
     [activeBackend.id, persistArchivedTag, removeArchivedConversation],
   );
@@ -844,7 +858,7 @@ export function ConversationPanel({
     }
     archiveConversation(activeBackend.id, selectedConversationId);
     unpinConversation(activeBackend.id, selectedConversationId);
-    persistArchivedTag(selectedConversationId, true);
+    void persistArchivedTag(selectedConversationId, true);
     if (selectedConversationId === currentConversationId) {
       navigate("/conversations");
     }
