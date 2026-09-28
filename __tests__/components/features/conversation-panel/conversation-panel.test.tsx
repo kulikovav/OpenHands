@@ -161,6 +161,18 @@ describe("ConversationPanel", () => {
       AgentServerConversationService,
       "updateConversationTags",
     ).mockResolvedValue(mockConversations[0]);
+    // The archive write reads the record back first, so the tag map it sends
+    // is the one the server holds, never a stale copy of the rendered row.
+    vi.spyOn(
+      AgentServerConversationService,
+      "batchGetAppConversations",
+    ).mockImplementation((ids: string[]) =>
+      Promise.resolve(
+        ids.map(
+          (id) => mockConversations.find((item) => item.id === id) ?? null,
+        ),
+      ),
+    );
   });
 
   afterEach(() => {
@@ -942,6 +954,52 @@ describe("ConversationPanel", () => {
     cards = await screen.findAllByTestId("conversation-card");
     expect(cards).toHaveLength(2);
     expect(screen.queryByText("Conversation 1")).not.toBeInTheDocument();
+  });
+
+  it("reports an archive whose server tag write failed", async () => {
+    // The archive lives in the server tag, so a refused write leaves it in this
+    // browser alone: the user must hear about it instead of a silent loss.
+    vi.mocked(
+      AgentServerConversationService.updateConversationTags,
+    ).mockRejectedValueOnce(new Error("the tag write failed"));
+    const user = userEvent.setup();
+    renderConversationPanel();
+
+    const cards = await screen.findAllByTestId("conversation-card");
+    await user.click(within(cards[0]).getByTestId("ellipsis-button"));
+    await user.click(screen.getByTestId("archive-button"));
+    await user.click(screen.getByRole("button", { name: /archive/i }));
+
+    await waitFor(() => {
+      expect(displayErrorToast).toHaveBeenCalledWith(
+        "The conversation archive state could not be saved.",
+      );
+    });
+  });
+
+  it("reports an archive of a record the backend does not hold", async () => {
+    // The full tag map can only come from the record itself, so a record the
+    // backend does not answer must not be patched with a partial map.
+    vi.mocked(
+      AgentServerConversationService.batchGetAppConversations,
+    ).mockResolvedValueOnce([null]);
+    const updateTags = vi.mocked(
+      AgentServerConversationService.updateConversationTags,
+    );
+    const user = userEvent.setup();
+    renderConversationPanel();
+
+    const cards = await screen.findAllByTestId("conversation-card");
+    await user.click(within(cards[0]).getByTestId("ellipsis-button"));
+    await user.click(screen.getByTestId("archive-button"));
+    await user.click(screen.getByRole("button", { name: /archive/i }));
+
+    await waitFor(() => {
+      expect(displayErrorToast).toHaveBeenCalledWith(
+        "The conversation archive state could not be saved.",
+      );
+    });
+    expect(updateTags).not.toHaveBeenCalled();
   });
 
   it("shows archived conversations when the preference is on and restores them", async () => {
