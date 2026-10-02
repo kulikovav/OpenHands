@@ -1,0 +1,233 @@
+--- a/openhands/automation/config.py
++++ b/openhands/automation/config.py
+@@ -506,6 +506,11 @@
+         AUTOMATION_SCHEDULER_BATCH_SIZE: Scheduler batch size (default: 50)
+         AUTOMATION_DISPATCHER_INTERVAL_SECONDS: Dispatcher poll interval (default: 10)
+         AUTOMATION_DISPATCHER_BATCH_SIZE: Dispatcher batch size (default: 10)
++        AUTOMATION_DISPATCHER_MAX_RUNNING_RUNS: Ceiling on runs in flight; the
++            dispatcher leaves the surplus runs PENDING, so a burst queues in
++            the database (default: 0, no ceiling)
++        AUTOMATION_DISPATCHER_MAX_DISPATCH_RETRIES: Retries of a transient
++            dispatch failure before the run fails (default: 3)
+         AUTOMATION_WATCHDOG_INTERVAL_SECONDS: Watchdog poll interval (default: 60)
+         AUTOMATION_FAILURE_DISABLE_THRESHOLD: Consecutive permanent failures before
+             auto-disabling an automation (default: 3, <=0 disables auto-disable)
+@@ -606,6 +611,15 @@
+     scheduler_batch_size: int = 50
+     dispatcher_interval_seconds: int = 10
+     dispatcher_batch_size: int = 10
++    # Ceiling on runs in flight. 0 keeps the upstream behavior: the whole
++    # batch starts per poll. A positive value leaves the surplus runs
++    # PENDING, so a burst queues in the database and drains as in-flight
++    # runs finish.
++    dispatcher_max_running_runs: int = 0
++    # Retries of a transient dispatch failure (a transport error, a 429, or
++    # a 5xx before the entrypoint starts). The run returns to PENDING and
++    # the next poll retries it. 0 disables the retry.
++    dispatcher_max_dispatch_retries: int = 3
+     watchdog_interval_seconds: int = 60
+ 
+     # Auto-disable rules. `failure_disable_threshold` is the fast path for
+--- a/openhands/automation/dispatcher.py
++++ b/openhands/automation/dispatcher.py
+@@ -6,6 +6,10 @@
+ Uses FOR UPDATE SKIP LOCKED for multi-worker safety (PostgreSQL).
+ SQLite deployments skip row locking (single-process mode assumed).
+ 
++A ``dispatcher_max_running_runs`` ceiling leaves the surplus runs PENDING, so
++a burst waits in the database instead of every due run starting at once. A
++transient dispatch failure returns the run to PENDING for a bounded retry.
++
+ Completion is handled asynchronously: the SDK running inside the execution
+ environment POSTs to ``/v1/runs/{id}/complete`` when the entry-point
+ exits, so the dispatcher does **not** block waiting for results.
+@@ -19,10 +23,10 @@
+ import logging
+ import uuid
+ from datetime import timedelta
+-from typing import Any
++from typing import Any, Final
+ 
+ import httpx
+-from sqlalchemy import and_, or_, select
++from sqlalchemy import and_, func, or_, select, update
+ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+ from sqlalchemy.orm import selectinload
+ 
+@@ -76,6 +80,10 @@
+ 
+ logger = logging.getLogger("automation.dispatcher")
+ 
++# The retry counter lives in the run's ``run_metadata`` JSON, so a requeue
++# needs no schema change.
++DISPATCH_RETRIES_KEY: Final[str] = "dispatch_retries"
++
+ 
+ async def _download_internal_tarball(
+     upload_id: uuid.UUID,
+@@ -232,8 +240,22 @@
+         error: str,
+         disable: bool = False,
+         status_detail: dict | None = None,
++        retryable: bool = False,
+     ) -> None:
+-        """Mark run as failed and optionally disable the automation."""
++        """Mark run as failed and optionally disable the automation.
++
++        A retryable failure that still has retries left returns the run to
++        PENDING instead, so the next poll dispatches it again.
++        """
++        if retryable and not disable and await _requeue_transient_failure(
++            session_factory, run, status_detail
++        ):
++            logger.warning(
++                "Requeued run after a transient dispatch failure: %s",
++                error,
++                extra=_log_ctx(),
++            )
++            return
+         await mark_run_terminal(
+             session_factory,
+             run,
+@@ -315,6 +337,7 @@
+         source = "agent_server" if backend.is_local_mode else "sandbox_api"
+         await _fail(
+             "Failed to get execution context",
++            retryable=True,
+             status_detail=run_status_detail_from_exception(
+                 exc,
+                 phase=RunStatusPhase.DISPATCH,
+@@ -531,6 +554,7 @@
+     await backend.release_context(client, ctx)
+     await _fail(
+         error,
++        retryable=True,
+         status_detail=make_run_status_detail(
+             phase=RunStatusPhase.EXECUTION,
+             kind=RunStatusDetailKind.EXECUTION_ERROR,
+@@ -542,6 +566,18 @@
+     )
+ 
+ 
++def dispatch_capacity(running: int, max_running: int, batch_size: int) -> int:
++    """Return how many pending runs the dispatcher may start now.
++
++    A ``max_running`` of 0 or less keeps the upstream behavior: the whole
++    batch starts. A positive ceiling leaves the surplus runs PENDING, so the
++    backlog queues in the database until an in-flight run finishes.
++    """
++    if max_running <= 0:
++        return batch_size
++    return max(0, min(batch_size, max_running - running))
++
++
+ async def dispatch_pending_runs(
+     session_factory: async_sessionmaker[AsyncSession],
+     settings: ServiceSettings,
+@@ -560,12 +596,30 @@
+         batch_size: Number of pending runs to fetch per poll (from config if None)
+     """
+     # Use config defaults if not provided
++    config = get_config()
+     if batch_size is None:
+-        config = get_config()
+         batch_size = config.service.dispatcher_batch_size
++    max_running = config.service.dispatcher_max_running_runs
+ 
+     async with session_factory() as session:
+-        pending_runs = await _poll_pending_runs(session, batch_size)
++        if max_running > 0:
++            running = (
++                await session.execute(
++                    select(func.count())
++                    .select_from(AutomationRun)
++                    .where(AutomationRun.status == AutomationRunStatus.RUNNING)
++                )
++            ).scalar_one()
++            capacity = dispatch_capacity(running, max_running, batch_size)
++            pending_runs = await _poll_pending_runs(session, capacity)
++            if capacity == 0:
++                logger.info(
++                    "Run queue holds at the in-flight ceiling (running=%d, max=%d)",
++                    running,
++                    max_running,
++                )
++        else:
++            pending_runs = await _poll_pending_runs(session, batch_size)
+ 
+         dispatched_runs = []
+         for run in pending_runs:
+@@ -636,6 +690,11 @@
+         await _execute_run(run, settings, session_factory, client)
+     except Exception as exc:
+         logger.exception("Background execution failed", extra=extra)
++        if await _requeue_transient_failure(session_factory, run, None):
++            logger.warning(
++                "Requeued run after an unexpected dispatch failure", extra=extra
++            )
++            return
+         await mark_run_terminal(
+             session_factory,
+             run,
+@@ -650,6 +709,61 @@
+         )
+ 
+ 
++async def _requeue_transient_failure(
++    session_factory: async_sessionmaker[AsyncSession],
++    run: AutomationRun,
++    status_detail: dict | None,
++) -> bool:
++    """Return a run to PENDING for a later dispatch attempt.
++
++    Returns False when the retries are used up, so the caller fails the run,
++    and True when the run is no longer RUNNING, which leaves the owner of the
++    new state alone. The run waits as a PENDING row, which the watchdog
++    skips; the next dispatch sets a fresh provisioning deadline. The retry
++    counter lives in ``run_metadata``, so no schema change is needed.
++    """
++    max_retries = get_config().service.dispatcher_max_dispatch_retries
++    try:
++        async with session_factory() as session:
++            db_run = (
++                await session.execute(
++                    select(AutomationRun).where(AutomationRun.id == run.id)
++                )
++            ).scalars().first()
++            if db_run is None or db_run.status != AutomationRunStatus.RUNNING:
++                return True
++            metadata = dict(db_run.run_metadata or {})
++            retries = int(metadata.get(DISPATCH_RETRIES_KEY, 0))
++            if retries >= max_retries:
++                return False
++            metadata[DISPATCH_RETRIES_KEY] = retries + 1
++            await session.execute(
++                update(AutomationRun)
++                .where(AutomationRun.id == run.id)
++                .values(
++                    status=AutomationRunStatus.PENDING,
++                    started_at=None,
++                    timeout_at=None,
++                    completed_at=None,
++                    error_detail=None,
++                    status_detail=status_detail,
++                    run_metadata=metadata,
++                )
++            )
++            await session.commit()
++            run.status = AutomationRunStatus.PENDING
++            logger.info(
++                "Requeued run %s (retry %d of %d)",
++                run.id,
++                retries + 1,
++                max_retries,
++            )
++            return True
++    except Exception:
++        logger.exception("Failed to requeue run %s", run.id)
++        return False
++
++
+ async def dispatcher_loop(
+     session_factory: async_sessionmaker[AsyncSession],
+     settings: ServiceSettings,
