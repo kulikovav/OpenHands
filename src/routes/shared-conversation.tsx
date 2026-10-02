@@ -1,5 +1,5 @@
 import React from "react";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { useSharedConversation } from "#/hooks/query/use-shared-conversation";
@@ -29,13 +29,18 @@ function SharedConversationCreator({ userId }: { userId: string }) {
 export default function SharedConversation() {
   const { t } = useTranslation("openhands");
   const { conversationId } = useParams<{ conversationId: string }>();
+  const [searchParams] = useSearchParams();
+  // An automation run's transcript is read from the deployment that owns it.
+  // The conversation route resolves that root from the discovery document and
+  // carries it in the URL, so a reload reads the same backend.
+  const host = searchParams.get("host") ?? "";
   const active = useActiveBackend();
 
   const {
     data: conversation,
     isLoading: isLoadingConversation,
     error: conversationError,
-  } = useSharedConversation(conversationId);
+  } = useSharedConversation(conversationId, { host });
   const {
     data: eventsData,
     isLoading: isLoadingEvents,
@@ -43,7 +48,7 @@ export default function SharedConversation() {
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
-  } = useSharedConversationEvents(conversationId);
+  } = useSharedConversationEvents(conversationId, { host });
 
   const isLoading = isLoadingConversation || isLoadingEvents;
   const error = conversationError || eventsError;
