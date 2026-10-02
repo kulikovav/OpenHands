@@ -117,7 +117,7 @@ RUN if command -v apt-get >/dev/null 2>&1; then \
         'Check-Valid-Until: no' \
         > /etc/apt/sources.list.d/debian.sources && \
       apt-get update && \
-      apt-get install -y --no-install-recommends libpq-dev && \
+      apt-get install -y --no-install-recommends libpq-dev patch && \
       apt-get upgrade -y --no-install-recommends && \
       rm -rf /var/lib/apt/lists/*; \
     fi
@@ -135,6 +135,18 @@ RUN if [ -n "${AGENT_SERVER_SDK_GIT_REF}" ]; then \
         "${BASE_GIT_URL}#subdirectory=openhands-tools" \
         "${BASE_GIT_URL}#subdirectory=openhands-workspace"; \
     fi
+
+# Bleenk patch: queue automation runs in the dispatcher. The patch adds an
+# in-flight ceiling (the surplus waits as PENDING rows) and a bounded retry of
+# transient dispatch failures. The version assert and --fuzz=0 make a version
+# bump fail the build, so the fix cannot be dropped silently.
+COPY docker/patches/automation-1.15.1-dispatcher-queue.patch /tmp/bleenk-patches/automation-dispatcher-queue.patch
+COPY docker/patches/automation-queue-selfcheck.py /tmp/bleenk-patches/automation-queue-selfcheck.py
+RUN python -c "import openhands.automation as m; assert m.__version__ == '${AUTOMATION_VERSION}', m.__version__" \
+    && SITE_PACKAGES="$(python -c 'import openhands.automation as m, pathlib; print(pathlib.Path(m.__file__).parent.parent)')" \
+    && patch -p1 -d "${SITE_PACKAGES}" --forward --fuzz=0 < /tmp/bleenk-patches/automation-dispatcher-queue.patch \
+    && python /tmp/bleenk-patches/automation-queue-selfcheck.py "${SITE_PACKAGES}" \
+    && rm -rf /tmp/bleenk-patches
 
 # Copy the frontend build output.
 # react-router.config.ts unpacks build/client/ into build/ for non-Vercel builds.
