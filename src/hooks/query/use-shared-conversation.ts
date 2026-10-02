@@ -9,6 +9,7 @@ import {
   getEffectiveLocalBackend,
 } from "#/api/backend-registry/active-store";
 import { getCloudSharedConversation } from "#/api/cloud/shared-conversation-service.api";
+import { useAutomationRunsBackend } from "#/hooks/query/use-automation-runs-backend";
 
 interface UseSharedConversationOptions {
   enabled?: boolean;
@@ -34,7 +35,16 @@ export const useSharedConversation = (
   conversationId?: string,
   options: UseSharedConversationOptions = {},
 ) => {
-  const host = options.host?.trim() ?? "";
+  const requestedHost = options.host?.trim() ?? "";
+  const { data: runsBackend, isFetched: isRunsBackendFetched } =
+    useAutomationRunsBackend({ enabled: !!requestedHost });
+  // A host is honoured only when the deployment's own discovery document
+  // reports it as the automation runs backend. Any other value would send the
+  // session key to an address the link chose.
+  const hostAllowed =
+    !requestedHost ||
+    (isRunsBackendFetched && runsBackend?.url === requestedHost);
+  const host = hostAllowed ? requestedHost : "";
   return useQuery<SharedConversationView | null>({
     queryKey: ["shared-conversation", conversationId, host],
     queryFn: async () => {
@@ -64,7 +74,7 @@ export const useSharedConversation = (
         getAgentServerClientOptions(),
       ).getSharedConversation(conversationId);
     },
-    enabled: !!conversationId && (options.enabled ?? true),
+    enabled: !!conversationId && (options.enabled ?? true) && hostAllowed,
     retry: retryTransientRequest,
     // The shared page renders its own not-found state, and the conversation
     // route uses this query as a silent probe before reporting a miss.
