@@ -15,15 +15,23 @@ import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import { NavigationProvider } from "#/context/navigation-context";
 import ConversationView from "#/routes/conversation";
 import type { Backend } from "#/api/backend-registry/types";
-import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
+import type {
+  AppConversation,
+  RuntimeConversationInfo,
+} from "#/api/conversation-service/agent-server-conversation-service.types";
+import { ExecutionStatus } from "#/types/agent-server/core";
 import { getCloudSharedConversation } from "#/api/cloud/shared-conversation-service.api";
+import { fetchAutomationRunsBackend } from "#/api/discovery/automation-runs-backend.api";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 
 // Mock the underlying service the conversation queries depend on.
 vi.mock(
   "#/api/conversation-service/agent-server-conversation-service.api",
   () => ({
-    default: { batchGetAppConversations: vi.fn() },
+    default: {
+      batchGetAppConversations: vi.fn(),
+      getRuntimeConversation: vi.fn(),
+    },
   }),
 );
 
@@ -69,6 +77,10 @@ vi.mock("#/api/cloud/shared-conversation-service.api", () => ({
   getCloudSharedConversation: vi.fn(),
   searchCloudSharedEvents: vi.fn(),
 }));
+// Mock the discovery document the local automation-runs fallback reads.
+vi.mock("#/api/discovery/automation-runs-backend.api", () => ({
+  fetchAutomationRunsBackend: vi.fn(),
+}));
 vi.mock("#/utils/custom-toast-handlers", async (importOriginal) => ({
   ...(await importOriginal<typeof import("#/utils/custom-toast-handlers")>()),
   displayErrorToast: vi.fn(),
@@ -91,6 +103,8 @@ const cloudBackend: Backend = {
 };
 
 const CLOUD_CONVERSATION_ID = "conv-cloud";
+const RUN_CONVERSATION_ID = "conv-run";
+const RUNS_BACKEND_URL = "https://oh.example:8445";
 
 function makeConversation(id: string): AppConversation {
   return {
@@ -157,6 +171,18 @@ function makeSharedConversation(id: string): SharedConversation {
   };
 }
 
+function makeRuntimeConversation(id: string): RuntimeConversationInfo {
+  return {
+    id,
+    title: "Nightly review",
+    metrics: null,
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
+    status: ExecutionStatus.IDLE,
+    stats: { usage_to_metrics: {} },
+  };
+}
+
 // Render the route inside a router so the fallback's navigation lands on
 // observable destinations.
 function renderConversationRoute(conversationId: string) {
@@ -200,6 +226,8 @@ beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
   vi.mocked(getCloudSharedConversation).mockReset();
+  vi.mocked(fetchAutomationRunsBackend).mockReset();
+  vi.mocked(fetchAutomationRunsBackend).mockResolvedValue(null);
   vi.mocked(displayErrorToast).mockReset();
   vi.mocked(
     AgentServerConversationService.batchGetAppConversations,
@@ -207,6 +235,7 @@ beforeEach(() => {
   vi.mocked(
     AgentServerConversationService.batchGetAppConversations,
   ).mockResolvedValue([makeConversation(CLOUD_CONVERSATION_ID)]);
+  vi.mocked(AgentServerConversationService.getRuntimeConversation).mockReset();
   setRegisteredBackends([localBackend, cloudBackend]);
 });
 
@@ -288,6 +317,58 @@ describe("conversation route — shared read-only fallback", () => {
     // Assert
     expect(await screen.findByTestId("conversations-home")).toBeInTheDocument();
     expect(getCloudSharedConversation).not.toHaveBeenCalled();
+    expect(displayErrorToast).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("conversation route — automation runs read-only fallback", () => {
+  it("opens a run transcript read-only from the runs backend when the local owner lookup misses", async () => {
+    // Arrange — the local owner lookup misses, and the deployment reports an
+    // automation runs backend that holds the conversation.
+    setActiveSelection({ backendId: localBackend.id });
+    vi.mocked(
+      AgentServerConversationService.batchGetAppConversations,
+    ).mockResolvedValue([null]);
+    vi.mocked(fetchAutomationRunsBackend).mockResolvedValue({
+      name: "automation-runs",
+      role: "automations",
+      url: RUNS_BACKEND_URL,
+      healthy: true,
+    });
+    vi.mocked(
+      AgentServerConversationService.getRuntimeConversation,
+    ).mockResolvedValue(makeRuntimeConversation(RUN_CONVERSATION_ID));
+
+    // Act
+    renderConversationRoute(RUN_CONVERSATION_ID);
+
+    // Assert
+    expect(
+      await screen.findByTestId("shared-conversation-view"),
+    ).toBeInTheDocument();
+    expect(
+      AgentServerConversationService.getRuntimeConversation,
+    ).toHaveBeenCalledWith(
+      RUN_CONVERSATION_ID,
+      RUNS_BACKEND_URL,
+      localBackend.apiKey,
+    );
+    expect(displayErrorToast).not.toHaveBeenCalled();
+  });
+
+  it("reports the miss when the deployment reports no runs backend", async () => {
+    // Arrange
+    setActiveSelection({ backendId: localBackend.id });
+    vi.mocked(
+      AgentServerConversationService.batchGetAppConversations,
+    ).mockResolvedValue([null]);
+    vi.mocked(fetchAutomationRunsBackend).mockResolvedValue(null);
+
+    // Act
+    renderConversationRoute(RUN_CONVERSATION_ID);
+
+    // Assert
+    expect(await screen.findByTestId("conversations-home")).toBeInTheDocument();
     expect(displayErrorToast).toHaveBeenCalledTimes(1);
   });
 });

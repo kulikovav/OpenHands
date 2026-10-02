@@ -18,6 +18,7 @@ import { EventHandler } from "../wrapper/event-handler";
 
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useSharedConversation } from "#/hooks/query/use-shared-conversation";
+import { useAutomationRunsBackend } from "#/hooks/query/use-automation-runs-backend";
 import { useTaskPollingController } from "#/hooks/query/use-task-polling";
 
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
@@ -123,14 +124,48 @@ function AppContent() {
   const { data: sharedConversation, isFetched: isSharedProbeFetched } =
     useSharedConversation(conversationId, { enabled: shouldProbeShared });
 
+  // On a local deployment, a conversation the owner lookup cannot see may be
+  // an automation run's transcript. Runs execute on the automation runs
+  // backend, so probe that backend before giving up. The deployment reports it
+  // in its discovery document; start-task ids are not conversations.
+  const shouldProbeAutomationRuns =
+    ownerLookupMissed &&
+    active.backend.kind === "local" &&
+    !!conversationId &&
+    !conversationId.startsWith("task-");
+  const {
+    data: automationRunsBackend,
+    isFetched: isAutomationRunsBackendFetched,
+  } = useAutomationRunsBackend({ enabled: shouldProbeAutomationRuns });
+  const automationRunsHost = automationRunsBackend?.url ?? "";
+  const {
+    data: automationRunConversation,
+    isFetched: isAutomationProbeFetched,
+  } = useSharedConversation(conversationId, {
+    enabled: shouldProbeAutomationRuns && !!automationRunsHost,
+    host: automationRunsHost,
+  });
+  // The automation probe is settled when the backend list answered without a
+  // runs backend, or when the transcript read answered.
+  const automationProbeSettled =
+    !shouldProbeAutomationRuns ||
+    (isAutomationRunsBackendFetched &&
+      (!automationRunsHost || isAutomationProbeFetched));
+
   React.useEffect(() => {
     if (!ownerLookupMissed) return;
-    if (shouldProbeShared) {
-      if (!isSharedProbeFetched) return;
-      if (sharedConversation) {
-        navigate(`/shared/conversations/${conversationId}`, { replace: true });
-        return;
-      }
+    if (shouldProbeShared && !isSharedProbeFetched) return;
+    if (!automationProbeSettled) return;
+    if (shouldProbeShared && sharedConversation) {
+      navigate(`/shared/conversations/${conversationId}`, { replace: true });
+      return;
+    }
+    if (automationRunsHost && automationRunConversation) {
+      navigate(
+        `/shared/conversations/${conversationId}?host=${encodeURIComponent(automationRunsHost)}`,
+        { replace: true },
+      );
+      return;
     }
     // Clear the per-backend "last selected" slot so the next switch
     // to this backend doesn't try to revisit a stale id.
@@ -142,6 +177,9 @@ function AppContent() {
     shouldProbeShared,
     isSharedProbeFetched,
     sharedConversation,
+    automationProbeSettled,
+    automationRunsHost,
+    automationRunConversation,
     conversationId,
     navigate,
     t,
