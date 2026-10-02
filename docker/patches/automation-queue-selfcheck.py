@@ -13,7 +13,7 @@ site_packages = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else None
 if site_packages is None:
     import openhands.automation as automation
 
-    site_packages = pathlib.Path(automation.__file__).parent.parent
+    site_packages = pathlib.Path(automation.__file__).resolve().parents[2]
 
 dispatcher_path = site_packages / "openhands" / "automation" / "dispatcher.py"
 config_path = site_packages / "openhands" / "automation" / "config.py"
