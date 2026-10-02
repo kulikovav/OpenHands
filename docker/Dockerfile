@@ -143,7 +143,7 @@ RUN if [ -n "${AGENT_SERVER_SDK_GIT_REF}" ]; then \
 COPY docker/patches/automation-1.15.1-dispatcher-queue.patch /tmp/bleenk-patches/automation-dispatcher-queue.patch
 COPY docker/patches/automation-queue-selfcheck.py /tmp/bleenk-patches/automation-queue-selfcheck.py
 RUN python -c "import openhands.automation as m; assert m.__version__ == '${AUTOMATION_VERSION}', m.__version__" \
-    && SITE_PACKAGES="$(python -c 'import openhands.automation as m, pathlib; print(pathlib.Path(m.__file__).parent.parent)')" \
+    && SITE_PACKAGES="$(python -c 'import openhands.automation as m, pathlib; print(pathlib.Path(m.__file__).resolve().parents[2])')" \
     && patch -p1 -d "${SITE_PACKAGES}" --forward --fuzz=0 < /tmp/bleenk-patches/automation-dispatcher-queue.patch \
     && python /tmp/bleenk-patches/automation-queue-selfcheck.py "${SITE_PACKAGES}" \
     && rm -rf /tmp/bleenk-patches
