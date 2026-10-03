@@ -9,7 +9,6 @@ import {
   buildStartConversationRequest,
   buildStartPlanningConversationRequest,
   buildStartPlanningConversationRequestWithEncryptedSettings,
-  holdsRuntime,
   isRuntimeHosted,
   toConversationPage,
 } from "./agent-server-adapter";
@@ -810,7 +809,7 @@ describe("buildStartConversationRequest — agentProfileId path", () => {
   });
 });
 
-describe("runtime ownership predicates", () => {
+describe("runtime predicates", () => {
   it("isRuntimeHosted treats a missing runtime as servable only when resumable", () => {
     // The badge test: a missing runtime that cannot resume is MISSING.
     expect(
@@ -829,25 +828,18 @@ describe("runtime ownership predicates", () => {
     expect(isRuntimeHosted({ runtime_info: null })).toBe(true);
   });
 
-  it("holdsRuntime demands a positively owned runtime", () => {
+  it("does not read a runtime as owned from runtime_info", () => {
+    // A deployment whose servers share a conversation store reports the
+    // runtime as available on every server, because a shared-store
+    // conversation is resumable anywhere. Ownership is therefore decided by
+    // the transcript read (`canServeTranscriptOn`), never by this field.
     expect(
-      holdsRuntime({ runtime_info: { runtime_status: "available" } }),
+      isRuntimeHosted({ runtime_info: { runtime_status: "available" } }),
     ).toBe(true);
-    expect(holdsRuntime({ runtime_info: { runtime_status: "starting" } })).toBe(
-      true,
-    );
-    // A peer that merely catalogues a shared conversation reports missing.
-    expect(holdsRuntime({ runtime_info: { runtime_status: "missing" } })).toBe(
-      false,
-    );
-    // ownership_lost means the lease moved to another server: evidence against
-    // ownership, not for it.
     expect(
-      holdsRuntime({ runtime_info: { runtime_status: "ownership_lost" } }),
-    ).toBe(false);
-    expect(holdsRuntime({ runtime_info: { runtime_status: "error" } })).toBe(
-      false,
-    );
-    expect(holdsRuntime({})).toBe(false);
+      isRuntimeHosted({
+        runtime_info: { runtime_status: "available", can_resume: true },
+      }),
+    ).toBe(true);
   });
 });
