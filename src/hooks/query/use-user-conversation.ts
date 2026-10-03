@@ -19,6 +19,7 @@ import { retryTransientRequest } from "#/utils/transient-error-retry";
 import type { ResolvedActiveBackend } from "#/api/backend-registry/types";
 import { getActiveBackend } from "#/api/backend-registry/active-store";
 import { CONVERSATION_QUERY_KEYS } from "./query-keys";
+import { useConversationOwnerBackend } from "./use-conversation-owner-backend";
 
 const FIVE_MINUTES = 1000 * 60 * 5;
 const FIFTEEN_MINUTES = 1000 * 60 * 15;
@@ -35,13 +36,16 @@ type RefetchInterval = (
 function userConversationQueryOptions(
   cid: string | null,
   active: ResolvedActiveBackend,
+  ownerUrl = "",
 ) {
   return {
-    queryKey: CONVERSATION_QUERY_KEYS.detail(
-      cid,
-      active.backend.id,
-      active.orgId,
-    ),
+    // The owner belongs in the key too: the entry it produces points
+    // `conversation_url` at a different server, so it must not be served from
+    // the cache entry the active backend produced.
+    queryKey: [
+      ...CONVERSATION_QUERY_KEYS.detail(cid, active.backend.id, active.orgId),
+      ownerUrl,
+    ],
     queryFn: async ({
       client,
       queryKey,
@@ -60,6 +64,17 @@ function userConversationQueryOptions(
         cid.startsWith(CONVERSATION_LAUNCH_PREFIX)
       )
         return null;
+
+      // A conversation the active backend does not hold is read from the server
+      // that does, and the returned entry is built against that server, so
+      // history, the event socket, and every send address the backend that
+      // actually owns the conversation.
+      if (ownerUrl) {
+        return AgentServerConversationService.getAppConversationOn(
+          cid,
+          ownerUrl,
+        );
+      }
 
       // Use the V1 batch API endpoint to get a single conversation
       const results =
@@ -143,6 +158,14 @@ export const useUserConversation = (
   const backendChanged = origin.current.backendId !== active.backend.id;
   const hasConversationScope =
     active.backend.kind !== "cloud" || !!active.orgId;
+  const isTaskId = !!cid && cid.startsWith("task-");
+
+  // Which server of the deployment holds this conversation. Null when the
+  // active backend already does, so the single-server path is untouched.
+  const { data: ownerBackend } = useConversationOwnerBackend(cid, {
+    enabled: !!cid && !isTaskId && !backendChanged,
+  });
+  const ownerUrl = ownerBackend?.url ?? "";
 
   return useQuery({
     // Include the active backend identity so each (backend, org) pair
@@ -152,7 +175,7 @@ export const useUserConversation = (
     // shared cid key, which then makes the conversation route toast
     // "conversation not available or no permission" until the user
     // hard-refreshes the page. Mirrors `usePaginatedConversations`.
-    ...userConversationQueryOptions(cid, active),
+    ...userConversationQueryOptions(cid, active, ownerUrl),
     enabled: !!cid && !isPendingId && !backendChanged && hasConversationScope,
     // Freshness while it matters is already covered by `refetchInterval`
     // above. Refetching on every window focus too means every open
