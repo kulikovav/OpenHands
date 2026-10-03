@@ -87,6 +87,17 @@ const DEFAULT_CONVERSATION_TIMESTAMP = "1970-01-01T00:00:00.000Z";
 // machine or the packaged desktop app, where uvx may still be warming caches)
 // can exceed the client's 60s default timeout.
 const CREATE_CONVERSATION_TIMEOUT_MS = 5 * 60 * 1000;
+
+/**
+ * How many conversations one peer list read asks for.
+ *
+ * 100 is the agent-server's own ceiling for a search page, so this is the most
+ * one request can return. A peer holding more than that contributes only its
+ * 100 most recently updated conversations; raising the ceiling needs paging
+ * through the peer's cursor, which is not worth it while a slot or runs server
+ * holds tens of conversations.
+ */
+const PEER_CONVERSATION_LIST_LIMIT = 100;
 const INVALID_CONVERSATION_RESPONSE_MESSAGE =
   "Unable to load conversations because the selected agent server returned " +
   "data this UI does not understand. Check the backend URL/session key and " +
@@ -1004,6 +1015,39 @@ class AgentServerConversationService {
     });
 
     return toConversationPage(requireConversationSearchPage(data));
+  }
+
+  /**
+   * List conversations from one specific deployment backend.
+   *
+   * A deployment's agent servers each build their conversation catalog once at
+   * start and extend it only with the conversations they create themselves, so
+   * a conversation an automation run created on the runs server stays absent
+   * from the ingress list until the ingress restarts. Reading each discovered
+   * peer's list and merging it is what lets one backend show the whole
+   * deployment.
+   *
+   * The returned entries carry `source_backend_url`, which marks them as owned
+   * elsewhere so no mutation is offered for them. Read-only by construction:
+   * this method only lists.
+   */
+  static async searchConversationsOn(
+    conversationUrl: string,
+    limit: number = PEER_CONVERSATION_LIST_LIMIT,
+  ): Promise<AppConversation[]> {
+    const data = await new ConversationClient(
+      getAgentServerClientOptions({ conversationUrl }),
+    ).searchConversations({
+      limit,
+      sort_order: ConversationSortOrder.UPDATED_AT_DESC,
+    });
+
+    return toConversationPage(requireConversationSearchPage(data)).items.map(
+      (conversation) => ({
+        ...conversation,
+        source_backend_url: conversationUrl,
+      }),
+    );
   }
 
   static async deleteConversation(conversationId: string): Promise<void> {
