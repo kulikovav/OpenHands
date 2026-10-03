@@ -926,6 +926,7 @@ export function ConversationPanel({
             }}
             executionStatus={conversation.execution_status}
             sandboxStatus={conversation.sandbox_status}
+            runtimeStatus={conversation.runtime_status}
             lastUpdatedAt={conversation.updated_at}
             createdAt={conversation.created_at}
             workspaceWorkingDir={
@@ -960,6 +961,7 @@ export function ConversationPanel({
               title={conversation.title ?? ""}
               executionStatus={conversation.execution_status}
               sandboxStatus={conversation.sandbox_status}
+              runtimeStatus={conversation.runtime_status}
               selectedRepository={{
                 selected_repository: conversation.selected_repository,
                 selected_branch: conversation.selected_branch,
@@ -1027,6 +1029,7 @@ export function ConversationPanel({
               createdAt={conversation.created_at}
               executionStatus={conversation.execution_status}
               sandboxStatus={conversation.sandbox_status}
+              runtimeStatus={conversation.runtime_status}
               conversationId={conversation.id}
               contextMenuOpen={openContextMenuId === conversation.id}
               onContextMenuToggle={(isOpen) =>
