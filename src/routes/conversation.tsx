@@ -26,6 +26,7 @@ import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useIsAuthed } from "#/hooks/query/use-is-authed";
 import { ConversationMain } from "#/components/features/conversation/conversation-main/conversation-main";
 import { ConversationMobilePanelPage } from "#/components/features/conversation/conversation-main/conversation-mobile-panel-page";
+import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { ConversationOverviewDrawerProvider } from "#/components/features/conversation/conversation-overview-drawer-context";
 
 import { WebSocketProviderWrapper } from "#/contexts/websocket-provider-wrapper";
@@ -125,25 +126,19 @@ function AppContent() {
   const { data: sharedConversation, isFetched: isSharedProbeFetched } =
     useSharedConversation(conversationId, { enabled: shouldProbeShared });
 
-  // On a local deployment, the active backend can catalogue a conversation it
-  // does not run: the deployment's servers share one conversation store, while
-  // the runtime stays on the server that owns it. Two symptoms identify that
-  // state, and both resolve the same way — find the peer that owns the runtime
-  // and read its transcript there:
-  //
-  //  - the owner lookup missed entirely (an automation run's conversation, on a
-  //    peer that the shared store does not publish to this backend), or
-  //  - the lookup succeeded but the backend reports the runtime as `missing`,
-  //    which means another server of the deployment owns it.
+  // On a local deployment, the active backend can list a conversation whose
+  // event log it does not hold: the deployment's servers share one conversation
+  // store, so the catalog read answers everywhere, while the transcript read
+  // (`events/search`) answers only on the server that owns the conversation.
+  // Reading it here fails with `404 Conversation not found`, so the peer that
+  // can serve it is resolved first and the transcript is read there.
   //
   // Start-task ids are not conversations.
-  const activeBackendCannotHost = conversation?.runtime_status === "missing";
   const shouldResolveForeignOwner =
     active.backend.kind === "local" &&
     !!conversationId &&
     !conversationId.startsWith("task-") &&
-    !backendChanged &&
-    (ownerLookupMissed || activeBackendCannotHost);
+    !backendChanged;
 
   const { data: ownerBackend, isFetched: isOwnerBackendFetched } =
     useConversationOwnerBackend(conversationId, {
@@ -199,26 +194,19 @@ function AppContent() {
     active.orgId,
   ]);
 
-  // The lookup succeeded but the runtime lives on another backend: hand the
-  // transcript to the owning peer. This waits for the transcript read to
-  // succeed, so a peer that cannot serve the read leaves the user on the
-  // conversation view — which may still be resumable in place — instead of
-  // landing on a not-found page. A miss here is deliberately silent.
+  // The active backend lists the conversation but does not hold its transcript:
+  // hand the read to the peer that does. This waits for the transcript read to
+  // succeed, so a peer that cannot serve it leaves the user on the conversation
+  // view instead of landing on a not-found page. A miss here is silent — the
+  // first effect owns the "not found" report.
   React.useEffect(() => {
-    if (!activeBackendCannotHost) return;
-    if (!foreignConversation) return;
     if (!ownerHost) return;
+    if (!foreignConversation) return;
     navigate(
       `/shared/conversations/${conversationId}?host=${encodeURIComponent(ownerHost)}`,
       { replace: true },
     );
-  }, [
-    activeBackendCannotHost,
-    foreignConversation,
-    ownerHost,
-    conversationId,
-    navigate,
-  ]);
+  }, [ownerHost, foreignConversation, conversationId, navigate]);
 
   // Remember the most recently selected conversation for the current
   // (backend, org) so flipping back to this backend later restores the
@@ -252,6 +240,33 @@ function AppContent() {
   // before they can issue the request.
   if (backendChanged) {
     return null;
+  }
+
+  // The conversation subtree loads history, metrics, and the event socket
+  // against the active backend. Mounting it before the owning peer is known
+  // would address a server that does not hold this conversation and surface a
+  // 404 the redirect is about to fix.
+  if (shouldResolveForeignOwner && !isOwnerBackendFetched) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <LoadingSpinner size="large" />
+      </div>
+    );
+  }
+  // A peer holds the transcript: hold the subtree until the redirect lands.
+  // When the read from that peer fails there is no redirect to wait for, so the
+  // conversation renders here instead of leaving the route empty.
+  if (ownerHost) {
+    if (!isForeignProbeFetched) {
+      return (
+        <div className="flex h-full items-center justify-center">
+          <LoadingSpinner size="large" />
+        </div>
+      );
+    }
+    if (foreignConversation) {
+      return null;
+    }
   }
 
   const content = (
