@@ -10,6 +10,7 @@ import {
   ProfilesClient,
   VSCodeClient,
 } from "@openhands/typescript-client/clients";
+import { RemoteEventsList } from "@openhands/typescript-client/events/remote-events-list";
 import { v4 as uuidv4 } from "uuid";
 import { AgentKind, Provider } from "#/types/settings";
 import type { ConversationRuntimeContext } from "#/api/conversation-file-upload.api";
@@ -44,13 +45,13 @@ import {
   emptyHooksResponse,
   fetchBackendExecutionRuntime,
   getDefaultConversationTitle,
-  holdsRuntime,
   toAppConversation,
   toConversationPage,
 } from "../agent-server-adapter";
 import { GetVSCodeUrlResponse } from "../open-hands.types";
 import {
   getAgentServerClientOptions,
+  getAgentServerHttpClientOptions,
   NoBackendAvailableError,
 } from "../agent-server-client-options";
 import SettingsService from "../settings-service/settings-service.api";
@@ -885,24 +886,35 @@ class AgentServerConversationService {
   }
 
   /**
-   * Report whether the agent-server at `conversationUrl` positively owns the
-   * live runtime of a conversation.
+   * Report whether the agent-server at `conversationUrl` can serve a
+   * conversation's transcript.
    *
-   * A deployment's servers share one conversation store, so a catalog read
-   * succeeds on every one of them. Ownership is therefore not "can this server
-   * read the conversation" but "does this server hold its runtime". The read
-   * is read-only by construction: it never starts, resumes, or mutates the
-   * conversation.
+   * The servers of one deployment share a conversation store, so neither of the
+   * cheap reads identifies the owner: the catalog read
+   * (`GET /api/conversations/{id}`) answers 200 on every server, and
+   * `runtime_info.runtime_status` reports `available` on every server because a
+   * shared-store conversation is resumable anywhere. Neither field names the
+   * server that holds the event log.
+   *
+   * The event search is the read the transcript view actually performs, so
+   * asking it is the only reliable test: only the owning server answers it, and
+   * every other server answers 404. The read is read-only by construction — a
+   * single-event search never starts, resumes, or mutates the conversation.
    */
-  static async ownsRuntimeOn(
+  static async canServeTranscriptOn(
     conversationId: string,
     conversationUrl: string | null | undefined,
     sessionApiKey?: string | null,
   ): Promise<boolean> {
-    const response = await new ConversationClient(
-      getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
-    ).getConversation<DirectConversationInfo>(conversationId);
-    return holdsRuntime(requireDirectConversationInfo(response));
+    try {
+      await new RemoteEventsList(
+        getAgentServerHttpClientOptions({ conversationUrl, sessionApiKey }),
+        conversationId,
+      ).search({ limit: 1 });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**

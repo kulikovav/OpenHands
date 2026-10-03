@@ -364,6 +364,12 @@ export function toConversationUrl(conversationId: string): string {
  * deliberately permissive: an entry that reports no runtime at all (an older
  * server, or a cloud wire shape) is treated as servable, because the client
  * cannot prove otherwise and must not hide a conversation it can open.
+ *
+ * This is NOT an ownership test. A deployment whose servers share a
+ * conversation store reports `available` here on every server, because a
+ * shared-store conversation is resumable anywhere. Use
+ * `AgentServerConversationService.canServeTranscriptOn` to find the server that
+ * actually holds a conversation's transcript.
  */
 export function isRuntimeHosted(info: {
   runtime_info?: {
@@ -374,26 +380,6 @@ export function isRuntimeHosted(info: {
   return !(
     info.runtime_info?.runtime_status === "missing" &&
     !info.runtime_info.can_resume
-  );
-}
-
-/**
- * Whether a catalog entry's backend positively owns the conversation's live
- * runtime.
- *
- * Stricter than {@link isRuntimeHosted}, and used only to resolve which peer
- * of a deployment owns a conversation. `ownership_lost` is excluded on
- * purpose: it means this server held the conversation and the lease moved to
- * another server, so it is evidence against ownership, not for it. A peer that
- * merely catalogues a shared conversation reports `missing` and is excluded
- * too.
- */
-export function holdsRuntime(info: {
-  runtime_info?: { runtime_status?: string | null } | null;
-}): boolean {
-  return (
-    info.runtime_info?.runtime_status === "available" ||
-    info.runtime_info?.runtime_status === "starting"
   );
 }
 
