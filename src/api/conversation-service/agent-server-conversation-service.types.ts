@@ -202,6 +202,21 @@ export interface AppConversation {
    * on the cloud wire shape.
    */
   runtime_status?: string | null;
+  /**
+   * Client-side only — never round-tripped to the agent-server or cloud.
+   *
+   * The peer backend a merged list read this conversation from, set only when
+   * the active backend's own list does not carry it. A deployment's agent
+   * servers each build their conversation catalog once at start and extend it
+   * only with what they create themselves, so a conversation an automation run
+   * created on the runs server is absent from the ingress list. Merging each
+   * peer's list is what shows the whole deployment from one backend.
+   *
+   * A conversation with this set is owned by another backend: every mutation
+   * must stay disabled for it, because the request would go to a backend that
+   * does not hold the conversation.
+   */
+  source_backend_url?: string | null;
   conversation_url: string | null;
   session_api_key: string | null;
   sandbox_id: string | null;

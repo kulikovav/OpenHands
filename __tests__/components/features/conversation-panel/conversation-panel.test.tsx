@@ -40,6 +40,13 @@ vi.mock("#/hooks/mutation/use-unified-stop-conversation", () => ({
   }),
 }));
 
+// Conversations the deployment's peer backends list. The panel merges these
+// into its own list, and marks them as owned elsewhere.
+const mockPeerConversations = vi.fn<() => AppConversation[]>(() => []);
+vi.mock("#/hooks/query/use-peer-conversations", () => ({
+  usePeerConversations: () => mockPeerConversations(),
+}));
+
 // Helper to create complete AppConversation mock data
 // Default timestamps use "now" so conversations are considered recent and
 // rendered eagerly by the panel.  Each call produces a timestamp 1 s older
@@ -138,6 +145,8 @@ describe("ConversationPanel", () => {
     _mockConversationCounter = 0;
     usePinnedConversationsStore.setState({ pinsByBackendId: {} });
     useArchivedConversationsStore.setState({ archivesByBackendId: {} });
+    // No peer conversations unless a test asks for them.
+    mockPeerConversations.mockReturnValue([]);
     useConversationPanelPreferencesStore.setState({
       showOlderConversations: true,
       olderConversationCutoff: "7d",
@@ -2953,6 +2962,89 @@ describe("ConversationPanel", () => {
         ).toBeNull();
       });
       expect(summary).toHaveTextContent("SIDEBAR$CONVERSATIONS");
+    });
+  });
+
+  describe("peer backend conversations", () => {
+    const PEER_BACKEND_URL = "https://oh.example:8445";
+
+    const renderPanel = () => renderWithProviders(<ConversationPanel />);
+
+    /** The card that renders `title`, whichever position it sorts into. */
+    const cardForTitle = async (title: string): Promise<HTMLElement> => {
+      const titleNode = await screen.findByText(title);
+      const card = titleNode.closest('[data-testid="conversation-card"]');
+      expect(card).not.toBeNull();
+      return card as HTMLElement;
+    };
+
+    it("lists a conversation only another backend carries", async () => {
+      // Arrange — an automation run's conversation. Each agent server builds its
+      // catalog once at start, so this one is absent from the active backend's
+      // list and only a peer reports it.
+      mockPeerConversations.mockReturnValue([
+        createMockConversation({
+          id: "run-1",
+          title: "Automation Run",
+          source_backend_url: PEER_BACKEND_URL,
+        }),
+      ]);
+
+      // Act
+      renderPanel();
+
+      // Assert — the sidebar shows the whole deployment, not one backend.
+      expect(await screen.findByText("Automation Run")).toBeInTheDocument();
+    });
+
+    it("offers no mutation for a conversation another backend owns", async () => {
+      // A mutation would be sent to the active backend, which does not hold the
+      // conversation, so the row must offer navigation only.
+      const user = userEvent.setup();
+      mockPeerConversations.mockReturnValue([
+        createMockConversation({
+          id: "run-1",
+          title: "Automation Run",
+          source_backend_url: PEER_BACKEND_URL,
+        }),
+      ]);
+
+      renderPanel();
+
+      // Act
+      const card = await cardForTitle("Automation Run");
+
+      // Assert — the card renders no action affordance at all. The ellipsis is
+      // only drawn when the card has an action to offer, so its absence is what
+      // proves no mutation can be reached for a conversation owned elsewhere.
+      expect(within(card).queryByTestId("ellipsis-button")).toBeNull();
+      expect(
+        within(card).queryByTestId("conversation-card-hover-actions"),
+      ).toBeNull();
+    });
+
+    it("keeps the local copy, and its mutations, when both backends list a conversation", async () => {
+      // Arrange — the active backend lists id "1"; a peer reports the same id.
+      mockPeerConversations.mockReturnValue([
+        createMockConversation({
+          id: "1",
+          title: "Peer Copy",
+          source_backend_url: PEER_BACKEND_URL,
+        }),
+      ]);
+
+      // Act
+      renderPanel();
+
+      // Assert — one card, and it is the local one, so the row still offers its
+      // mutations.
+      expect(await screen.findByText("Conversation 1")).toBeInTheDocument();
+      expect(screen.queryByText("Peer Copy")).toBeNull();
+
+      const user = userEvent.setup();
+      const card = await cardForTitle("Conversation 1");
+      await user.click(within(card).getByTestId("ellipsis-button"));
+      expect(screen.getByTestId("delete-button")).toBeInTheDocument();
     });
   });
 });
