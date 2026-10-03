@@ -20,6 +20,7 @@ import { EventHandler } from "../wrapper/event-handler";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useSharedConversation } from "#/hooks/query/use-shared-conversation";
 import { useConversationOwnerBackend } from "#/hooks/query/use-conversation-owner-backend";
+import { SLOT_ROLE } from "#/api/discovery/discovery-backends.api";
 import { useTaskPollingController } from "#/hooks/query/use-task-polling";
 
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
@@ -146,30 +147,42 @@ function AppContent() {
     });
   const ownerHost = ownerBackend?.url ?? "";
 
-  // Reading the conversation from the owner proves it exists there, which is
-  // what turns a missed lookup into a transcript instead of a "not found".
+  // A slot is a full agent backend: the conversation read is routed to it, so
+  // the live view — history, event socket, and sends — works from here and the
+  // user keeps full control. The automation runs server is different: the bridge
+  // must never schedule a conversation agent there, so a run's transcript stays
+  // read-only.
+  const ownerIsSlot = ownerBackend?.role === SLOT_ROLE;
+  const readOnlyHost = ownerHost && !ownerIsSlot ? ownerHost : "";
+
+  // Reading the conversation from a read-only owner proves it exists there,
+  // which is what turns a missed lookup into a transcript instead of a "not
+  // found".
   const { data: foreignConversation, isFetched: isForeignProbeFetched } =
     useSharedConversation(conversationId, {
-      enabled: shouldResolveForeignOwner && !!ownerHost,
-      host: ownerHost,
+      enabled: shouldResolveForeignOwner && !!readOnlyHost,
+      host: readOnlyHost,
     });
-  // The foreign probe is settled when the owner lookup answered without an
-  // owner, or when the transcript read answered.
+  // The foreign probe is settled when the owner lookup answered without a
+  // read-only owner, or when the transcript read answered.
   const foreignProbeSettled =
     !shouldResolveForeignOwner ||
-    (isOwnerBackendFetched && (!ownerHost || isForeignProbeFetched));
+    (isOwnerBackendFetched && (!readOnlyHost || isForeignProbeFetched));
 
   React.useEffect(() => {
     if (!ownerLookupMissed) return;
+    // A slot-owned conversation is not a miss: it opens live here, reading from
+    // the slot.
+    if (ownerIsSlot) return;
     if (shouldProbeShared && !isSharedProbeFetched) return;
     if (!foreignProbeSettled) return;
     if (shouldProbeShared && sharedConversation) {
       navigate(`/shared/conversations/${conversationId}`, { replace: true });
       return;
     }
-    if (ownerHost && foreignConversation) {
+    if (readOnlyHost && foreignConversation) {
       navigate(
-        `/shared/conversations/${conversationId}?host=${encodeURIComponent(ownerHost)}`,
+        `/shared/conversations/${conversationId}?host=${encodeURIComponent(readOnlyHost)}`,
         { replace: true },
       );
       return;
@@ -181,11 +194,12 @@ function AppContent() {
     navigate("/conversations");
   }, [
     ownerLookupMissed,
+    ownerIsSlot,
     shouldProbeShared,
     isSharedProbeFetched,
     sharedConversation,
     foreignProbeSettled,
-    ownerHost,
+    readOnlyHost,
     foreignConversation,
     conversationId,
     navigate,
@@ -194,19 +208,19 @@ function AppContent() {
     active.orgId,
   ]);
 
-  // The active backend lists the conversation but does not hold its transcript:
-  // hand the read to the peer that does. This waits for the transcript read to
-  // succeed, so a peer that cannot serve it leaves the user on the conversation
-  // view instead of landing on a not-found page. A miss here is silent — the
-  // first effect owns the "not found" report.
+  // The active backend does not hold the transcript and the owner is
+  // read-only: hand the read to the peer that does. This waits for the
+  // transcript read to succeed, so a peer that cannot serve it leaves the user
+  // on the conversation view instead of landing on a not-found page. A miss
+  // here is silent — the first effect owns the "not found" report.
   React.useEffect(() => {
-    if (!ownerHost) return;
+    if (!readOnlyHost) return;
     if (!foreignConversation) return;
     navigate(
-      `/shared/conversations/${conversationId}?host=${encodeURIComponent(ownerHost)}`,
+      `/shared/conversations/${conversationId}?host=${encodeURIComponent(readOnlyHost)}`,
       { replace: true },
     );
-  }, [ownerHost, foreignConversation, conversationId, navigate]);
+  }, [readOnlyHost, foreignConversation, conversationId, navigate]);
 
   // Remember the most recently selected conversation for the current
   // (backend, org) so flipping back to this backend later restores the
@@ -253,10 +267,11 @@ function AppContent() {
       </div>
     );
   }
-  // A peer holds the transcript: hold the subtree until the redirect lands.
-  // When the read from that peer fails there is no redirect to wait for, so the
-  // conversation renders here instead of leaving the route empty.
-  if (ownerHost) {
+  // A read-only owner holds the transcript: hold the subtree until the redirect
+  // lands. When the read from that owner fails there is no redirect to wait
+  // for, so the conversation renders here instead of leaving the route empty.
+  // A slot owner needs no hold — the live view reads from the slot directly.
+  if (readOnlyHost) {
     if (!isForeignProbeFetched) {
       return (
         <div className="flex h-full items-center justify-center">

@@ -341,18 +341,28 @@ function requireDirectConversationItems(
 }
 
 /**
- * Validates a `GET /api/conversations?ids=...` response. The agent server
- * answers `null` for each id it does not have, so a `null` entry means "not
- * found" (the caller decides how to report it), not an incompatible response.
+ * Read the batch endpoint's positional reply.
+ *
+ * `GET /api/conversations?ids=…` answers one entry per requested id, and a
+ * backend whose catalog does not hold an id answers `null` in that slot. That is
+ * the normal reply from the ingress for a conversation another server of the
+ * deployment created: the store is shared but each server's catalog is built
+ * once at start. A `null` entry is therefore data, not a malformed response, and
+ * it must survive to the caller so the positions keep matching the requested
+ * ids — which is why this reader is separate from the strict list reader, where
+ * a null entry would be a genuine protocol error.
  */
-function requireDirectConversationBatch(
+export function readBatchConversationItems(
+>>>>>>> 8eb21b940 (feat(conversation): open a slot-owned conversation live from the ingress)
   items: unknown,
 ): (DirectConversationInfo | null)[] {
   if (!Array.isArray(items)) {
     throw invalidConversationResponse();
   }
   return items.map((item) =>
-    item === null ? null : requireDirectConversationInfo(item),
+    item === null || item === undefined
+      ? null
+      : requireDirectConversationInfo(item),
   );
 }
 
@@ -821,9 +831,32 @@ class AgentServerConversationService {
       getAgentServerClientOptions(),
     ).getConversations<DirectConversationInfo>(ids);
 
-    return requireDirectConversationBatch(data).map((item) =>
+    return readBatchConversationItems(data).map((item) =>
       item ? toAppConversation(item) : null,
     );
+  }
+
+  /**
+   * Read one conversation from a named backend of the deployment.
+   *
+   * The servers share a conversation store but not a catalog: each builds its
+   * catalog once at start and extends it only with what it creates itself, so a
+   * conversation another server created is absent from the active backend's
+   * reads entirely. Reading it from the server that holds it, and pointing the
+   * returned entry at that server, is what lets the live view — history, event
+   * socket, and sends — address the backend that actually owns it.
+   */
+  static async getAppConversationOn(
+    conversationId: string,
+    conversationUrl: string,
+  ): Promise<AppConversation | null> {
+    const response = await new ConversationClient(
+      getAgentServerClientOptions({ conversationUrl }),
+    ).getConversation<DirectConversationInfo>(conversationId);
+
+    return toAppConversation(requireDirectConversationInfo(response), {
+      host: conversationUrl,
+    });
   }
 
   static async updateConversationPublicFlag(
