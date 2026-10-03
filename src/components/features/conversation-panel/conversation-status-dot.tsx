@@ -13,6 +13,13 @@ interface ConversationStatusDotProps {
    */
   sandboxStatus?: SandboxStatus | null;
   /**
+   * Local runtime state. `missing` means the backend that answered does not
+   * host this conversation's runtime — in a multi-backend deployment another
+   * server owns it. It overrides the archive reading of a derived `MISSING`
+   * sandbox status, because a conversation that runs elsewhere is not archived.
+   */
+  runtimeStatus?: string | null;
+  /**
    * Wrap the dot in a tooltip showing the human-readable status label.
    * Disable this when the dot is already nested inside a larger tooltip
    * (e.g. the collapsed-sidebar conversation preview) so the smaller
@@ -21,7 +28,14 @@ interface ConversationStatusDotProps {
   showTooltip?: boolean;
 }
 
-type Visual = "check" | "working" | "active" | "paused" | "error" | "unknown";
+type Visual =
+  | "check"
+  | "working"
+  | "active"
+  | "paused"
+  | "error"
+  | "unknown"
+  | "remote";
 
 const visualFor = (status: ExecutionStatus | null | undefined): Visual => {
   switch (status) {
@@ -54,6 +68,8 @@ const labelKeyFor = (visual: Visual, isArchived?: boolean): string => {
       return "COMMON$PAUSED";
     case "error":
       return "COMMON$ERROR";
+    case "remote":
+      return "BACKEND$KIND_REMOTE";
     default:
       return "COMMON$STOPPED";
   }
@@ -104,6 +120,15 @@ function renderIndicator(visual: Visual) {
           className="w-1.5 h-1.5 rounded-full bg-status-error"
         />
       );
+    case "remote":
+      // A hollow ring: the conversation exists, but its runtime is on another
+      // backend, so the state here is unknown until you open it.
+      return (
+        <span
+          data-testid="conversation-status-remote"
+          className="w-2 h-2 rounded-full border border-muted bg-transparent"
+        />
+      );
     default:
       return (
         <span
@@ -117,16 +142,22 @@ function renderIndicator(visual: Visual) {
 export function ConversationStatusDot({
   executionStatus,
   sandboxStatus,
+  runtimeStatus,
   showTooltip = true,
 }: ConversationStatusDotProps) {
   const { t } = useTranslation("openhands");
 
+  // A runtime on another backend outranks every sandbox reading: the
+  // conversation runs elsewhere, so nothing about this backend's sandbox or
+  // archive state describes it. Otherwise:
   // sandbox_status === "MISSING" → show archived (gray) dot
   // sandbox_status === "ERROR"   → show error (red) dot
-  // Otherwise fall through to the execution-status visual.
-  const isArchived = sandboxStatus === "MISSING";
-  const effectiveVisual: Visual =
-    sandboxStatus === "ERROR"
+  // and fall through to the execution-status visual.
+  const runsOnAnotherBackend = runtimeStatus === "missing";
+  const isArchived = !runsOnAnotherBackend && sandboxStatus === "MISSING";
+  const effectiveVisual: Visual = runsOnAnotherBackend
+    ? "remote"
+    : sandboxStatus === "ERROR"
       ? "error"
       : isArchived
         ? "paused"

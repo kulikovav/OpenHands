@@ -8,13 +8,15 @@ import {
   getEffectiveLocalBackend,
 } from "#/api/backend-registry/active-store";
 import { getCloudSharedConversation } from "#/api/cloud/shared-conversation-service.api";
-import { useAutomationRunsBackend } from "#/hooks/query/use-automation-runs-backend";
+import { isDiscoveredPeerHost } from "#/api/discovery/discovery-backends.api";
+import { useDiscoveredBackends } from "#/hooks/query/use-discovered-backends";
 
 interface UseSharedConversationOptions {
   enabled?: boolean;
   /**
    * Root of the deployment that owns the conversation, for a read-only
-   * transcript of an automation run. An empty value keeps the active backend.
+   * transcript of a conversation that runs on another backend. An empty value
+   * keeps the active backend.
    */
   host?: string;
 }
@@ -34,14 +36,15 @@ export const useSharedConversation = (
   options: UseSharedConversationOptions = {},
 ) => {
   const requestedHost = options.host?.trim() ?? "";
-  const { data: runsBackend, isFetched: isRunsBackendFetched } =
-    useAutomationRunsBackend({ enabled: !!requestedHost });
+  const { data: peers, isFetched: peersFetched } = useDiscoveredBackends({
+    enabled: !!requestedHost,
+  });
   // A host is honoured only when the deployment's own discovery document
-  // reports it as the automation runs backend. Any other value would send the
-  // session key to an address the link chose.
+  // reports it as one of its backends. Any other value would send the session
+  // key to an address the link chose.
   const hostAllowed =
     !requestedHost ||
-    (isRunsBackendFetched && runsBackend?.url === requestedHost);
+    (peersFetched && isDiscoveredPeerHost(requestedHost, peers ?? []));
   const host = hostAllowed ? requestedHost : "";
   return useQuery<SharedConversationView | null>({
     queryKey: ["shared-conversation", conversationId, host],
@@ -50,9 +53,9 @@ export const useSharedConversation = (
         throw new Error("Conversation ID is required");
       }
       if (host) {
-        // An automation run's conversation lives on the runs backend, which
-        // serves the agent-server REST API. The read is read-only by
-        // construction: this hook never starts or mutates the conversation.
+        // The owning backend serves the agent-server REST API. The read is
+        // read-only by construction: this hook never starts or mutates the
+        // conversation.
         const apiKey =
           getEffectiveLocalBackend()?.apiKey ??
           getAgentServerSessionApiKey() ??

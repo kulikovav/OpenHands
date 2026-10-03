@@ -9,6 +9,8 @@ import {
   buildStartConversationRequest,
   buildStartPlanningConversationRequest,
   buildStartPlanningConversationRequestWithEncryptedSettings,
+  holdsRuntime,
+  isRuntimeHosted,
   toConversationPage,
 } from "./agent-server-adapter";
 import SettingsService from "./settings-service/settings-service.api";
@@ -788,5 +790,47 @@ describe("buildStartConversationRequest — agentProfileId path", () => {
     });
 
     expect(payload.secrets_encrypted).toBeUndefined();
+  });
+});
+
+describe("runtime ownership predicates", () => {
+  it("isRuntimeHosted treats a missing runtime as servable only when resumable", () => {
+    // The badge test: a missing runtime that cannot resume is MISSING.
+    expect(
+      isRuntimeHosted({
+        runtime_info: { runtime_status: "missing", can_resume: false },
+      }),
+    ).toBe(false);
+    expect(
+      isRuntimeHosted({
+        runtime_info: { runtime_status: "missing", can_resume: true },
+      }),
+    ).toBe(true);
+    // An entry that reports no runtime at all must not be hidden: the client
+    // cannot prove the backend is unable to serve it.
+    expect(isRuntimeHosted({})).toBe(true);
+    expect(isRuntimeHosted({ runtime_info: null })).toBe(true);
+  });
+
+  it("holdsRuntime demands a positively owned runtime", () => {
+    expect(
+      holdsRuntime({ runtime_info: { runtime_status: "available" } }),
+    ).toBe(true);
+    expect(holdsRuntime({ runtime_info: { runtime_status: "starting" } })).toBe(
+      true,
+    );
+    // A peer that merely catalogues a shared conversation reports missing.
+    expect(holdsRuntime({ runtime_info: { runtime_status: "missing" } })).toBe(
+      false,
+    );
+    // ownership_lost means the lease moved to another server: evidence against
+    // ownership, not for it.
+    expect(
+      holdsRuntime({ runtime_info: { runtime_status: "ownership_lost" } }),
+    ).toBe(false);
+    expect(holdsRuntime({ runtime_info: { runtime_status: "error" } })).toBe(
+      false,
+    );
+    expect(holdsRuntime({})).toBe(false);
   });
 });

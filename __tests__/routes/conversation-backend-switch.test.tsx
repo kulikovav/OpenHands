@@ -21,7 +21,8 @@ import type {
 } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { getCloudSharedConversation } from "#/api/cloud/shared-conversation-service.api";
-import { fetchAutomationRunsBackend } from "#/api/discovery/automation-runs-backend.api";
+import { fetchDiscoveryBackends } from "#/api/discovery/discovery-backends.api";
+import { getAgentServerBaseUrl } from "#/api/agent-server-config";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 
 // Mock the underlying service the conversation queries depend on.
@@ -31,6 +32,7 @@ vi.mock(
     default: {
       batchGetAppConversations: vi.fn(),
       getRuntimeConversation: vi.fn(),
+      ownsRuntimeOn: vi.fn(),
     },
   }),
 );
@@ -77,9 +79,13 @@ vi.mock("#/api/cloud/shared-conversation-service.api", () => ({
   getCloudSharedConversation: vi.fn(),
   searchCloudSharedEvents: vi.fn(),
 }));
-// Mock the discovery document the local automation-runs fallback reads.
-vi.mock("#/api/discovery/automation-runs-backend.api", () => ({
-  fetchAutomationRunsBackend: vi.fn(),
+// Mock the discovery document the foreign-owner fallback reads. Only the fetch
+// is stubbed, so the real peer selection under test stays in place.
+vi.mock("#/api/discovery/discovery-backends.api", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("#/api/discovery/discovery-backends.api")
+  >()),
+  fetchDiscoveryBackends: vi.fn(),
 }));
 vi.mock("#/utils/custom-toast-handlers", async (importOriginal) => ({
   ...(await importOriginal<typeof import("#/utils/custom-toast-handlers")>()),
@@ -104,9 +110,32 @@ const cloudBackend: Backend = {
 
 const CLOUD_CONVERSATION_ID = "conv-cloud";
 const RUN_CONVERSATION_ID = "conv-run";
+const SLOT_CONVERSATION_ID = "conv-slot";
 const RUNS_BACKEND_URL = "https://oh.example:8445";
+const SLOT_BACKEND_URL = "https://oh.example:8443";
 
-function makeConversation(id: string): AppConversation {
+/**
+ * A discovery document in the shape the deployment's discovery service
+ * publishes: the ingress first, then each peer.
+ */
+function makeDiscoveryDocument(
+  peers: Array<{ name: string; role: string; url: string }>,
+) {
+  return [
+    {
+      name: "automations",
+      role: "ingress",
+      url: getAgentServerBaseUrl() ?? "",
+      healthy: true,
+    },
+    ...peers.map((peer) => ({ ...peer, healthy: true })),
+  ];
+}
+
+function makeConversation(
+  id: string,
+  runtimeStatus: string | null = null,
+): AppConversation {
   return {
     id,
     created_by_user_id: null,
@@ -122,6 +151,7 @@ function makeConversation(id: string): AppConversation {
     updated_at: "2024-01-01T00:00:00Z",
     execution_status: null,
     sandbox_status: null,
+    runtime_status: runtimeStatus,
     conversation_url: "https://sandbox.example.com/api",
     session_api_key: null,
     sandbox_id: null,
@@ -226,8 +256,8 @@ beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
   vi.mocked(getCloudSharedConversation).mockReset();
-  vi.mocked(fetchAutomationRunsBackend).mockReset();
-  vi.mocked(fetchAutomationRunsBackend).mockResolvedValue(null);
+  vi.mocked(fetchDiscoveryBackends).mockReset();
+  vi.mocked(fetchDiscoveryBackends).mockResolvedValue([]);
   vi.mocked(displayErrorToast).mockReset();
   vi.mocked(
     AgentServerConversationService.batchGetAppConversations,
@@ -236,6 +266,10 @@ beforeEach(() => {
     AgentServerConversationService.batchGetAppConversations,
   ).mockResolvedValue([makeConversation(CLOUD_CONVERSATION_ID)]);
   vi.mocked(AgentServerConversationService.getRuntimeConversation).mockReset();
+  vi.mocked(AgentServerConversationService.ownsRuntimeOn).mockReset();
+  vi.mocked(AgentServerConversationService.ownsRuntimeOn).mockResolvedValue(
+    false,
+  );
   setRegisteredBackends([localBackend, cloudBackend]);
 });
 
@@ -321,20 +355,22 @@ describe("conversation route — shared read-only fallback", () => {
   });
 });
 
-describe("conversation route — automation runs read-only fallback", () => {
+describe("conversation route — foreign owner read-only fallback", () => {
   it("opens a run transcript read-only from the runs backend when the local owner lookup misses", async () => {
-    // Arrange — the local owner lookup misses, and the deployment reports an
-    // automation runs backend that holds the conversation.
+    // Arrange — the local owner lookup misses, and the deployment reports a
+    // runs backend that owns the conversation's runtime.
     setActiveSelection({ backendId: localBackend.id });
     vi.mocked(
       AgentServerConversationService.batchGetAppConversations,
     ).mockResolvedValue([null]);
-    vi.mocked(fetchAutomationRunsBackend).mockResolvedValue({
-      name: "automation-runs",
-      role: "automations",
-      url: RUNS_BACKEND_URL,
-      healthy: true,
-    });
+    vi.mocked(fetchDiscoveryBackends).mockResolvedValue(
+      makeDiscoveryDocument([
+        { name: "automation-runs", role: "automations", url: RUNS_BACKEND_URL },
+      ]),
+    );
+    vi.mocked(AgentServerConversationService.ownsRuntimeOn).mockResolvedValue(
+      true,
+    );
     vi.mocked(
       AgentServerConversationService.getRuntimeConversation,
     ).mockResolvedValue(makeRuntimeConversation(RUN_CONVERSATION_ID));
@@ -346,6 +382,11 @@ describe("conversation route — automation runs read-only fallback", () => {
     expect(
       await screen.findByTestId("shared-conversation-view"),
     ).toBeInTheDocument();
+    expect(AgentServerConversationService.ownsRuntimeOn).toHaveBeenCalledWith(
+      RUN_CONVERSATION_ID,
+      RUNS_BACKEND_URL,
+      localBackend.apiKey,
+    );
     expect(
       AgentServerConversationService.getRuntimeConversation,
     ).toHaveBeenCalledWith(
@@ -356,13 +397,104 @@ describe("conversation route — automation runs read-only fallback", () => {
     expect(displayErrorToast).not.toHaveBeenCalled();
   });
 
-  it("reports the miss when the deployment reports no runs backend", async () => {
+  it("opens a transcript read-only from a cloud-agent slot that owns the runtime", async () => {
+    // Arrange — a conversation whose runtime lives on a slot, not on the
+    // ingress the browser is served from. The shared store lets the ingress
+    // catalogue it, so the lookup does not miss: the MISSING sandbox status is
+    // what identifies the foreign owner.
+    setActiveSelection({ backendId: localBackend.id });
+    vi.mocked(
+      AgentServerConversationService.batchGetAppConversations,
+    ).mockResolvedValue([makeConversation(SLOT_CONVERSATION_ID, "missing")]);
+    vi.mocked(fetchDiscoveryBackends).mockResolvedValue(
+      makeDiscoveryDocument([
+        { name: "backend-1", role: "slot", url: SLOT_BACKEND_URL },
+      ]),
+    );
+    vi.mocked(AgentServerConversationService.ownsRuntimeOn).mockResolvedValue(
+      true,
+    );
+    vi.mocked(
+      AgentServerConversationService.getRuntimeConversation,
+    ).mockResolvedValue(makeRuntimeConversation(SLOT_CONVERSATION_ID));
+
+    // Act
+    renderConversationRoute(SLOT_CONVERSATION_ID);
+
+    // Assert
+    expect(
+      await screen.findByTestId("shared-conversation-view"),
+    ).toBeInTheDocument();
+    expect(AgentServerConversationService.ownsRuntimeOn).toHaveBeenCalledWith(
+      SLOT_CONVERSATION_ID,
+      SLOT_BACKEND_URL,
+      localBackend.apiKey,
+    );
+    // A hosted lookup must not be reported as an error.
+    expect(displayErrorToast).not.toHaveBeenCalled();
+  });
+
+  it("keeps the conversation in place when no peer owns its runtime", async () => {
+    // Arrange — the runtime is MISSING on the active backend and no peer
+    // claims it, so the conversation may still be resumable in place. The route
+    // must stay put instead of reporting a miss or leaving the conversation.
+    setActiveSelection({ backendId: localBackend.id });
+    vi.mocked(
+      AgentServerConversationService.batchGetAppConversations,
+    ).mockResolvedValue([makeConversation(SLOT_CONVERSATION_ID, "missing")]);
+    vi.mocked(fetchDiscoveryBackends).mockResolvedValue(
+      makeDiscoveryDocument([
+        { name: "backend-1", role: "slot", url: SLOT_BACKEND_URL },
+      ]),
+    );
+    vi.mocked(AgentServerConversationService.ownsRuntimeOn).mockResolvedValue(
+      false,
+    );
+
+    // Act
+    renderConversationRoute(SLOT_CONVERSATION_ID);
+
+    // Assert
+    expect(await screen.findByTestId("conversation-main")).toBeInTheDocument();
+    expect(displayErrorToast).not.toHaveBeenCalled();
+  });
+
+  it("keeps the conversation in place when the owning peer cannot serve the read", async () => {
+    // Arrange — a peer claims ownership, but the transcript read fails. The
+    // user must stay on the conversation view, which may still be resumable in
+    // place, instead of landing on a not-found page.
+    setActiveSelection({ backendId: localBackend.id });
+    vi.mocked(
+      AgentServerConversationService.batchGetAppConversations,
+    ).mockResolvedValue([makeConversation(SLOT_CONVERSATION_ID, "missing")]);
+    vi.mocked(fetchDiscoveryBackends).mockResolvedValue(
+      makeDiscoveryDocument([
+        { name: "backend-1", role: "slot", url: SLOT_BACKEND_URL },
+      ]),
+    );
+    vi.mocked(AgentServerConversationService.ownsRuntimeOn).mockResolvedValue(
+      true,
+    );
+    vi.mocked(
+      AgentServerConversationService.getRuntimeConversation,
+    ).mockRejectedValue(new Error("the owning backend refused the read"));
+
+    // Act
+    renderConversationRoute(SLOT_CONVERSATION_ID);
+
+    // Assert
+    expect(await screen.findByTestId("conversation-main")).toBeInTheDocument();
+    expect(screen.queryByTestId("shared-conversation-view")).toBeNull();
+    expect(displayErrorToast).not.toHaveBeenCalled();
+  });
+
+  it("reports the miss when the deployment reports no peer backend", async () => {
     // Arrange
     setActiveSelection({ backendId: localBackend.id });
     vi.mocked(
       AgentServerConversationService.batchGetAppConversations,
     ).mockResolvedValue([null]);
-    vi.mocked(fetchAutomationRunsBackend).mockResolvedValue(null);
+    vi.mocked(fetchDiscoveryBackends).mockResolvedValue([]);
 
     // Act
     renderConversationRoute(RUN_CONVERSATION_ID);
@@ -370,5 +502,33 @@ describe("conversation route — automation runs read-only fallback", () => {
     // Assert
     expect(await screen.findByTestId("conversations-home")).toBeInTheDocument();
     expect(displayErrorToast).toHaveBeenCalledTimes(1);
+  });
+
+  it("never sends the session key to an address the document does not report", async () => {
+    // Arrange — the document reports only a slot, so a link naming another
+    // address must not be probed at all.
+    setActiveSelection({ backendId: localBackend.id });
+    vi.mocked(
+      AgentServerConversationService.batchGetAppConversations,
+    ).mockResolvedValue([null]);
+    vi.mocked(fetchDiscoveryBackends).mockResolvedValue(
+      makeDiscoveryDocument([
+        { name: "backend-1", role: "slot", url: SLOT_BACKEND_URL },
+      ]),
+    );
+
+    // Act
+    renderConversationRoute(RUN_CONVERSATION_ID);
+
+    // Assert — only the discovered peer was probed, never a foreign address.
+    expect(await screen.findByTestId("conversations-home")).toBeInTheDocument();
+    expect(AgentServerConversationService.ownsRuntimeOn).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(AgentServerConversationService.ownsRuntimeOn).toHaveBeenCalledWith(
+      RUN_CONVERSATION_ID,
+      SLOT_BACKEND_URL,
+      localBackend.apiKey,
+    );
   });
 });
