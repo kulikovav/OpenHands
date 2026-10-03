@@ -27,8 +27,13 @@ class ConversationService {
   }
 
   private static getClientOverrides() {
+    // `conversationUrl` points the client at the server that holds the
+    // conversation, which for a slot-owned conversation is not the active
+    // backend. Without it the editor and trajectory reads would address the
+    // active backend and fail for a conversation it does not own.
     return {
       sessionApiKey: this.currentConversation?.session_api_key,
+      conversationUrl: this.currentConversation?.conversation_url ?? null,
     };
   }
 

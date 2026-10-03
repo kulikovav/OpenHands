@@ -33,6 +33,7 @@ vi.mock(
       batchGetAppConversations: vi.fn(),
       getRuntimeConversation: vi.fn(),
       canServeTranscriptOn: vi.fn(),
+      getAppConversationOn: vi.fn(),
     },
   }),
 );
@@ -421,9 +422,11 @@ describe("conversation route — foreign owner read-only fallback", () => {
     expect(displayErrorToast).not.toHaveBeenCalled();
   });
 
-  it("opens a transcript read-only from a cloud-agent slot", async () => {
-    // Arrange — a conversation whose event log lives on a slot, not on the
-    // ingress the browser is served from.
+  it("opens a slot-owned conversation live, reading it from the slot", async () => {
+    // A slot is a full agent backend, so the conversation opens here rather
+    // than read-only: the conversation read is routed to the slot, which is what
+    // makes history, the event socket, and sends address the server that owns
+    // it.
     setActiveSelection({ backendId: localBackend.id });
     vi.mocked(fetchDiscoveryBackends).mockResolvedValue(
       makeDiscoveryDocument([
@@ -432,16 +435,22 @@ describe("conversation route — foreign owner read-only fallback", () => {
     );
     mockTranscriptHost(SLOT_BACKEND_URL);
     vi.mocked(
-      AgentServerConversationService.getRuntimeConversation,
-    ).mockResolvedValue(makeRuntimeConversation(SLOT_CONVERSATION_ID));
+      AgentServerConversationService.getAppConversationOn,
+    ).mockResolvedValue(makeConversation(SLOT_CONVERSATION_ID));
 
     // Act
     renderConversationRoute(SLOT_CONVERSATION_ID);
 
-    // Assert
+    // Assert — the live view, and the read went to the slot.
+    expect(await screen.findByTestId("conversation-main")).toBeInTheDocument();
+    expect(screen.queryByTestId("shared-conversation-view")).toBeNull();
     expect(
-      await screen.findByTestId("shared-conversation-view"),
-    ).toBeInTheDocument();
+      AgentServerConversationService.getAppConversationOn,
+    ).toHaveBeenCalledWith(SLOT_CONVERSATION_ID, SLOT_BACKEND_URL);
+    // The read-only path must not run for a slot owner.
+    expect(
+      AgentServerConversationService.getRuntimeConversation,
+    ).not.toHaveBeenCalled();
     expect(displayErrorToast).not.toHaveBeenCalled();
   });
 
@@ -491,22 +500,23 @@ describe("conversation route — foreign owner read-only fallback", () => {
     expect(displayErrorToast).not.toHaveBeenCalled();
   });
 
-  it("does not redirect when the transcript read from the owner fails", async () => {
-    // Arrange — the probe says the peer serves it, but the conversation read
-    // fails. The user must stay on the conversation view.
+  it("does not redirect when the transcript read from a read-only owner fails", async () => {
+    // Arrange — the runs server is a read-only owner, the probe says it serves
+    // the transcript, but the conversation read fails. The user must stay on the
+    // conversation view rather than land on a not-found page.
     setActiveSelection({ backendId: localBackend.id });
     vi.mocked(fetchDiscoveryBackends).mockResolvedValue(
       makeDiscoveryDocument([
-        { name: "backend-1", role: "slot", url: SLOT_BACKEND_URL },
+        { name: "automation-runs", role: "automations", url: RUNS_BACKEND_URL },
       ]),
     );
-    mockTranscriptHost(SLOT_BACKEND_URL);
+    mockTranscriptHost(RUNS_BACKEND_URL);
     vi.mocked(
       AgentServerConversationService.getRuntimeConversation,
     ).mockRejectedValue(new Error("the owning backend refused the read"));
 
     // Act
-    renderConversationRoute(SLOT_CONVERSATION_ID);
+    renderConversationRoute(RUN_CONVERSATION_ID);
 
     // Assert
     expect(await screen.findByTestId("conversation-main")).toBeInTheDocument();

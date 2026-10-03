@@ -1576,7 +1576,6 @@ describe("AgentServerConversationService", () => {
     });
 
     it.each([
-      ["null item", null],
       ["array item", []],
       ["numeric id", { id: 7 }],
       ["blank id", { id: "   " }],
@@ -1592,6 +1591,39 @@ describe("AgentServerConversationService", () => {
         );
       },
     );
+
+    it("keeps a null entry, because the batch endpoint answers positionally", async () => {
+      // The agent-server answers one entry per requested id and uses null for an
+      // id its catalog does not hold — the normal reply from the ingress for a
+      // conversation another server of the deployment created. Rejecting it made
+      // every open of such a conversation surface "data this UI does not
+      // understand" instead of falling through to the owner.
+      mockHttpGet.mockResolvedValue({ data: [null] });
+
+      await expect(
+        AgentServerConversationService.batchGetAppConversations(["conv-1"]),
+      ).resolves.toEqual([null]);
+    });
+
+    it("points a conversation read from another backend at that backend", async () => {
+      // The live view drives history, the event socket, and every send from
+      // `conversation_url`, so a conversation read from a slot must carry the
+      // slot's address instead of the active backend's.
+      mockGetConversation.mockResolvedValue(
+        makeDirectConversation({ id: "conv-slot" }),
+      );
+
+      const conversation =
+        await AgentServerConversationService.getAppConversationOn(
+          "conv-slot",
+          "https://oh.example:8443",
+        );
+
+      expect(conversation?.id).toBe("conv-slot");
+      expect(conversation?.conversation_url).toBe(
+        "https://oh.example:8443/api/conversations/conv-slot",
+      );
+    });
 
     it("normalizes camel-case timestamps and malformed nested optional fields", async () => {
       mockHttpGet.mockResolvedValue({

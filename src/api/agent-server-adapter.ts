@@ -349,14 +349,6 @@ export function buildRuntimeServicesSystemSuffix(
   return lines.join("\n");
 }
 
-export function toConversationUrl(conversationId: string): string {
-  // Local-format conversation URL — points at whichever local agent-server
-  // is actually serving the conversation (the bundled one when the active
-  // selection is cloud).
-  const { host } = getAgentServerClientOptions();
-  return `${host}/api/conversations/${conversationId}`;
-}
-
 /**
  * Whether a catalog entry's backend can serve the conversation right now.
  *
@@ -392,7 +384,14 @@ export function getDefaultConversationTitle(conversationId: string): string {
 
 export function toAppConversation(
   info: DirectConversationInfo,
+  options: { host?: string } = {},
 ): AppConversation {
+  // The backend that serves this conversation. Defaults to the active one; a
+  // caller that read the entry from another server of the deployment passes
+  // that server, so `conversation_url` — which drives history, the event
+  // socket, and every send — addresses the backend that actually holds the
+  // conversation instead of the one the browser is connected to.
+  const conversationHost = options.host ?? getAgentServerClientOptions().host;
   const metadata = getStoredConversationMetadata(info.id);
   // ACPAgent conversations carry a sentinel ``llm`` on older SDKs. Prefer the
   // runtime model fields when available, then the configured ``acp_model`` that
@@ -469,7 +468,7 @@ export function toAppConversation(
       ? ((info.sandbox_status as SandboxStatus | null) ?? null)
       : "MISSING",
     runtime_status: info.runtime_info?.runtime_status ?? null,
-    conversation_url: toConversationUrl(info.id),
+    conversation_url: `${conversationHost}/api/conversations/${info.id}`,
     session_api_key: getAgentServerClientOptions().apiKey ?? null,
     sandbox_id: null,
     workspace: {
@@ -487,7 +486,7 @@ export function toConversationPage(data: {
   return {
     items: data.items
       .filter((item) => !item.tags?.[LOCAL_PLANNER_PARENT_TAG_KEY])
-      .map(toAppConversation),
+      .map((item) => toAppConversation(item)),
     next_page_id: data.next_page_id ?? null,
   };
 }
