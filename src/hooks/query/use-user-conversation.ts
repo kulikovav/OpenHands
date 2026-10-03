@@ -6,6 +6,7 @@ import AgentServerConversationService from "#/api/conversation-service/agent-ser
 import { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { isRateLimitError } from "#/utils/rate-limit-retry";
+import { useConversationOwnerBackend } from "./use-conversation-owner-backend";
 
 const MAX_RATE_LIMIT_RETRIES = 2;
 const FIVE_MINUTES = 1000 * 60 * 5;
@@ -41,6 +42,14 @@ export const useUserConversation = (
     origin.current = { cid, backendId: active.backend.id };
   }
   const backendChanged = origin.current.backendId !== active.backend.id;
+  const isTaskId = !!cid && cid.startsWith("task-");
+
+  // Which server of the deployment holds this conversation. Null when the
+  // active backend already does, so the single-server path is untouched.
+  const { data: ownerBackend } = useConversationOwnerBackend(cid, {
+    enabled: !!cid && !isTaskId && !backendChanged,
+  });
+  const ownerUrl = ownerBackend?.url ?? "";
 
   return useQuery({
     // Include the active backend identity so each (backend, org) pair
@@ -50,16 +59,38 @@ export const useUserConversation = (
     // shared cid key, which then makes the conversation route toast
     // "conversation not available or no permission" until the user
     // hard-refreshes the page. Mirrors `usePaginatedConversations`.
-    queryKey: ["user", "conversation", cid, active.backend.id, active.orgId],
+    //
+    // The owner belongs in the key too: the entry it produces points
+    // `conversation_url` at a different server, so it must not be served from
+    // the cache entry the active backend produced.
+    queryKey: [
+      "user",
+      "conversation",
+      cid,
+      active.backend.id,
+      active.orgId,
+      ownerUrl,
+    ],
     queryFn: async () => {
       if (!cid) return null;
+
+      // A conversation the active backend does not hold is read from the server
+      // that does, and the returned entry is built against that server, so
+      // history, the event socket, and every send address the backend that
+      // actually owns the conversation.
+      if (ownerUrl) {
+        return AgentServerConversationService.getAppConversationOn(
+          cid,
+          ownerUrl,
+        );
+      }
 
       // Use the V1 batch API endpoint to get a single conversation
       const results =
         await AgentServerConversationService.batchGetAppConversations([cid]);
       return results[0] ?? null;
     },
-    enabled: !!cid && !cid.startsWith("task-") && !backendChanged,
+    enabled: !!cid && !isTaskId && !backendChanged,
     // Rate limits (429) are transient and worth a couple of backed-off
     // retries; any other failure (404, 5xx, network) fails immediately as
     // before rather than masking a real problem.
