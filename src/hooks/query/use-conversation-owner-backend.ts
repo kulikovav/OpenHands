@@ -10,18 +10,18 @@ interface UseConversationOwnerBackendOptions {
 }
 
 /**
- * Resolve the peer backend that owns a conversation's live runtime.
+ * Resolve the peer backend that serves a conversation's transcript.
  *
  * The servers of one deployment share a conversation store, so the active
- * backend can usually catalogue a conversation it does not run. Opening such a
- * conversation against the active backend attaches to a runtime that is not
- * there. This hook finds the server that actually holds it, so the caller can
- * route the transcript read to that peer.
+ * backend can list a conversation whose event log it does not hold: opening it
+ * there fails with `404 Conversation not found` from the event search. Only the
+ * server that owns the conversation answers that read, so the probe asks it
+ * directly rather than trusting a metadata field — no field names the owner.
  *
- * Returns null when no peer reports ownership — the caller then keeps its
- * normal path, which is the correct behavior for a conversation the active
- * backend does run, for a single-server deployment, and for a peer set that is
- * unreachable or not yet loaded.
+ * Returns null when the active backend already serves the transcript, when the
+ * deployment publishes no peers, and when no peer can serve it. The caller then
+ * keeps its normal path, which is correct for a conversation the active backend
+ * owns and for a single-server deployment.
  */
 export const useConversationOwnerBackend = (
   conversationId: string | null,
@@ -39,28 +39,40 @@ export const useConversationOwnerBackend = (
     queryFn: async (): Promise<DiscoveryBackend | null> => {
       if (!conversationId) return null;
 
+      // A deployment with no peer has nowhere else to read from. Answering
+      // without a request keeps a single-server deployment at zero cost.
+      if ((peers?.length ?? 0) === 0) return null;
+
       const apiKey =
         getEffectiveLocalBackend()?.apiKey ??
         getAgentServerSessionApiKey() ??
         undefined;
 
+      // Ask the active backend first. When it answers, there is nothing to
+      // resolve and the common case stays at a single request.
+      const activeServes =
+        await AgentServerConversationService.canServeTranscriptOn(
+          conversationId,
+          null,
+          apiKey,
+        );
+      if (activeServes) return null;
+
       // Sequential on purpose: the owner is usually the first or second peer,
-      // and one open conversation must not fan out a request per slot. A peer
-      // that cannot answer is not the owner, so a failure tries the next one.
+      // and one open conversation must not fan out a request per slot.
       for (const peer of peers ?? []) {
-        try {
-          const owns = await AgentServerConversationService.ownsRuntimeOn(
+        const peerServes =
+          await AgentServerConversationService.canServeTranscriptOn(
             conversationId,
             peer.url,
             apiKey,
           );
-          if (owns) return peer;
-        } catch {
-          continue;
-        }
+        if (peerServes) return peer;
       }
       return null;
     },
+    // Waiting for the document keeps the answer correct; the read that would
+    // otherwise run against the wrong server waits with it.
     enabled: (options.enabled ?? true) && !!conversationId && peersFetched,
     retry: false,
     staleTime: 15_000,
