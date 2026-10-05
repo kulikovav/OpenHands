@@ -1699,6 +1699,86 @@ describe("agent_settings runtime services suffix", () => {
   });
 });
 
+describe("profile launch runtime services additions", () => {
+  const profileId = "3f1c1b7e-0000-4000-8000-000000000002";
+  const runtimeServicesInfo = {
+    mode: "docker",
+    services: {
+      agent_server: { url_from_agent: "http://127.0.0.1:18000" },
+      automation: {
+        url_from_agent: "http://127.0.0.1:8000",
+        api_prefix: "/api/automation",
+        auth_env_var: "OPENHANDS_AUTOMATION_API_KEY",
+      },
+    },
+  };
+
+  it("carries the <RUNTIME_SERVICES> block via agent_launch_additions on a profile launch", () => {
+    const payload = buildStartConversationRequest({
+      settings: DEFAULT_SETTINGS,
+      query: "hello",
+      agentProfileId: profileId,
+      agentProfileKind: "openhands",
+      runtimeServicesInfo,
+    }) as {
+      agent_settings?: unknown;
+      agent_profile_id?: string;
+      agent_launch_additions?: { system_message_suffix_append?: string };
+    };
+    expect(payload.agent_profile_id).toBe(profileId);
+    // The server resolves the profile; agent_settings must stay absent so the
+    // two mutually exclusive agent sources never travel together.
+    expect(payload.agent_settings).toBeUndefined();
+    expect(
+      payload.agent_launch_additions?.system_message_suffix_append,
+    ).toContain("<RUNTIME_SERVICES>");
+    expect(
+      payload.agent_launch_additions?.system_message_suffix_append,
+    ).toContain("Automation backend: http://127.0.0.1:8000");
+    expect(
+      payload.agent_launch_additions?.system_message_suffix_append,
+    ).toContain("X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY");
+  });
+
+  it("omits agent_launch_additions on a profile launch without runtime info", () => {
+    const payload = buildStartConversationRequest({
+      settings: DEFAULT_SETTINGS,
+      query: "hello",
+      agentProfileId: profileId,
+      agentProfileKind: "openhands",
+    }) as { agent_launch_additions?: unknown };
+    expect(payload.agent_launch_additions).toBeUndefined();
+  });
+
+  it("carries the block for ACP profile launches too", () => {
+    // The additions ride the profile branch, not the agent kind, so an ACP
+    // profile launch gets the block as well.
+    const payload = buildStartConversationRequest({
+      settings: DEFAULT_SETTINGS,
+      query: "hello",
+      agentProfileId: profileId,
+      agentProfileKind: "acp",
+      runtimeServicesInfo,
+    }) as {
+      agent_launch_additions?: { system_message_suffix_append?: string };
+    };
+    expect(
+      payload.agent_launch_additions?.system_message_suffix_append,
+    ).toContain("<RUNTIME_SERVICES>");
+  });
+
+  it("does not duplicate the block on the agent_settings path", () => {
+    // The suffix already lives in agent_settings.agent_context; an additions
+    // field here would append the block a second time server-side.
+    const payload = buildStartConversationRequest({
+      settings: DEFAULT_SETTINGS,
+      query: "hello",
+      runtimeServicesInfo,
+    }) as { agent_launch_additions?: unknown };
+    expect(payload.agent_launch_additions).toBeUndefined();
+  });
+});
+
 describe("buildStartConversationRequest — ACP discriminator", () => {
   it("builds ACP agent settings when agent_kind is 'acp'", () => {
     const payload = buildStartConversationRequest({
