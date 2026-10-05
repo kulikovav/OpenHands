@@ -117,6 +117,11 @@ export const CONVERSATION_QUERY_KEYS = {
   subConversations: ["v1", "sub-conversations"] as const,
 } as const;
 
+export const PEER_CONVERSATIONS_QUERY_KEYS = {
+  /** One deployment peer's conversation list, keyed per peer URL. */
+  all: ["peer-conversations"] as const,
+} as const;
+
 export const LOCAL_PLANNER_MUTATION_KEYS = {
   create: ["create-local-planning-conversation"] as const,
 } as const;
