@@ -1172,11 +1172,20 @@ type StartConversationPayloadBase = Record<string, unknown> & {
   tool_module_qualnames?: Record<string, string>;
 };
 
+/** Deployment context the agent-server applies after agent/profile resolution
+ *  (SDK ``AgentLaunchAdditions``). The stored profile is not modified. */
+type AgentLaunchAdditionsPayload = {
+  system_message_suffix_append?: string;
+};
+
 type AgentSettingsStartConversationPayload = StartConversationPayloadBase & {
   // Omitted when launching via ``agent_profile_id`` — the two are mutually
   // exclusive agent sources; the server resolves the profile server-side.
   agent_settings?: AgentSettingsPayload;
   agent_profile_id?: string;
+  // Profile launches only: the agent-settings path already carries the suffix
+  // inside ``agent_context``, and sending both would append the block twice.
+  agent_launch_additions?: AgentLaunchAdditionsPayload;
   agent?: never;
 };
 
@@ -1248,6 +1257,23 @@ function buildCustomSecrets(
   return secrets;
 }
 
+/**
+ * Deployment context for a profile launch. The agent-server appends
+ * ``system_message_suffix_append`` to the resolved agent's system-message
+ * suffix after profile resolution (software-agent-sdk#4030, agent-server >=
+ * 1.37.0), so a profile-launched conversation keeps the same
+ * ``<RUNTIME_SERVICES>`` block as the agent_settings path without modifying
+ * the stored profile. Older servers ignore the unknown field.
+ */
+function buildProfileLaunchAdditions(
+  runtimeServicesInfo?: RuntimeServicesInfo | null,
+): { agent_launch_additions?: AgentLaunchAdditionsPayload } {
+  const suffix = buildRuntimeServicesSystemSuffix(runtimeServicesInfo);
+  return suffix
+    ? { agent_launch_additions: { system_message_suffix_append: suffix } }
+    : {};
+}
+
 export function buildStartConversationRequest(
   options: StartConversationOptions,
 ): AgentSettingsStartConversationPayload {
@@ -1296,9 +1322,11 @@ export function buildStartConversationRequest(
     // server/SDK's responsibility to restore on the profile path — tracked in
     // software-agent-sdk#3967 (profile resolution must attach the default
     // toolset + public skills, else a profile-launched OpenHands agent has only
-    // Finish/Think). The dev ``RUNTIME_SERVICES`` system-message suffix remains
-    // agent-settings-only; the Canvas UI tool is a top-level client tool and
-    // therefore works on both inline-agent and profile launch paths.
+    // Finish/Think). The dev ``RUNTIME_SERVICES`` system-message suffix is not
+    // on that boundary: it rides ``agent_launch_additions`` (see
+    // ``buildProfileLaunchAdditions``), so profile launches keep it too. The
+    // Canvas UI tool is a top-level client tool and therefore works on both
+    // inline-agent and profile launch paths.
     //
     // Persistent memory is NOT on that boundary: ``load_memory`` is a global
     // user preference, so the agent-server stamps the stored
@@ -1308,7 +1336,10 @@ export function buildStartConversationRequest(
     // re-send it here (``agent_profile_id`` and ``agent_settings`` are
     // mutually exclusive).
     ...(options.agentProfileId
-      ? { agent_profile_id: options.agentProfileId }
+      ? {
+          agent_profile_id: options.agentProfileId,
+          ...buildProfileLaunchAdditions(options.runtimeServicesInfo),
+        }
       : { agent_settings: agentSettings }),
     workspace: conversationSettings.workspace,
     // The agent-server caches each client tool's schema per tool *name* for the

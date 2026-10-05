@@ -141,11 +141,12 @@ export const useCreateConversation = () => {
       ) {
         // The seeded OpenHands `default` profile is the enriched baseline, not a
         // deliberate profile pick — it mirrors global agent_settings. Launch it
-        // via agent_settings so the canvas-only enrichments the profile-resolution
-        // path drops survive for the common home-launch: the <RUNTIME_SERVICES>
-        // system-message suffix and project-skill loading (buildAgentContext).
+        // via agent_settings so the canvas-only enrichment the profile-resolution
+        // path drops survives for the common home-launch: project-skill loading
+        // (buildAgentContext). The <RUNTIME_SERVICES> suffix is not part of that
+        // boundary — it rides agent_launch_additions on the profile path too.
         // Named profiles are deliberate custom configs and still use the profile
-        // path (accepting that enrichment boundary).
+        // path (accepting the remaining project-skill enrichment boundary).
         // Trade-off: per-profile fields set on `default` itself don't apply on
         // home-launch — custom per-profile config belongs in a named profile.
         //
