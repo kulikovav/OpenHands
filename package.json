@@ -23,7 +23,7 @@
     "@heroui/react": "2.8.10",
     "@microlink/react-json-view": "1.31.25",
     "@monaco-editor/react": "4.7.0",
-    "@openhands/extensions": "https://github.com/kulikovav/OpenHands-extensions/archive/refs/tags/bleenk.2.tar.gz",
+    "@openhands/extensions": "https://github.com/kulikovav/OpenHands-extensions/archive/refs/tags/bleenk.3.tar.gz",
     "@openhands/typescript-client": "1.53.0",
     "@react-router/node": "7.18.2",
     "@react-router/serve": "7.18.2",
