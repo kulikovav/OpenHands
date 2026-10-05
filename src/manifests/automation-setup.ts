@@ -555,17 +555,6 @@ function filterFormValues(values: SetupFormValues): SetupFormValues {
 }
 
 /**
- * The raw create body a bundle entry produces.
- *
- * `tarball_path` is the one value neither declared nor derived: the host packs
- * and uploads the bundle first, and creates from what came back. `template` is
- * the provenance that makes enabling the same entry twice return the
- * automation that already exists rather than a second one.
- *
- * There is no `repos`: the raw endpoint has no such field, and a bundle's
- * script fetches what it needs itself.
- */
-/**
  * The form values with every declared number field coerced to a number.
  *
  * The form stores an edited number input as a string, because that is what the
@@ -596,6 +585,17 @@ function asNumber(value: SetupFormValue): SetupFormValue {
   return Number.isFinite(numeric) ? numeric : value;
 }
 
+/**
+ * The raw create body a bundle entry produces.
+ *
+ * `tarball_path` is the one value neither declared nor derived: the host packs
+ * and uploads the bundle first, and creates from what came back. `template` is
+ * the provenance that makes enabling the same entry twice return the
+ * automation that already exists rather than a second one.
+ *
+ * There is no `repos`: the raw endpoint has no such field, and a bundle's
+ * script fetches what it needs itself.
+ */
 function buildBundlePayload(
   entry: SetupEntry,
   values: SetupFormValues,
