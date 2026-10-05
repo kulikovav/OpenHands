@@ -136,16 +136,27 @@ RUN if [ -n "${AGENT_SERVER_SDK_GIT_REF}" ]; then \
         "${BASE_GIT_URL}#subdirectory=openhands-workspace"; \
     fi
 
-# Bleenk patch: queue automation runs in the dispatcher. The patch adds an
-# in-flight ceiling (the surplus waits as PENDING rows) and a bounded retry of
-# transient dispatch failures. The version assert and --fuzz=0 make a version
-# bump fail the build, so the fix cannot be dropped silently.
+# Bleenk patches:
+# 1. Queue automation runs in the dispatcher. The patch adds an in-flight
+#    ceiling (the surplus waits as PENDING rows) and a bounded retry of
+#    transient dispatch failures.
+# 2. Interrupt the agent conversation when a run hits its execution timeout.
+#    The agent-server bash service kills the entrypoint's process group, but
+#    the conversation runs in the agent-server process; without the handler it
+#    outlives the run and keeps spending tokens. The handler uses the one
+#    second between SIGTERM and SIGKILL.
+# The version assert and --fuzz=0 make a version bump fail the build, so the
+# fixes cannot be dropped silently.
 COPY docker/patches/automation-1.15.1-dispatcher-queue.patch /tmp/bleenk-patches/automation-dispatcher-queue.patch
+COPY docker/patches/automation-1.15.1-interrupt-on-sigterm.patch /tmp/bleenk-patches/automation-interrupt-on-sigterm.patch
 COPY docker/patches/automation-queue-selfcheck.py /tmp/bleenk-patches/automation-queue-selfcheck.py
+COPY docker/patches/automation-sigterm-selfcheck.py /tmp/bleenk-patches/automation-sigterm-selfcheck.py
 RUN python -c "import openhands.automation as m; assert m.__version__ == '${AUTOMATION_VERSION}', m.__version__" \
     && SITE_PACKAGES="$(python -c 'import openhands.automation as m, pathlib; print(pathlib.Path(m.__file__).resolve().parents[2])')" \
     && patch -p1 -d "${SITE_PACKAGES}" --forward --fuzz=0 < /tmp/bleenk-patches/automation-dispatcher-queue.patch \
+    && patch -p1 -d "${SITE_PACKAGES}" --forward --fuzz=0 < /tmp/bleenk-patches/automation-interrupt-on-sigterm.patch \
     && python /tmp/bleenk-patches/automation-queue-selfcheck.py "${SITE_PACKAGES}" \
+    && python /tmp/bleenk-patches/automation-sigterm-selfcheck.py "${SITE_PACKAGES}" \
     && rm -rf /tmp/bleenk-patches
 
 # Copy the frontend build output.
