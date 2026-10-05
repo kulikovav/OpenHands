@@ -265,6 +265,26 @@ describe("buildCreatePayload", () => {
     expect(payload).toEqual(scenario.create?.request.body);
   });
 
+  it("renders a fractional number input as its fraction", () => {
+    // The field is a number, so the coercion keeps the fraction. The script's
+    // own integer contract is the gate that rejects it, not the form.
+    // Arrange
+    const entry = requireEntry("github-pr-reviewer");
+    const scenario = requireScenario(BUNDLES[0], "happy-path");
+
+    // Act
+    const payload = buildCreatePayload(
+      entry,
+      { ...scenario.formValues, maxNewPerRun: "2.5" },
+      scenario.upload?.response.body.tarball_path,
+      scenario.selectedTrigger,
+    );
+
+    // Assert
+    const template = payload?.template as { config: Record<string, unknown> };
+    expect(template.config.max_new_per_run).toBe(2.5);
+  });
+
   it("names an automation after the one repository it watches", () => {
     // Arrange
     const entry = requireEntry("github-pr-reviewer");
@@ -463,6 +483,7 @@ describe("deriveErrorMap", () => {
       "template.config.trigger_reviewer": ["triggerReviewer"],
       "template.config.review_tone": ["reviewTone"],
       "template.config.maintainers": ["maintainers"],
+      "template.config.max_new_per_run": ["maxNewPerRun"],
     });
   });
 });
