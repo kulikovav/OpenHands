@@ -29,6 +29,7 @@ import type {
   SetupBlock,
   SetupBundleConfigValue,
   SetupEntry,
+  SetupFormValue,
   SetupFormValues,
   SetupRequestBody,
   SetupTriggerKind,
@@ -546,6 +547,37 @@ function filterFormValues(values: SetupFormValues): SetupFormValues {
  * There is no `repos`: the raw endpoint has no such field, and a bundle's
  * script fetches what it needs itself.
  */
+/**
+ * The form values with every declared number field coerced to a number.
+ *
+ * The form stores an edited number input as a string, because that is what the
+ * DOM hands back, so a bare `{{form.<name>}}` would render that string into
+ * `config.json` and a script declaring the key as an integer would reject it at
+ * import. The manifest declares the field's type; this is where the rendered
+ * config respects it, the same way `fieldPayloadValue` does for a create
+ * property. A blank or non-numeric answer is written through, so validation,
+ * not this coercion, decides what an invalid number means.
+ */
+function coerceDeclaredNumbers(
+  setup: SetupBlock,
+  values: SetupFormValues,
+  selectedTrigger?: string | null,
+): SetupFormValues {
+  const fields = collectFields(setup, selectedTrigger);
+  return Object.fromEntries(
+    Object.entries(values).map(([name, value]) => [
+      name,
+      fields[name]?.type === "number" ? asNumber(value) : value,
+    ]),
+  );
+}
+
+function asNumber(value: SetupFormValue): SetupFormValue {
+  if (typeof value !== "string" || value.trim() === "") return value;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : value;
+}
+
 function buildBundlePayload(
   entry: SetupEntry,
   values: SetupFormValues,
@@ -553,7 +585,10 @@ function buildBundlePayload(
   selectedTrigger?: string | null,
 ): SetupRequestBody {
   const bundle = entry.setup.bundle!;
-  const scope = { form: values, automation: entry };
+  const scope = {
+    form: coerceDeclaredNumbers(entry.setup, values, selectedTrigger),
+    automation: entry,
+  };
 
   const payload: SetupRequestBody = {
     name: deriveName(entry, values),
