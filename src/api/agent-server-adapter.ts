@@ -1207,13 +1207,20 @@ type StartConversationPayloadBase = Record<string, unknown> & {
   tool_module_qualnames?: Record<string, string>;
 };
 
+/** Deployment context the agent-server applies after agent/profile resolution
+ *  (SDK ``AgentLaunchAdditions``). The stored profile is not modified. */
+type AgentLaunchAdditionsPayload = {
+  system_message_suffix_append?: string;
+};
+
 type AgentSettingsStartConversationPayload = StartConversationPayloadBase & {
   // Omitted when launching via ``agent_profile_id`` — the two are mutually
   // exclusive agent sources; the server resolves the profile server-side.
   agent_settings?: AgentSettingsPayload;
   agent_profile_id?: string;
-  // Appended to the profile-resolved agent's system-message suffix.
-  agent_launch_additions?: { system_message_suffix_append?: string };
+  // Profile launches only: the agent-settings path already carries the suffix
+  // inside ``agent_context``, and sending both would append the block twice.
+  agent_launch_additions?: AgentLaunchAdditionsPayload;
   agent?: never;
 };
 
