@@ -146,8 +146,8 @@ RUN if [ -n "${AGENT_SERVER_SDK_GIT_REF}" ]; then \
 #    second between SIGTERM and SIGKILL.
 # The version assert and --fuzz=0 make a version bump fail the build, so the
 # fixes cannot be dropped silently.
-COPY docker/patches/automation-1.15.1-dispatcher-queue.patch /tmp/bleenk-patches/automation-dispatcher-queue.patch
-COPY docker/patches/automation-1.15.1-interrupt-on-sigterm.patch /tmp/bleenk-patches/automation-interrupt-on-sigterm.patch
+COPY docker/patches/automation-1.17.0-dispatcher-queue.patch /tmp/bleenk-patches/automation-dispatcher-queue.patch
+COPY docker/patches/automation-1.17.0-interrupt-on-sigterm.patch /tmp/bleenk-patches/automation-interrupt-on-sigterm.patch
 COPY docker/patches/automation-queue-selfcheck.py /tmp/bleenk-patches/automation-queue-selfcheck.py
 COPY docker/patches/automation-sigterm-selfcheck.py /tmp/bleenk-patches/automation-sigterm-selfcheck.py
 RUN python -c "import openhands.automation as m; assert m.__version__ == '${AUTOMATION_VERSION}', m.__version__" \
