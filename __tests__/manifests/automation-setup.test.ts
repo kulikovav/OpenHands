@@ -244,6 +244,27 @@ describe("buildCreatePayload", () => {
     },
   );
 
+  it("renders an edited number input as the number the fixture pins", () => {
+    // The form stores an edited number input as a string, because that is what
+    // the DOM hands back, so the rendered config must carry the declared
+    // number. The fixture's form value is already a number; a string is what
+    // the real form sends, and both must derive the same body.
+    // Arrange
+    const entry = requireEntry("github-pr-reviewer");
+    const scenario = requireScenario(BUNDLES[0], "happy-path");
+
+    // Act
+    const payload = buildCreatePayload(
+      entry,
+      { ...scenario.formValues, maxNewPerRun: "2" },
+      scenario.upload?.response.body.tarball_path,
+      scenario.selectedTrigger,
+    );
+
+    // Assert
+    expect(payload).toEqual(scenario.create?.request.body);
+  });
+
   it("names an automation after the one repository it watches", () => {
     // Arrange
     const entry = requireEntry("github-pr-reviewer");
