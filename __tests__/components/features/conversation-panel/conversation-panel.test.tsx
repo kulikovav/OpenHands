@@ -3046,5 +3046,30 @@ describe("ConversationPanel", () => {
       await user.click(within(card).getByTestId("ellipsis-button"));
       expect(screen.getByTestId("delete-button")).toBeInTheDocument();
     });
+
+    it("renders one card when several peers list the same conversation", async () => {
+      // Arrange — the servers share a conversation store, so several peers can
+      // report the same conversation. The active backend's loaded pages do not
+      // hold it (e.g. it was just deleted), so nothing else suppresses the
+      // copies, and the panel must dedupe them against each other.
+      mockPeerConversations.mockReturnValue([
+        createMockConversation({
+          id: "shared-1",
+          title: "Shared Conversation",
+          source_backend_url: PEER_BACKEND_URL,
+        }),
+        createMockConversation({
+          id: "shared-1",
+          title: "Shared Conversation",
+          source_backend_url: "https://oh.example:8444",
+        }),
+      ]);
+
+      // Act
+      renderPanel();
+
+      // Assert — one row, not one per peer.
+      expect(await screen.findAllByText("Shared Conversation")).toHaveLength(1);
+    });
   });
 });

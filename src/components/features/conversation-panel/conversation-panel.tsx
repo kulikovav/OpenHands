@@ -305,11 +305,21 @@ export function ConversationPanel({
   // The active backend's copy of an id wins, so a conversation both lists is
   // treated as local. A peer entry keeps its `source_backend_url`, which is
   // what disables every mutation for it.
+  //
+  // Peers are deduped against each other too: the servers share a conversation
+  // store, so several peers list the same conversation, and an id the active
+  // backend's loaded pages do not hold — e.g. one it just deleted — would
+  // otherwise render once per peer. The first peer copy wins; the backend that
+  // owns the transcript is resolved by probing that read, not by this field.
   const displayedConversations = React.useMemo(() => {
     const seen = new Set(allLoadedConversations.map((item) => item.id));
-    const fromPeers = peerConversations.filter(
-      (conversation) => !seen.has(conversation.id),
-    );
+    const fromPeers = peerConversations.filter((conversation) => {
+      if (seen.has(conversation.id)) {
+        return false;
+      }
+      seen.add(conversation.id);
+      return true;
+    });
     return [...allLoadedConversations, ...fromPeers];
   }, [allLoadedConversations, peerConversations]);
 
@@ -946,8 +956,8 @@ export function ConversationPanel({
       const isArchived = isArchivedConversation(conversation);
       // A conversation another backend of the deployment owns. Every mutation
       // would be sent to the active backend, which does not hold it, so the row
-      // offers navigation only. Opening it routes to the owner's read-only
-      // transcript.
+      // offers navigation only. Opening it reads the conversation from the
+      // backend that holds it.
       const isForeign = !!conversation.source_backend_url;
       if (compact) {
         return (
