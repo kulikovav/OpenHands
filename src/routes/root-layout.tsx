@@ -15,6 +15,7 @@ import { SidebarMobileMenuBar } from "#/components/features/sidebar/sidebar-mobi
 import { useSettings } from "#/hooks/query/use-settings";
 import { useEnsureActiveProfile } from "#/hooks/use-ensure-active-profile";
 import { useMigrateEnabledSkills } from "#/hooks/use-migrate-enabled-skills";
+import { useSyncProfileDisabledSkills } from "#/hooks/use-sync-profile-disabled-skills";
 import { useSyncTelemetryConsent } from "#/hooks/use-sync-telemetry-consent";
 import { useSyncAutomationTelemetryConsent } from "#/hooks/use-sync-automation-telemetry-consent";
 
@@ -136,6 +137,8 @@ function MainAppContent() {
   useEnsureActiveProfile();
   // One-shot move from the catalog deny-list to an explicit allow-list.
   useMigrateEnabledSkills();
+  // Carry that selection onto profile launches, which resolve skills server-side.
+  useSyncProfileDisabledSkills();
 
   React.useEffect(() => {
     if (settings?.language) {

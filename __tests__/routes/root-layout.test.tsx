@@ -12,6 +12,7 @@ const useSettingsMock = vi.fn();
 const changeLanguageMock = vi.fn();
 const ensureActiveProfileMock = vi.fn();
 const migrateEnabledSkillsMock = vi.fn();
+const syncProfileDisabledSkillsMock = vi.fn();
 const syncTelemetryConsentMock = vi.fn();
 const syncAutomationTelemetryConsentMock = vi.fn();
 const telemetryIdentityMock = vi.fn();
@@ -27,6 +28,10 @@ vi.mock("#/hooks/query/use-settings", () => ({
 
 vi.mock("#/hooks/use-migrate-enabled-skills", () => ({
   useMigrateEnabledSkills: () => migrateEnabledSkillsMock(),
+}));
+
+vi.mock("#/hooks/use-sync-profile-disabled-skills", () => ({
+  useSyncProfileDisabledSkills: () => syncProfileDisabledSkillsMock(),
 }));
 
 vi.mock("#/hooks/use-sync-telemetry-consent", () => ({

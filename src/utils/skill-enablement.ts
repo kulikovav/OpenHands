@@ -59,6 +59,27 @@ export function buildSkillEnablementFilter(
 }
 
 /**
+ * The deny-list a server-resolved profile needs.
+ *
+ * A profile launch sends only `agent_profile_id`, so the agent server discovers
+ * the skill catalog itself and keeps all of it except the profile's own
+ * `disabled_skills`. The SDK has no allow-list, so the catalog complement is
+ * what carries the Skills page selection onto that launch path.
+ */
+export function resolveDisabledCatalogSkills(
+  enablement: SkillEnablement,
+): string[] {
+  const enabled = new Set(resolveEnabledCatalogSkills(enablement));
+  const disabled = enablement.disabledSkills ?? [];
+  return [
+    ...CATALOG_SKILL_NAMES.filter(
+      (name) => !enabled.has(name) || disabled.includes(name),
+    ),
+    ...disabled.filter((name) => !isCatalogSkill(name)),
+  ];
+}
+
+/**
  * One-shot conversion from "all catalog skills on, minus a deny-list" to an
  * explicit allow-list; `undefined` once already migrated.
  *
