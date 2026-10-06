@@ -141,6 +141,24 @@ export const setupConversationPanelTest = () => {
       items: [...mockConversations],
       next_page_id: null,
     });
+    // Archive actions mirror their state into the server tags on local
+    // backends, so the default mock keeps that PATCH off the network.
+    vi.spyOn(
+      AgentServerConversationService,
+      "updateConversationTags",
+    ).mockResolvedValue(mockConversations[0]);
+    // The archive write reads the record back first, so the tag map it sends
+    // is the one the server holds, never a stale copy of the rendered row.
+    vi.spyOn(
+      AgentServerConversationService,
+      "batchGetAppConversations",
+    ).mockImplementation((ids: string[]) =>
+      Promise.resolve(
+        ids.map(
+          (id) => mockConversations.find((item) => item.id === id) ?? null,
+        ),
+      ),
+    );
   });
 
   afterEach(() => {
