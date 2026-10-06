@@ -8,6 +8,7 @@ import {
 } from "./conversation-panel-test-utils";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { ExecutionStatus } from "#/types/agent-server/core";
+import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useArchivedConversationsStore } from "#/stores/archived-conversations-store";
 import { useConversationPanelPreferencesStore } from "#/stores/conversation-panel-preferences-store";
 
@@ -954,5 +955,94 @@ describe("ConversationPanel conversation actions", () => {
     expect(
       screen.queryByRole("button", { name: /confirm/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("reports an archive whose server tag write failed", async () => {
+    // The archive lives in the server tag, so a refused write leaves it in this
+    // browser alone: the user must hear about it instead of a silent loss.
+    vi.mocked(
+      AgentServerConversationService.updateConversationTags,
+    ).mockRejectedValueOnce(new Error("the tag write failed"));
+    const user = userEvent.setup();
+    renderConversationPanel();
+
+    const cards = await screen.findAllByTestId("conversation-card");
+    await user.click(within(cards[0]).getByTestId("ellipsis-button"));
+    await user.click(screen.getByTestId("archive-button"));
+    await user.click(screen.getByRole("button", { name: /archive/i }));
+
+    await waitFor(() => {
+      expect(displayErrorToast).toHaveBeenCalledWith(
+        "The conversation archive state could not be saved.",
+      );
+    });
+  });
+
+  it("reports an archive of a record the backend does not hold", async () => {
+    // The full tag map can only come from the record itself, so a record the
+    // backend does not answer must not be patched with a partial map.
+    vi.mocked(
+      AgentServerConversationService.batchGetAppConversations,
+    ).mockResolvedValueOnce([null]);
+    const updateTags = vi.mocked(
+      AgentServerConversationService.updateConversationTags,
+    );
+    const user = userEvent.setup();
+    renderConversationPanel();
+
+    const cards = await screen.findAllByTestId("conversation-card");
+    await user.click(within(cards[0]).getByTestId("ellipsis-button"));
+    await user.click(screen.getByTestId("archive-button"));
+    await user.click(screen.getByRole("button", { name: /archive/i }));
+
+    await waitFor(() => {
+      expect(displayErrorToast).toHaveBeenCalledWith(
+        "The conversation archive state could not be saved.",
+      );
+    });
+    expect(updateTags).not.toHaveBeenCalled();
+  });
+
+  it("hides a conversation the server tags archived and shows its archived chip", async () => {
+    // The agent-server has no archive field, so a tag is the only archive mark
+    // the server itself can carry. A conversation archived by another client
+    // (for example the Cursor bridge) must read archived here as soon as its
+    // tags arrive.
+    const taggedArchived = createMockConversation({
+      id: "tagged-archived",
+      title: "Tagged archived",
+      tags: { archived: "true" },
+    });
+    const taggedActive = createMockConversation({
+      id: "tagged-active",
+      title: "Tagged active",
+      tags: { archived: "false" },
+    });
+    vi.spyOn(
+      AgentServerConversationService,
+      "searchConversations",
+    ).mockResolvedValue({
+      items: [taggedArchived, taggedActive],
+      next_page_id: null,
+    });
+
+    renderConversationPanel();
+
+    const visibleCards = await screen.findAllByTestId("conversation-card");
+    expect(visibleCards).toHaveLength(1);
+    expect(screen.queryByText("Tagged archived")).not.toBeInTheDocument();
+
+    act(() => {
+      useConversationPanelPreferencesStore.setState({
+        showArchivedConversations: true,
+      });
+    });
+
+    const archivedCard = (
+      await screen.findAllByTestId("conversation-card")
+    ).find((card) => within(card).queryByText("Tagged archived"))!;
+    expect(
+      within(archivedCard).getByTestId("conversation-card-archived-chip"),
+    ).toBeInTheDocument();
   });
 });
