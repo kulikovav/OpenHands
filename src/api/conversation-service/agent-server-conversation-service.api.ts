@@ -353,7 +353,6 @@ function requireDirectConversationItems(
  * a null entry would be a genuine protocol error.
  */
 export function readBatchConversationItems(
->>>>>>> 8eb21b940 (feat(conversation): open a slot-owned conversation live from the ingress)
   items: unknown,
 ): (DirectConversationInfo | null)[] {
   if (!Array.isArray(items)) {
