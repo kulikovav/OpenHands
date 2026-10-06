@@ -1,6 +1,6 @@
 --- a/openhands/automation/config.py
 +++ b/openhands/automation/config.py
-@@ -524,6 +524,11 @@ class ServiceSettings(BaseSettings):
+@@ -527,6 +527,11 @@
          AUTOMATION_SCHEDULER_BATCH_SIZE: Scheduler batch size (default: 50)
          AUTOMATION_DISPATCHER_INTERVAL_SECONDS: Dispatcher poll interval (default: 10)
          AUTOMATION_DISPATCHER_BATCH_SIZE: Dispatcher batch size (default: 10)
@@ -12,7 +12,7 @@
          AUTOMATION_WATCHDOG_INTERVAL_SECONDS: Watchdog poll interval (default: 60)
          AUTOMATION_FAILURE_DISABLE_THRESHOLD: Consecutive permanent failures before
              auto-disabling an automation (default: 3, <=0 disables auto-disable)
-@@ -624,6 +629,15 @@ class ServiceSettings(BaseSettings):
+@@ -627,6 +632,15 @@
      scheduler_batch_size: int = 50
      dispatcher_interval_seconds: int = 10
      dispatcher_batch_size: int = 10
@@ -26,46 +26,35 @@
 +    # the next poll retries it. 0 disables the retry.
 +    dispatcher_max_dispatch_retries: int = 3
      watchdog_interval_seconds: int = 60
-
+ 
      # Auto-disable rules. `failure_disable_threshold` is the fast path for
 --- a/openhands/automation/dispatcher.py
 +++ b/openhands/automation/dispatcher.py
-@@ -6,6 +6,10 @@ to execution backends (Cloud sandbox or local agent server).
- Uses FOR UPDATE SKIP LOCKED for multi-worker safety (PostgreSQL).
- SQLite deployments skip row locking (single-process mode assumed).
-
-+A ``dispatcher_max_running_runs`` ceiling leaves the surplus runs PENDING, so
-+a burst waits in the database instead of every due run starting at once. A
-+transient dispatch failure returns the run to PENDING for a bounded retry.
-+
- Completion is handled asynchronously: the SDK running inside the execution
- environment POSTs to ``/v1/runs/{id}/complete`` when the entry-point
- exits, so the dispatcher does **not** block waiting for results.
-@@ -19,10 +23,10 @@ import json
+@@ -19,10 +19,10 @@
  import logging
  import uuid
  from datetime import timedelta
 -from typing import Any
 +from typing import Any, Final
-
+ 
  import httpx
 -from sqlalchemy import and_, or_, select
 +from sqlalchemy import and_, func, or_, select, update
  from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
  from sqlalchemy.orm import selectinload
-
-@@ -76,6 +80,10 @@ from openhands.automation.utils.unhealthy import (
-
+ 
+@@ -83,6 +83,10 @@
+ 
  logger = logging.getLogger("automation.dispatcher")
-
+ 
 +# The retry counter lives in the run's ``run_metadata`` JSON, so a requeue
 +# needs no schema change.
 +DISPATCH_RETRIES_KEY: Final[str] = "dispatch_retries"
 +
-
+ 
  async def _download_internal_tarball(
      upload_id: uuid.UUID,
-@@ -232,8 +240,22 @@ async def _execute_run(
+@@ -239,8 +243,22 @@
          error: str,
          disable: bool = False,
          status_detail: dict | None = None,
@@ -89,7 +78,7 @@
          await mark_run_terminal(
              session_factory,
              run,
-@@ -315,6 +337,7 @@ async def _execute_run(
+@@ -322,6 +340,7 @@
          source = "agent_server" if backend.is_local_mode else "sandbox_api"
          await _fail(
              "Failed to get execution context",
@@ -97,7 +86,7 @@
              status_detail=run_status_detail_from_exception(
                  exc,
                  phase=RunStatusPhase.DISPATCH,
-@@ -529,6 +552,9 @@ async def _execute_run(
+@@ -549,6 +568,9 @@
          "Execution failed: %s", result.error, extra=_log_ctx(sandbox_id=ctx.sandbox_id)
      )
      await backend.release_context(client, ctx)
@@ -107,10 +96,10 @@
      await _fail(
          error,
          status_detail=make_run_status_detail(
-@@ -542,6 +568,18 @@ async def _execute_run(
+@@ -562,6 +584,18 @@
      )
-
-
+ 
+ 
 +def dispatch_capacity(running: int, max_running: int, batch_size: int) -> int:
 +    """Return how many pending runs the dispatcher may start now.
 +
@@ -126,7 +115,7 @@
  async def dispatch_pending_runs(
      session_factory: async_sessionmaker[AsyncSession],
      settings: ServiceSettings,
-@@ -560,12 +598,30 @@ async def dispatch_pending_runs(
+@@ -580,12 +614,30 @@
          batch_size: Number of pending runs to fetch per poll (from config if None)
      """
      # Use config defaults if not provided
@@ -135,7 +124,7 @@
 -        config = get_config()
          batch_size = config.service.dispatcher_batch_size
 +    max_running = config.service.dispatcher_max_running_runs
-
+ 
      async with session_factory() as session:
 -        pending_runs = await _poll_pending_runs(session, batch_size)
 +        if max_running > 0:
@@ -156,11 +145,11 @@
 +                )
 +        else:
 +            pending_runs = await _poll_pending_runs(session, batch_size)
-
+ 
          dispatched_runs = []
          for run in pending_runs:
-@@ -636,6 +692,11 @@ async def _execute_run_safe(
-         await _execute_run(run, settings, session_factory, client)
+@@ -661,6 +713,11 @@
+             await _execute_run(run, settings, session_factory, client)
      except Exception as exc:
          logger.exception("Background execution failed", extra=extra)
 +        if await _requeue_transient_failure(session_factory, run, None):
@@ -171,10 +160,10 @@
          await mark_run_terminal(
              session_factory,
              run,
-@@ -650,6 +711,77 @@ async def _execute_run_safe(
+@@ -675,6 +732,77 @@
          )
-
-
+ 
+ 
 +async def _requeue_transient_failure(
 +    session_factory: async_sessionmaker[AsyncSession],
 +    run: AutomationRun,
