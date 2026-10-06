@@ -9,6 +9,7 @@ import {
   isCatalogSkill,
   isRecommendedSkill,
   migrateSkillEnablement,
+  resolveDisabledCatalogSkills,
   resolveEnabledCatalogSkills,
   toSkillEnablement,
 } from "#/utils/skill-enablement";
@@ -75,6 +76,36 @@ describe("buildSkillEnablementFilter", () => {
         RECOMMENDED,
       ),
     ).toBe(false);
+  });
+});
+
+describe("resolveDisabledCatalogSkills", () => {
+  it("denies every catalog skill the allow-list does not name", () => {
+    const denied = resolveDisabledCatalogSkills({
+      enabledSkills: [RECOMMENDED],
+    });
+
+    expect(denied).toContain(OPTIONAL);
+    expect(denied).not.toContain(RECOMMENDED);
+    expect(denied).not.toContain(LOCAL);
+  });
+
+  it("uses the curated default when no allow-list is persisted", () => {
+    const denied = resolveDisabledCatalogSkills({});
+
+    expect(denied).not.toContain(RECOMMENDED);
+    expect(denied).toContain(OPTIONAL);
+  });
+
+  it("keeps the user's deny-list and lets it veto an enabled skill", () => {
+    const denied = resolveDisabledCatalogSkills({
+      enabledSkills: [RECOMMENDED],
+      disabledSkills: [RECOMMENDED, LOCAL],
+    });
+
+    expect(denied).toContain(RECOMMENDED);
+    expect(denied).toContain(LOCAL);
+    expect(denied).toContain(OPTIONAL);
   });
 });
 
