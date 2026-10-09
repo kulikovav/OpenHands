@@ -10,6 +10,7 @@ import {
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
+import { fetchDiscoveryBackends } from "#/api/discovery/discovery-backends.api";
 import { useUserConversation } from "#/hooks/query/use-user-conversation";
 import type { Backend } from "#/api/backend-registry/types";
 import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
@@ -21,6 +22,15 @@ vi.mock(
     default: { batchGetAppConversations: vi.fn() },
   }),
 );
+
+// The owner probe reads the deployment's discovery document. Stub only the
+// network call, so the real peer selection still runs.
+vi.mock("#/api/discovery/discovery-backends.api", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("#/api/discovery/discovery-backends.api")
+  >()),
+  fetchDiscoveryBackends: vi.fn(),
+}));
 
 const localBackend: Backend = {
   id: "local-1",
@@ -85,6 +95,8 @@ beforeEach(() => {
   vi.mocked(
     AgentServerConversationService.batchGetAppConversations,
   ).mockResolvedValue([makeConversation(CLOUD_CONVERSATION_ID)]);
+  vi.mocked(fetchDiscoveryBackends).mockReset();
+  vi.mocked(fetchDiscoveryBackends).mockResolvedValue([]);
   setRegisteredBackends([localBackend, cloudBackend]);
 });
 
@@ -152,14 +164,16 @@ describe("useUserConversation — backend switch", () => {
     );
 
     // Assert — the detail lookup does not fall back to the server's mutable
-    // current_org_id while Canvas still has no explicit org scope.
+    // current_org_id while Canvas still has no explicit org scope. The owner
+    // probe keeps the same gate, so it makes no discovery request either.
     expect(result.current.fetchStatus).toBe("idle");
     expect(
       AgentServerConversationService.batchGetAppConversations,
     ).not.toHaveBeenCalled();
+    expect(fetchDiscoveryBackends).not.toHaveBeenCalled();
 
     // Act — once the Cloud organization boundary resolves the workspace, the
-    // query can run under the org-scoped key.
+    // query can run under the org-scoped key, and the probe may read peers.
     setActiveSelection({ backendId: cloudBackend.id, orgId: "org-a" });
 
     await waitFor(() =>
@@ -167,5 +181,6 @@ describe("useUserConversation — backend switch", () => {
         AgentServerConversationService.batchGetAppConversations,
       ).toHaveBeenCalledTimes(1),
     );
+    await waitFor(() => expect(fetchDiscoveryBackends).toHaveBeenCalled());
   });
 });
