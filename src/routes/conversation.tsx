@@ -19,7 +19,7 @@ import { EventHandler } from "../wrapper/event-handler";
 
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useSharedConversation } from "#/hooks/query/use-shared-conversation";
-import { useAutomationRunsBackend } from "#/hooks/query/use-automation-runs-backend";
+import { useConversationOwnerBackend } from "#/hooks/query/use-conversation-owner-backend";
 import { useTaskPollingController } from "#/hooks/query/use-task-polling";
 
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
@@ -125,45 +125,56 @@ function AppContent() {
   const { data: sharedConversation, isFetched: isSharedProbeFetched } =
     useSharedConversation(conversationId, { enabled: shouldProbeShared });
 
-  // On a local deployment, a conversation the owner lookup cannot see may be
-  // an automation run's transcript. Runs execute on the automation runs
-  // backend, so probe that backend before giving up. The deployment reports it
-  // in its discovery document; start-task ids are not conversations.
-  const shouldProbeAutomationRuns =
-    ownerLookupMissed &&
+  // On a local deployment, the active backend can catalogue a conversation it
+  // does not run: the deployment's servers share one conversation store, while
+  // the runtime stays on the server that owns it. Two symptoms identify that
+  // state, and both resolve the same way — find the peer that owns the runtime
+  // and read its transcript there:
+  //
+  //  - the owner lookup missed entirely (an automation run's conversation, on a
+  //    peer that the shared store does not publish to this backend), or
+  //  - the lookup succeeded but the backend reports the runtime as `missing`,
+  //    which means another server of the deployment owns it.
+  //
+  // Start-task ids are not conversations.
+  const activeBackendCannotHost = conversation?.runtime_status === "missing";
+  const shouldResolveForeignOwner =
     active.backend.kind === "local" &&
     !!conversationId &&
-    !conversationId.startsWith("task-");
-  const {
-    data: automationRunsBackend,
-    isFetched: isAutomationRunsBackendFetched,
-  } = useAutomationRunsBackend({ enabled: shouldProbeAutomationRuns });
-  const automationRunsHost = automationRunsBackend?.url ?? "";
-  const {
-    data: automationRunConversation,
-    isFetched: isAutomationProbeFetched,
-  } = useSharedConversation(conversationId, {
-    enabled: shouldProbeAutomationRuns && !!automationRunsHost,
-    host: automationRunsHost,
-  });
-  // The automation probe is settled when the backend list answered without a
-  // runs backend, or when the transcript read answered.
-  const automationProbeSettled =
-    !shouldProbeAutomationRuns ||
-    (isAutomationRunsBackendFetched &&
-      (!automationRunsHost || isAutomationProbeFetched));
+    !conversationId.startsWith("task-") &&
+    !backendChanged &&
+    (ownerLookupMissed || activeBackendCannotHost);
+
+  const { data: ownerBackend, isFetched: isOwnerBackendFetched } =
+    useConversationOwnerBackend(conversationId, {
+      enabled: shouldResolveForeignOwner,
+    });
+  const ownerHost = ownerBackend?.url ?? "";
+
+  // Reading the conversation from the owner proves it exists there, which is
+  // what turns a missed lookup into a transcript instead of a "not found".
+  const { data: foreignConversation, isFetched: isForeignProbeFetched } =
+    useSharedConversation(conversationId, {
+      enabled: shouldResolveForeignOwner && !!ownerHost,
+      host: ownerHost,
+    });
+  // The foreign probe is settled when the owner lookup answered without an
+  // owner, or when the transcript read answered.
+  const foreignProbeSettled =
+    !shouldResolveForeignOwner ||
+    (isOwnerBackendFetched && (!ownerHost || isForeignProbeFetched));
 
   React.useEffect(() => {
     if (!ownerLookupMissed) return;
     if (shouldProbeShared && !isSharedProbeFetched) return;
-    if (!automationProbeSettled) return;
+    if (!foreignProbeSettled) return;
     if (shouldProbeShared && sharedConversation) {
       navigate(`/shared/conversations/${conversationId}`, { replace: true });
       return;
     }
-    if (automationRunsHost && automationRunConversation) {
+    if (ownerHost && foreignConversation) {
       navigate(
-        `/shared/conversations/${conversationId}?host=${encodeURIComponent(automationRunsHost)}`,
+        `/shared/conversations/${conversationId}?host=${encodeURIComponent(ownerHost)}`,
         { replace: true },
       );
       return;
@@ -178,14 +189,35 @@ function AppContent() {
     shouldProbeShared,
     isSharedProbeFetched,
     sharedConversation,
-    automationProbeSettled,
-    automationRunsHost,
-    automationRunConversation,
+    foreignProbeSettled,
+    ownerHost,
+    foreignConversation,
     conversationId,
     navigate,
     t,
     active.backend.id,
     active.orgId,
+  ]);
+
+  // The lookup succeeded but the runtime lives on another backend: hand the
+  // transcript to the owning peer. This waits for the transcript read to
+  // succeed, so a peer that cannot serve the read leaves the user on the
+  // conversation view — which may still be resumable in place — instead of
+  // landing on a not-found page. A miss here is deliberately silent.
+  React.useEffect(() => {
+    if (!activeBackendCannotHost) return;
+    if (!foreignConversation) return;
+    if (!ownerHost) return;
+    navigate(
+      `/shared/conversations/${conversationId}?host=${encodeURIComponent(ownerHost)}`,
+      { replace: true },
+    );
+  }, [
+    activeBackendCannotHost,
+    foreignConversation,
+    ownerHost,
+    conversationId,
+    navigate,
   ]);
 
   // Remember the most recently selected conversation for the current

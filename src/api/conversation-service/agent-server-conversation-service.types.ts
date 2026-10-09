@@ -196,9 +196,22 @@ export interface AppConversation {
   execution_status: ExecutionStatus | null;
   /**
    * Cloud-only sandbox lifecycle status. Mirrors OpenHands' V1SandboxStatus.
-   * Absent / null for local agent-server conversations.
+   *
+   * A local agent-server reports no sandbox, so this stays null for local
+   * conversations except for one derived case: a runtime the active backend
+   * does not host reads as `MISSING` (see `toAppConversation`), which is how
+   * the sidebar marks a conversation that runs on another backend of the same
+   * deployment. Read `runtime_status` when you need to tell the two apart.
    */
   sandbox_status?: SandboxStatus | null;
+  /**
+   * Local agent-server runtime state for this conversation, straight from the
+   * wire (`runtime_info.runtime_status`). `missing` means the backend that
+   * answered does not host the runtime — in a multi-backend deployment another
+   * server owns it. Null when the backend reports no runtime info at all, or
+   * on the cloud wire shape.
+   */
+  runtime_status?: string | null;
   conversation_url: string | null;
   session_api_key: string | null;
   sandbox_id: string | null;

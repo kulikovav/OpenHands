@@ -390,6 +390,46 @@ export function toConversationUrl(conversationId: string): string {
   return `${host}/api/conversations/${conversationId}`;
 }
 
+/**
+ * Whether a catalog entry's backend can serve the conversation right now.
+ *
+ * This is the test that decides the `MISSING` sandbox status below. It is
+ * deliberately permissive: an entry that reports no runtime at all (an older
+ * server, or a cloud wire shape) is treated as servable, because the client
+ * cannot prove otherwise and must not hide a conversation it can open.
+ */
+export function isRuntimeHosted(info: {
+  runtime_info?: {
+    runtime_status?: string | null;
+    can_resume?: boolean | null;
+  } | null;
+}): boolean {
+  return !(
+    info.runtime_info?.runtime_status === "missing" &&
+    !info.runtime_info.can_resume
+  );
+}
+
+/**
+ * Whether a catalog entry's backend positively owns the conversation's live
+ * runtime.
+ *
+ * Stricter than {@link isRuntimeHosted}, and used only to resolve which peer
+ * of a deployment owns a conversation. `ownership_lost` is excluded on
+ * purpose: it means this server held the conversation and the lease moved to
+ * another server, so it is evidence against ownership, not for it. A peer that
+ * merely catalogues a shared conversation reports `missing` and is excluded
+ * too.
+ */
+export function holdsRuntime(info: {
+  runtime_info?: { runtime_status?: string | null } | null;
+}): boolean {
+  return (
+    info.runtime_info?.runtime_status === "available" ||
+    info.runtime_info?.runtime_status === "starting"
+  );
+}
+
 // TODO(i18n): extract "Conversation" once we add CONVERSATION$DEFAULT_TITLE
 // with `{{shortId}}` interpolation. Kept as a literal for now to keep the
 // fallback inside this pure adapter rather than fanning out to display sites.
@@ -472,11 +512,10 @@ export function toAppConversation(
     execution_status:
       (info.execution_status as AppConversation["execution_status"]) ??
       ExecutionStatus.IDLE,
-    sandbox_status:
-      info.runtime_info?.runtime_status === "missing" &&
-      !info.runtime_info.can_resume
-        ? "MISSING"
-        : ((info.sandbox_status as SandboxStatus | null) ?? null),
+    sandbox_status: isRuntimeHosted(info)
+      ? ((info.sandbox_status as SandboxStatus | null) ?? null)
+      : "MISSING",
+    runtime_status: info.runtime_info?.runtime_status ?? null,
     conversation_url: toConversationUrl(info.id),
     session_api_key: getAgentServerClientOptions().apiKey ?? null,
     sandbox_id: null,
