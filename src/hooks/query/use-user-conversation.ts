@@ -47,9 +47,11 @@ export const useUserConversation = (
   const isTaskId = !!cid && cid.startsWith("task-");
 
   // Which server of the deployment holds this conversation. Null when the
-  // active backend already does, so the single-server path is untouched.
+  // active backend already does, so the single-server path is untouched. The
+  // probe keeps the main query's scope gate: an org-less cloud backend serves
+  // no conversation here, so a discovery request would have no consumer.
   const { data: ownerBackend } = useConversationOwnerBackend(cid, {
-    enabled: !!cid && !isTaskId && !backendChanged,
+    enabled: !!cid && !isTaskId && !backendChanged && hasConversationScope,
   });
   const ownerUrl = ownerBackend?.url ?? "";
 
