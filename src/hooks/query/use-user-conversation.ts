@@ -92,11 +92,7 @@ export const useUserConversation = (
         await AgentServerConversationService.batchGetAppConversations([cid]);
       return results[0] ?? null;
     },
-    enabled:
-      !!cid &&
-      !isTaskId &&
-      !backendChanged &&
-      hasConversationScope,
+    enabled: !!cid && !isTaskId && !backendChanged && hasConversationScope,
     // Rate limits (429) are transient and worth a couple of backed-off
     // retries; any other failure (404, 5xx, network) fails immediately as
     // before rather than masking a real problem.
