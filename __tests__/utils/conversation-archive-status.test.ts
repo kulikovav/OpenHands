@@ -2,8 +2,30 @@ import { describe, expect, it } from "vitest";
 import {
   CONVERSATION_ARCHIVED_TAG,
   isArchivedByTag,
+  isArchivedSandboxStatus,
   withArchivedTag,
 } from "#/utils/conversation-archive-status";
+
+describe("isArchivedSandboxStatus", () => {
+  it("reads a gone sandbox or an errored one as archived", () => {
+    expect(isArchivedSandboxStatus("MISSING")).toBe(true);
+    expect(isArchivedSandboxStatus("ERROR")).toBe(true);
+    expect(isArchivedSandboxStatus("RUNNING")).toBe(false);
+    expect(isArchivedSandboxStatus(null)).toBe(false);
+    expect(isArchivedSandboxStatus(undefined)).toBe(false);
+  });
+
+  it("does not read a runtime on another backend as archived", () => {
+    // A local runtime the active backend does not host derives a MISSING
+    // sandbox status, but that means the conversation runs elsewhere in the
+    // deployment. Reading it as archived would hide a live conversation.
+    expect(isArchivedSandboxStatus("MISSING", "missing")).toBe(false);
+    expect(isArchivedSandboxStatus("ERROR", "missing")).toBe(false);
+    // A hosted runtime keeps the normal sandbox reading.
+    expect(isArchivedSandboxStatus("MISSING", "available")).toBe(true);
+    expect(isArchivedSandboxStatus("ERROR", "ownership_lost")).toBe(true);
+  });
+});
 
 describe("isArchivedByTag", () => {
   it("reads the archive tag of a conversation", () => {

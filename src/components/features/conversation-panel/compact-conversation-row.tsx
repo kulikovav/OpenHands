@@ -18,6 +18,7 @@ interface CompactConversationRowProps {
   selectedRepository: RepositorySelection | null;
   executionStatus?: ExecutionStatus | null;
   sandboxStatus?: SandboxStatus | null;
+  runtimeStatus?: string | null;
   lastUpdatedAt: string;
   createdAt?: string;
   workspaceWorkingDir?: string | null;
@@ -44,6 +45,7 @@ export function CompactConversationRow({
   selectedRepository,
   executionStatus,
   sandboxStatus,
+  runtimeStatus,
   lastUpdatedAt,
   createdAt,
   workspaceWorkingDir,
@@ -68,6 +70,7 @@ export function CompactConversationRow({
         <ConversationStatusDot
           executionStatus={executionStatus}
           sandboxStatus={sandboxStatus}
+          runtimeStatus={runtimeStatus}
           showTooltip={false}
         />
         <span
@@ -120,6 +123,7 @@ export function CompactConversationRow({
         <ConversationStatusDot
           executionStatus={executionStatus}
           sandboxStatus={sandboxStatus}
+          runtimeStatus={runtimeStatus}
           showTooltip={false}
         />
       </NavigationLink>

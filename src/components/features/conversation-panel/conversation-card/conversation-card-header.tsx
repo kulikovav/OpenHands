@@ -10,6 +10,7 @@ interface ConversationCardHeaderProps {
   onTitleSave: (title: string) => void;
   executionStatus?: ExecutionStatus | null;
   sandboxStatus?: SandboxStatus | null;
+  runtimeStatus?: string | null;
 }
 
 export function ConversationCardHeader({
@@ -18,8 +19,9 @@ export function ConversationCardHeader({
   onTitleSave,
   executionStatus,
   sandboxStatus,
+  runtimeStatus,
 }: ConversationCardHeaderProps) {
-  const isArchived = isArchivedSandboxStatus(sandboxStatus);
+  const isArchived = isArchivedSandboxStatus(sandboxStatus, runtimeStatus);
   return (
     <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
       {executionStatus !== undefined && (
@@ -27,6 +29,7 @@ export function ConversationCardHeader({
           <ConversationStatusDot
             executionStatus={executionStatus}
             sandboxStatus={sandboxStatus}
+            runtimeStatus={runtimeStatus}
             showTooltip={false}
           />
         </div>

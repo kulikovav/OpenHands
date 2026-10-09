@@ -46,6 +46,7 @@ import {
   emptyHooksResponse,
   fetchBackendExecutionRuntime,
   getDefaultConversationTitle,
+  holdsRuntime,
   toAppConversation,
   toConversationPage,
   toHooksResponse,
@@ -972,6 +973,27 @@ class AgentServerConversationService {
       stats: data.stats ?? { usage_to_metrics: {} },
       available_models: toAcpModelOptions(data.available_models),
     };
+  }
+
+  /**
+   * Report whether the agent-server at `conversationUrl` positively owns the
+   * live runtime of a conversation.
+   *
+   * A deployment's servers share one conversation store, so a catalog read
+   * succeeds on every one of them. Ownership is therefore not "can this server
+   * read the conversation" but "does this server hold its runtime". The read
+   * is read-only by construction: it never starts, resumes, or mutates the
+   * conversation.
+   */
+  static async ownsRuntimeOn(
+    conversationId: string,
+    conversationUrl: string | null | undefined,
+    sessionApiKey?: string | null,
+  ): Promise<boolean> {
+    const response = await new ConversationClient(
+      getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
+    ).getConversation<DirectConversationInfo>(conversationId);
+    return holdsRuntime(requireDirectConversationInfo(response));
   }
 
   /**

@@ -7,9 +7,12 @@ import {
 export function useIsArchivedConversation() {
   const { data: conversation } = useActiveConversation();
   // Two marks mean archived: the sandbox is gone, or a client archived the
-  // conversation and recorded it in the server tag.
+  // conversation and recorded it in the server tag. A runtime on another
+  // backend is neither — it only means this backend cannot host it.
   return (
-    isArchivedSandboxStatus(conversation?.sandbox_status) ||
-    isArchivedByTag(conversation)
+    isArchivedSandboxStatus(
+      conversation?.sandbox_status,
+      conversation?.runtime_status,
+    ) || isArchivedByTag(conversation)
   );
 }

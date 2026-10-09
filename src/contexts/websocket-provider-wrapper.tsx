@@ -95,10 +95,16 @@ export function WebSocketProviderWrapper({
   );
 
   // A paused or archived runtime cannot accept a WebSocket connection. Its
-  // persisted event history remains available through the backend API.
+  // persisted event history remains available through the backend API. A
+  // runtime on another backend is not archived, but it is just as unreachable
+  // from here — the conversation route hands that case to the owning backend.
   const conversationUrl =
     conversation?.sandbox_status === "PAUSED" ||
-    isArchivedSandboxStatus(conversation?.sandbox_status)
+    conversation?.runtime_status === "missing" ||
+    isArchivedSandboxStatus(
+      conversation?.sandbox_status,
+      conversation?.runtime_status,
+    )
       ? null
       : conversation?.conversation_url;
 
