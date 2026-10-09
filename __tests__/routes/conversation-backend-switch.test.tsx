@@ -266,6 +266,8 @@ beforeEach(() => {
   vi.mocked(
     AgentServerConversationService.batchGetAppConversations,
   ).mockReset();
+  vi.mocked(resumeCloudSandbox).mockReset();
+  vi.mocked(resumeCloudSandbox).mockResolvedValue(undefined);
   vi.mocked(
     AgentServerConversationService.batchGetAppConversations,
   ).mockResolvedValue([makeConversation(CLOUD_CONVERSATION_ID)]);
@@ -416,6 +418,7 @@ describe("conversation route — cloud sandbox resume", () => {
           CLOUD_CONVERSATION_ID,
           cloudBackend.id,
           "org-a",
+          "",
         ])?.sandbox_status,
       ).toBe("PAUSED"),
     );
