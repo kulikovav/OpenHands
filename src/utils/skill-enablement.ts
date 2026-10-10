@@ -133,7 +133,7 @@ const CATALOG_SKILL_BY_SLASH_COMMAND = new Map(
 /**
  * The catalog skill a message invokes by name, if any.
  *
- * 18 of the catalog's 24 slash commands belong to skills that are off by
+ * Most of the catalog's slash commands belong to skills that are off by
  * default, so without this an automation card would send its command with none
  * of the instructions behind it. Only the leading token counts: matching a
  * `/word` anywhere in prose would re-admit most of the catalog.
