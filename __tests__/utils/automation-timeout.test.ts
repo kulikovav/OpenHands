@@ -51,7 +51,7 @@ describe("validateAutomationTimeout", () => {
 
   it("validates against a ceiling the interface manifest lowered", () => {
     // Arrange / Act — a manifest max of 900 moves the boundary: 900 stays
-    // in range while 901, fine under the 1800 default, is now rejected.
+    // in range while 901, fine under the 7200 ceiling, is now rejected.
     const atCeiling = validateAutomationTimeout("900", 900);
     const overCeiling = validateAutomationTimeout("901", 900);
 
