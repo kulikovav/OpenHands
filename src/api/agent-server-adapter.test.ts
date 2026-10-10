@@ -384,7 +384,7 @@ describe("buildStartConversationRequest", () => {
 
   it("loads a catalog skill the opening slash command invokes", () => {
     // An automation card fills the chat input with the skill's own command
-    // (`findAutomationCommand`), and 18 of the catalog's 24 slash commands
+    // (`findAutomationCommand`), and most of the catalog's slash commands
     // belong to skills that are off by default — without this the card would
     // silently do nothing.
     const settings = makeSettings({
