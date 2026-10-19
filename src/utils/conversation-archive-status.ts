@@ -57,6 +57,23 @@ export function isEffectivelyArchivedConversation(
 export const CONVERSATION_ARCHIVED_TAG = "archived";
 
 /**
+ * Whether a conversation reads as archived from its backend-reported status.
+ *
+ * A local runtime the active backend does not host derives `MISSING` on
+ * `sandbox_status`, but that means "runs on another backend of this
+ * deployment", not "archived". The caller passes the conversation's
+ * `runtime_status` so the two cannot be confused; the archive mark itself lives
+ * in the browser store and the `archived` tag.
+ */
+export function isArchivedSandboxStatus(
+  sandboxStatus: SandboxStatus | null | undefined,
+  runtimeStatus?: string | null,
+): boolean {
+  if (runtimeStatus === "missing") return false;
+  return isRuntimeUnavailableSandboxStatus(sandboxStatus);
+}
+
+/**
  * Reports whether a conversation's own server tags mark it archived. A
  * backend that returns no tags (cloud) never reads as tag-archived.
  */

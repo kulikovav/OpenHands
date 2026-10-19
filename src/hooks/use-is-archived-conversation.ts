@@ -1,7 +1,7 @@
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import {
   isArchivedByTag,
-  isRuntimeUnavailableSandboxStatus,
+  isArchivedSandboxStatus,
 } from "#/utils/conversation-archive-status";
 
 /**
@@ -15,10 +15,13 @@ import {
  */
 export function useIsArchivedConversation() {
   const { data: conversation } = useActiveConversation();
-  // Two marks mean archived: the runtime is unavailable, or a client archived
-  // the conversation and recorded it in the server tag.
+  // Two marks mean archived: the sandbox is gone or errored, or a client
+  // archived the conversation and recorded it in the server tag. A runtime on
+  // another backend is neither - it only means this backend cannot host it.
   return (
-    isRuntimeUnavailableSandboxStatus(conversation?.sandbox_status) ||
-    isArchivedByTag(conversation)
+    isArchivedSandboxStatus(
+      conversation?.sandbox_status,
+      conversation?.runtime_status,
+    ) || isArchivedByTag(conversation)
   );
 }
