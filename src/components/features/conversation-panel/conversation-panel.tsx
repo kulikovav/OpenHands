@@ -1355,6 +1355,7 @@ export function ConversationPanel({
             }}
             executionStatus={conversation.execution_status}
             sandboxStatus={conversation.sandbox_status}
+            runtimeStatus={conversation.runtime_status}
             lastUpdatedAt={conversation.updated_at}
             createdAt={conversation.created_at}
             workspaceWorkingDir={
