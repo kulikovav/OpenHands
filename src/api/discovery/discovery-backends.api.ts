@@ -8,16 +8,13 @@ import { getEffectiveLocalBackend } from "#/api/backend-registry/active-store";
 export const DISCOVERY_BACKENDS_PATH = "/api/discovery/backends";
 
 /**
- * The role the deployment gives a parallel cloud-agent backend.
+ * One backend the deployment's discovery document reports.
  *
- * A slot is a full agent backend, so a conversation it owns can be driven from
- * the ingress. The `automations` role is not: the bridge must never schedule a
- * conversation agent on the runs server, so a transcript read from it stays
- * read-only.
+ * The document names a `role` for each backend (`ingress`, `slot`,
+ * `automations`), but this UI does not gate behavior on it: every reported
+ * backend is a full agent server, so a conversation the owner lookup places on
+ * one opens live, read from that backend.
  */
-export const SLOT_ROLE = "slot";
-
-/** One backend the deployment's discovery document reports. */
 export interface DiscoveryBackend {
   name: string;
   role: string;

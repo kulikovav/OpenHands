@@ -21,11 +21,7 @@ import {
   suppressNextCloudAutoResume,
 } from "#/api/cloud/cloud-sandbox-resume-suppression";
 import type { Backend } from "#/api/backend-registry/types";
-import type {
-  AppConversation,
-  RuntimeConversationInfo,
-} from "#/api/conversation-service/agent-server-conversation-service.types";
-import { ExecutionStatus } from "#/types/agent-server/core";
+import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { getCloudSharedConversation } from "#/api/cloud/shared-conversation-service.api";
 import { usePendingTaskAttachmentsStore } from "#/stores/pending-task-attachments-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
@@ -223,19 +219,6 @@ function makeSharedConversation(id: string): SharedConversation {
   };
 }
 
-function makeRuntimeConversation(id: string): RuntimeConversationInfo {
-  return {
-    id,
-    title: "Nightly review",
-    metrics: null,
-    created_at: "2024-01-01T00:00:00Z",
-    updated_at: "2024-01-01T00:00:00Z",
-    status: ExecutionStatus.IDLE,
-    stats: { usage_to_metrics: {} },
-    available_models: [],
-  };
-}
-
 // Render the route inside a router so the fallback's navigation lands on
 // observable destinations.
 function renderConversationRoute(conversationId: string) {
@@ -291,6 +274,7 @@ beforeEach(() => {
     AgentServerConversationService.batchGetAppConversations,
   ).mockResolvedValue([makeConversation(CLOUD_CONVERSATION_ID)]);
   vi.mocked(AgentServerConversationService.getRuntimeConversation).mockReset();
+  vi.mocked(AgentServerConversationService.getAppConversationOn).mockReset();
   vi.mocked(AgentServerConversationService.canServeTranscriptOn).mockReset();
   // Default: the active backend serves every conversation. A test that needs a
   // foreign owner overrides this per host.
@@ -790,7 +774,7 @@ it("restores an upload that fails after its conversation is already open, once a
   expect(useConversationStore.getState().files).toEqual([file]);
 });
 
-describe("conversation route — foreign owner read-only fallback", () => {
+describe("conversation route — foreign owner fallback", () => {
   /**
    * Make exactly one host serve the transcript. `null` means the active
    * backend, matching the probe's own convention.
@@ -804,10 +788,11 @@ describe("conversation route — foreign owner read-only fallback", () => {
     );
   }
 
-  it("opens a run transcript read-only from the runs backend", async () => {
+  it("opens an automation run conversation live, reading it from the runs backend", async () => {
     // Arrange — the reported bug: the ingress lists an automation run's
     // conversation from the shared store, but only the runs server holds its
-    // event log, so the transcript must be read there.
+    // event log. The runs server is a full agent backend, so the conversation
+    // opens live with its read routed there, not as a read-only transcript.
     setActiveSelection({ backendId: localBackend.id });
     vi.mocked(fetchDiscoveryBackends).mockResolvedValue(
       makeDiscoveryDocument([
@@ -817,16 +802,15 @@ describe("conversation route — foreign owner read-only fallback", () => {
     );
     mockTranscriptHost(RUNS_BACKEND_URL);
     vi.mocked(
-      AgentServerConversationService.getRuntimeConversation,
-    ).mockResolvedValue(makeRuntimeConversation(RUN_CONVERSATION_ID));
+      AgentServerConversationService.getAppConversationOn,
+    ).mockResolvedValue(makeConversation(RUN_CONVERSATION_ID));
 
     // Act
     renderConversationRoute(RUN_CONVERSATION_ID);
 
-    // Assert
-    expect(
-      await screen.findByTestId("shared-conversation-view"),
-    ).toBeInTheDocument();
+    // Assert — the live view, and the read went to the runs server.
+    expect(await screen.findByTestId("conversation-main")).toBeInTheDocument();
+    expect(screen.queryByTestId("shared-conversation-view")).toBeNull();
     // The active backend is asked first, then the peers in document order.
     expect(
       AgentServerConversationService.canServeTranscriptOn,
@@ -845,12 +829,12 @@ describe("conversation route — foreign owner read-only fallback", () => {
       localBackend.apiKey,
     );
     expect(
+      AgentServerConversationService.getAppConversationOn,
+    ).toHaveBeenCalledWith(RUN_CONVERSATION_ID, RUNS_BACKEND_URL);
+    // The read-only transcript read must not run.
+    expect(
       AgentServerConversationService.getRuntimeConversation,
-    ).toHaveBeenCalledWith(
-      RUN_CONVERSATION_ID,
-      RUNS_BACKEND_URL,
-      localBackend.apiKey,
-    );
+    ).not.toHaveBeenCalled();
     expect(displayErrorToast).not.toHaveBeenCalled();
   });
 
@@ -932,10 +916,10 @@ describe("conversation route — foreign owner read-only fallback", () => {
     expect(displayErrorToast).not.toHaveBeenCalled();
   });
 
-  it("does not redirect when the transcript read from a read-only owner fails", async () => {
-    // Arrange — the runs server is a read-only owner, the probe says it serves
-    // the transcript, but the conversation read fails. The user must stay on the
-    // conversation view rather than land on a not-found page.
+  it("does not report a miss when the owner read fails", async () => {
+    // Arrange — the probe places the conversation on the runs server, but the
+    // conversation read there fails. The user must stay on the conversation view
+    // rather than land on a not-found page.
     setActiveSelection({ backendId: localBackend.id });
     vi.mocked(fetchDiscoveryBackends).mockResolvedValue(
       makeDiscoveryDocument([
@@ -944,7 +928,7 @@ describe("conversation route — foreign owner read-only fallback", () => {
     );
     mockTranscriptHost(RUNS_BACKEND_URL);
     vi.mocked(
-      AgentServerConversationService.getRuntimeConversation,
+      AgentServerConversationService.getAppConversationOn,
     ).mockRejectedValue(new Error("the owning backend refused the read"));
 
     // Act
