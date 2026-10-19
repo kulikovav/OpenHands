@@ -18,6 +18,7 @@ import {
 const mocks = vi.hoisted(() => ({
   useSharedConversation: vi.fn(),
   useSharedConversationEvents: vi.fn(),
+  useDiscoveredBackends: vi.fn(),
   useInfiniteScroll: vi.fn(),
   useTranslation: vi.fn(),
 }));
@@ -40,6 +41,11 @@ vi.mock("#/hooks/query/use-shared-conversation", () => ({
 vi.mock("#/hooks/query/use-shared-conversation-events", () => ({
   useSharedConversationEvents: (conversationId?: string) =>
     mocks.useSharedConversationEvents(conversationId),
+}));
+
+vi.mock("#/hooks/query/use-discovered-backends", () => ({
+  useDiscoveredBackends: (options: unknown) =>
+    mocks.useDiscoveredBackends(options),
 }));
 
 vi.mock("#/hooks/use-infinite-scroll", () => ({
@@ -215,11 +221,20 @@ const createEventsHookState = (
 interface RenderViewerOptions {
   conversationState?: Partial<ConversationHookState>;
   eventsState?: Partial<EventsHookState>;
+  /** Peers the deployment's discovery document reports. */
+  peers?: Array<{ name: string; role: string; url: string }>;
+  /** Whether the discovery document has answered yet. */
+  peersFetched?: boolean;
+  /** Owner root carried in the URL, as the conversation route writes it. */
+  host?: string;
 }
 
 const renderViewer = ({
   conversationState: conversationOverrides = {},
   eventsState: eventsOverrides = {},
+  peers = [],
+  peersFetched = true,
+  host = "",
 }: RenderViewerOptions = {}) => {
   const conversationState = createConversationHookState(conversationOverrides);
   const eventsState = createEventsHookState(eventsOverrides);
@@ -227,11 +242,18 @@ const renderViewer = ({
 
   mocks.useSharedConversation.mockReturnValue(conversationState);
   mocks.useSharedConversationEvents.mockReturnValue(eventsState);
+  mocks.useDiscoveredBackends.mockReturnValue({
+    data: peers,
+    isFetched: peersFetched,
+  });
   mocks.useInfiniteScroll.mockReturnValue(scrollContainerRef);
 
+  const search = host ? `?host=${encodeURIComponent(host)}` : "";
   const viewer = () => (
     <MemoryRouter
-      initialEntries={[`/shared/conversations/${SHARED_CONVERSATION_ID}`]}
+      initialEntries={[
+        `/shared/conversations/${SHARED_CONVERSATION_ID}${search}`,
+      ]}
     >
       <Routes>
         <Route
@@ -419,6 +441,52 @@ describe("shared conversation viewer", () => {
       "data-all-event-ids",
       "replacement-message",
     );
+  });
+
+  it("names the backend the transcript is read from", () => {
+    // Arrange — the URL carries the owner root, and the discovery document
+    // names that backend.
+    renderViewer({
+      host: "https://oh.example:8443",
+      peers: [
+        {
+          name: "backend-1",
+          role: "slot",
+          url: "https://oh.example:8443",
+        },
+      ],
+    });
+
+    // Assert — the reader can tell which server owns the conversation.
+    expect(
+      screen.getByText(`${I18nKey.BACKEND$NAME_LABEL}: backend-1`),
+    ).toBeInTheDocument();
+    expect(mocks.useDiscoveredBackends).toHaveBeenCalledWith({ enabled: true });
+  });
+
+  it("shows the loader, not a not-found page, while discovery is still loading", () => {
+    // Arrange — a foreign transcript is gated on the discovery document, so
+    // until that document answers the read queries are disabled. Reporting
+    // "not found" there would flash on every reload of a foreign transcript.
+    renderViewer({
+      host: "https://oh.example:8443",
+      peersFetched: false,
+    });
+
+    // Assert
+    expect(screen.getByTestId("loading-spinner-large")).toBeInTheDocument();
+    expect(screen.queryByText(I18nKey.CONVERSATION$NOT_FOUND)).toBeNull();
+  });
+
+  it("names no backend when the transcript is read from the active backend", () => {
+    // Arrange — no owner root in the URL, so the read stays local.
+    renderViewer();
+
+    // Assert
+    expect(screen.queryByTestId("owner-backend")).toBeNull();
+    expect(mocks.useDiscoveredBackends).toHaveBeenCalledWith({
+      enabled: false,
+    });
   });
 
   it("uses fallback copy and hides optional details when history is unavailable", () => {
