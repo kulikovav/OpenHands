@@ -30,7 +30,7 @@
      # Auto-disable rules. `failure_disable_threshold` is the fast path for
 --- a/openhands/automation/dispatcher.py
 +++ b/openhands/automation/dispatcher.py
-@@ -19,10 +19,10 @@
+@@ -19,11 +19,11 @@
  import logging
  import uuid
  from datetime import timedelta
@@ -38,23 +38,24 @@
 +from typing import Any, Final
  
  import httpx
+ from fastapi import HTTPException
 -from sqlalchemy import and_, or_, select
 +from sqlalchemy import and_, func, or_, select, update
  from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
  from sqlalchemy.orm import selectinload
  
-@@ -83,6 +83,10 @@
- 
- logger = logging.getLogger("automation.dispatcher")
+@@ -88,6 +88,10 @@
+     maybe_disable_unhealthy_automation_after_run,
+ )
  
 +# The retry counter lives in the run's ``run_metadata`` JSON, so a requeue
 +# needs no schema change.
 +DISPATCH_RETRIES_KEY: Final[str] = "dispatch_retries"
 +
  
- async def _download_internal_tarball(
-     upload_id: uuid.UUID,
-@@ -239,8 +243,22 @@
+ logger = logging.getLogger("automation.dispatcher")
+ 
+@@ -387,8 +391,22 @@
          error: str,
          disable: bool = False,
          status_detail: dict | None = None,
@@ -78,7 +79,7 @@
          await mark_run_terminal(
              session_factory,
              run,
-@@ -322,6 +340,7 @@
+@@ -599,6 +617,7 @@
          source = "agent_server" if backend.is_local_mode else "sandbox_api"
          await _fail(
              "Failed to get execution context",
@@ -86,7 +87,7 @@
              status_detail=run_status_detail_from_exception(
                  exc,
                  phase=RunStatusPhase.DISPATCH,
-@@ -549,6 +568,9 @@
+@@ -866,6 +885,9 @@
          "Execution failed: %s", result.error, extra=_log_ctx(sandbox_id=ctx.sandbox_id)
      )
      await backend.release_context(client, ctx)
@@ -96,7 +97,7 @@
      await _fail(
          error,
          status_detail=make_run_status_detail(
-@@ -562,6 +584,18 @@
+@@ -879,6 +901,18 @@
      )
  
  
@@ -115,7 +116,7 @@
  async def dispatch_pending_runs(
      session_factory: async_sessionmaker[AsyncSession],
      settings: ServiceSettings,
-@@ -580,12 +614,30 @@
+@@ -897,12 +931,30 @@
          batch_size: Number of pending runs to fetch per poll (from config if None)
      """
      # Use config defaults if not provided
@@ -148,7 +149,7 @@
  
          dispatched_runs = []
          for run in pending_runs:
-@@ -661,6 +713,11 @@
+@@ -978,6 +1030,11 @@
              await _execute_run(run, settings, session_factory, client)
      except Exception as exc:
          logger.exception("Background execution failed", extra=extra)
@@ -160,7 +161,7 @@
          await mark_run_terminal(
              session_factory,
              run,
-@@ -675,6 +732,77 @@
+@@ -992,6 +1049,77 @@
          )
  
  
