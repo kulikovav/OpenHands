@@ -1,6 +1,7 @@
 import { useQueries } from "@tanstack/react-query";
 import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import { PEER_CONVERSATIONS_QUERY_KEYS } from "#/hooks/query/query-keys";
 import { useDiscoveredBackends } from "./use-discovered-backends";
 
 /** How often each peer's conversation list is refreshed. */
@@ -28,7 +29,7 @@ export const usePeerConversations = (options: { enabled?: boolean } = {}) => {
 
   return useQueries({
     queries: (ready ? (peers ?? []) : []).map((peer) => ({
-      queryKey: ["peer-conversations", peer.url],
+      queryKey: [...PEER_CONVERSATIONS_QUERY_KEYS.all, peer.url],
       queryFn: () =>
         AgentServerConversationService.searchConversationsOn(peer.url),
       staleTime: PEER_CONVERSATIONS_STALE_TIME_MS,
