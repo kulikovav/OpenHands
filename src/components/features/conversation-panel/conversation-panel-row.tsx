@@ -90,6 +90,7 @@ export const ConversationPanelRow = React.memo(function ConversationPanelRow({
           titlePending={titlePending}
           executionStatus={conversation.execution_status}
           sandboxStatus={conversation.sandbox_status}
+          runtimeStatus={conversation.runtime_status}
           selectedRepository={{
             selected_repository: conversation.selected_repository,
             selected_branch: conversation.selected_branch,
@@ -174,6 +175,7 @@ export const ConversationPanelRow = React.memo(function ConversationPanelRow({
           createdAt={conversation.created_at}
           executionStatus={conversation.execution_status}
           sandboxStatus={conversation.sandbox_status}
+          runtimeStatus={conversation.runtime_status}
           conversationId={conversation.id}
           contextMenuOpen={contextMenuOpen}
           onContextMenuToggle={(isOpen) =>
