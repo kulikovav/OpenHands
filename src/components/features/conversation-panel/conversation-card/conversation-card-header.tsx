@@ -1,6 +1,6 @@
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { SandboxStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
-import { isMissingSandboxStatus } from "#/utils/conversation-archive-status";
+import { isArchivedSandboxStatus } from "#/utils/conversation-archive-status";
 import { ConversationCardTitle } from "./conversation-card-title";
 import { ConversationStatusDot } from "../conversation-status-dot";
 
@@ -13,12 +13,17 @@ interface ConversationCardHeaderProps {
   isStarting?: boolean;
   sandboxStatus?: SandboxStatus | null;
   /**
-   * The row's effective archived state (explicit archive or missing runtime).
-   * Dims the title and grays the status dot so both agree with the "Archived"
-   * chip. Defaults to the runtime-derived case for callers that only know the
-   * sandbox status.
+   * The row's effective archived state (explicit archive, shared tag, or
+   * missing runtime). Dims the title and grays the status dot so both agree
+   * with the "Archived" chip. Defaults to the runtime-derived case for callers
+   * that only know the sandbox status.
    */
   isArchived?: boolean;
+  /**
+   * Local runtime state. `missing` means the conversation runs on another
+   * backend of the deployment, so it is neither archived nor read-only.
+   */
+  runtimeStatus?: string | null;
 }
 
 export function ConversationCardHeader({
@@ -29,9 +34,11 @@ export function ConversationCardHeader({
   executionStatus,
   isStarting,
   sandboxStatus,
+  runtimeStatus,
   isArchived,
 }: ConversationCardHeaderProps) {
-  const archived = isArchived ?? isMissingSandboxStatus(sandboxStatus);
+  const archived =
+    isArchived ?? isArchivedSandboxStatus(sandboxStatus, runtimeStatus);
   return (
     <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
       {(executionStatus !== undefined || isStarting) && (
@@ -40,6 +47,7 @@ export function ConversationCardHeader({
             executionStatus={executionStatus}
             isStarting={isStarting}
             sandboxStatus={sandboxStatus}
+            runtimeStatus={runtimeStatus}
             isArchived={archived}
             showTooltip={false}
           />
