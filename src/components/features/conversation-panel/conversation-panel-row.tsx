@@ -24,6 +24,12 @@ interface ConversationPanelRowProps {
   contextMenuOpen: boolean;
   inPinnedSection: boolean;
   allowEditTags: boolean;
+  /**
+   * The row belongs to another backend of the deployment. Its record is
+   * read-only here, so every mutation is disabled; opening it hands off to the
+   * backend that owns it.
+   */
+  isForeign: boolean;
   showHoverMetadata: boolean;
   showRepoBranchMetadata: boolean;
   showLlmProfiles: boolean;
@@ -55,6 +61,7 @@ export const ConversationPanelRow = React.memo(function ConversationPanelRow({
   contextMenuOpen,
   inPinnedSection,
   allowEditTags,
+  isForeign,
   showHoverMetadata,
   showRepoBranchMetadata,
   showLlmProfiles,
@@ -135,33 +142,46 @@ export const ConversationPanelRow = React.memo(function ConversationPanelRow({
         )}
       >
         <ConversationCard
-          onDelete={() => handleDeleteProject(conversation.id, displayTitle)}
+          onDelete={
+            isForeign
+              ? undefined
+              : () => handleDeleteProject(conversation.id, displayTitle)
+          }
           // Archive is offered until the row is effectively archived; the
           // reverse direction, "Unarchive", is offered only when the row is
           // explicitly archived and its runtime is not missing. A
           // missing-runtime row offers neither.
           onArchive={
-            isArchived
+            isForeign || isArchived
               ? undefined
               : () => handleArchiveProject(conversation.id, displayTitle)
           }
           onUnarchive={
-            explicitlyArchived && !runtimeMissing
-              ? () => handleUnarchiveProject(conversation.id)
-              : undefined
+            isForeign || !explicitlyArchived || runtimeMissing
+              ? undefined
+              : () => handleUnarchiveProject(conversation.id)
           }
-          onStop={() => handleStopConversation(conversation.id)}
+          onStop={
+            isForeign
+              ? undefined
+              : () => handleStopConversation(conversation.id)
+          }
           onNewConversationInSandbox={
+            !isForeign &&
             sandboxId &&
             !isRuntimeUnavailableSandboxStatus(conversation.sandbox_status)
               ? () => handleNewConversationInSandbox(sandboxId)
               : undefined
           }
           onEditTags={
-            allowEditTags ? () => handleEditTags(conversation.id) : undefined
+            isForeign || !allowEditTags
+              ? undefined
+              : () => handleEditTags(conversation.id)
           }
-          onChangeTitle={(title) =>
-            handleConversationTitleChange(conversation.id, title)
+          onChangeTitle={
+            isForeign
+              ? undefined
+              : (title) => handleConversationTitleChange(conversation.id, title)
           }
           title={displayTitle}
           titlePending={titlePending}
@@ -196,7 +216,9 @@ export const ConversationPanelRow = React.memo(function ConversationPanelRow({
           showTags={showTagsMetadata}
           isArchived={isArchived}
           isPinned={isPinned}
-          onTogglePin={() => handleTogglePin(conversation)}
+          onTogglePin={
+            isForeign ? undefined : () => handleTogglePin(conversation)
+          }
           alwaysShowPinIcon={isPinned && !inPinnedSection}
         />
       </NavigationLink>
