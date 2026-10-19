@@ -386,7 +386,6 @@ function requireDirectConversationItems(
  * a null entry would be a genuine protocol error.
  */
 export function readBatchConversationItems(
->>>>>>> 8eb21b940 (feat(conversation): open a slot-owned conversation live from the ingress)
   items: unknown,
 ): (DirectConversationInfo | null)[] {
   if (!Array.isArray(items)) {
@@ -1215,6 +1214,27 @@ class AgentServerConversationService {
 
     await client.deleteConversation(conversationId);
     removeStoredConversationMetadata(conversationId);
+  }
+
+  /**
+   * Delete one conversation on a named backend of the deployment.
+   *
+   * A peer that ran or opened a conversation keeps an in-memory catalog record
+   * for it and goes on listing it after another backend deletes it from the
+   * shared store, so the sidebar resurrects the deleted row from the peer list.
+   * The peer holds the id, so its own delete is the call that drops that stale
+   * record. Best-effort by design: a peer whose catalog does not hold the id
+   * answers 400 and one that cannot act answers 500, and the caller ignores
+   * both because the active backend's delete is the operation that must
+   * succeed.
+   */
+  static async deleteConversationOn(
+    conversationId: string,
+    conversationUrl: string,
+  ): Promise<void> {
+    await new ConversationClient(
+      getAgentServerClientOptions({ conversationUrl }),
+    ).deleteConversation(conversationId);
   }
 
   static async updateConversationTitle(
