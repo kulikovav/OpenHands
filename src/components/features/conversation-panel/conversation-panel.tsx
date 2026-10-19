@@ -11,6 +11,7 @@ import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useBackendScopedPath } from "#/hooks/use-backend-scoped-path";
 import { usePaginatedConversations } from "#/hooks/query/use-paginated-conversations";
 import { useAgentProfiles } from "#/hooks/query/use-agent-profiles";
+import { usePeerConversations } from "#/hooks/query/use-peer-conversations";
 import { useResolvedWorkspaces } from "#/hooks/query/use-resolved-workspaces";
 import { useStartTasks } from "#/hooks/query/use-start-tasks";
 import { useDeleteConversation } from "#/hooks/mutation/use-delete-conversation";
@@ -305,9 +306,13 @@ export function ConversationPanel({
     return names;
   }, [agentProfilesData]);
 
-  // Deduped, archive-unaware collection of every conversation currently loaded
-  // from the backend. Bulk actions like "Delete all" must use this list so
-  // hiding archived rows from the UI never shrinks what gets deleted.
+  // The conversations the deployment's other backends list. Read-only.
+  const peerConversations = usePeerConversations();
+
+  // Deduped, archive-unaware collection of every conversation the ACTIVE
+  // backend currently has loaded. Bulk actions like "Delete all" must use this
+  // list: a mutation must only ever be sent to the backend that owns the
+  // conversation, so the peer-sourced rows below are deliberately excluded.
   const allLoadedConversations = React.useMemo(() => {
     const all = data?.pages.flatMap((page) => page.items) ?? [];
     // The 10s background refetch re-fetches every loaded page with the
@@ -329,6 +334,23 @@ export function ConversationPanel({
     failedTaskIds = [],
   } = useStartTasks(10, listedConversationIds);
   const getTitle = useConversationDisplayTitleState();
+  // What the panel renders: the active backend's conversations plus the ones
+  // the deployment's other backends list. Each agent server builds its catalog
+  // once at start and extends it only with what it creates itself, so an
+  // automation run's conversation is absent from the ingress list until the
+  // ingress restarts. Merging the peer lists is what shows the whole
+  // deployment from one backend.
+  //
+  // The active backend's copy of an id wins, so a conversation both lists is
+  // treated as local. A peer entry keeps its `source_backend_url`, which is
+  // what disables every mutation for it.
+  const displayedConversations = React.useMemo(() => {
+    const seen = new Set(allLoadedConversations.map((item) => item.id));
+    const fromPeers = peerConversations.filter(
+      (conversation) => !seen.has(conversation.id),
+    );
+    return [...allLoadedConversations, ...fromPeers];
+  }, [allLoadedConversations, peerConversations]);
 
   // Grouped pagination is folder-oriented. Record the first backend page for
   // every conversation so later pages can introduce new folders without
@@ -352,17 +374,16 @@ export function ConversationPanel({
     return pageById;
   }, [data]);
 
-  // Display collection: same loaded pages, with effectively-archived rows
-  // (explicitly archived or missing-runtime) filtered out unless the user has
-  // opted into "Show archived".
+  // Display collection: every merged conversation from the healthy peers, with
+  // archived rows filtered out unless the user has opted into "Show archived".
   const conversations = React.useMemo(() => {
     if (showArchivedConversations) {
-      return allLoadedConversations;
+      return displayedConversations;
     }
-    return allLoadedConversations.filter(
+    return displayedConversations.filter(
       (conversation) => !isRowArchived(conversation),
     );
-  }, [allLoadedConversations, isRowArchived, showArchivedConversations]);
+  }, [displayedConversations, isRowArchived, showArchivedConversations]);
 
   // Pin/archive ID sets derive from the tags on the loaded conversations
   // (the unfiltered set, so archived-but-pinned rows still resolve and
@@ -1040,9 +1061,11 @@ export function ConversationPanel({
   };
 
   const handleConfirmDeleteAll = async () => {
-    // Delete against the unfiltered loaded set so archived (currently hidden)
-    // conversations are still removed from the server — matching the action's
-    // "delete all conversations" label and confirmation count.
+    // Delete against the active backend's unfiltered loaded set so archived
+    // (currently hidden) conversations are still removed from the server —
+    // matching the action's "delete all conversations" label and confirmation
+    // count. Peer-sourced rows are excluded on purpose: they are not this
+    // backend's to delete.
     const idsToDelete = allLoadedConversations.map((c) => c.id);
     const results = await Promise.allSettled(
       idsToDelete.map((conversationId) =>
@@ -1094,10 +1117,11 @@ export function ConversationPanel({
       // runtime cannot be restored from this menu, so such a row offers neither
       // "Archive" nor "Unarchive", even when a stored archive flag is set.
       const explicitlyArchived = archivedIdSet.has(conversation.id);
-      // "New Conversation in Sandbox" needs a sandbox the backend can start a
-      // conversation in: Cloud rows only (the local adapter carries no sandbox
-      // id), and not one whose runtime is MISSING or ERROR, which the start
-      // task rejects. A PAUSED sandbox is resumed by the backend.
+      // A conversation another backend of the deployment owns. Every mutation
+      // would be sent to the active backend, which does not hold it, so the row
+      // offers navigation only. Opening it routes to the owner's read-only
+      // transcript.
+      const isForeign = !!conversation.source_backend_url;
       if (compact) {
         return (
           <CompactConversationRow
@@ -1150,6 +1174,7 @@ export function ConversationPanel({
           contextMenuOpen={openContextMenuId === conversation.id}
           inPinnedSection={!!options?.inPinnedSection}
           allowEditTags={activeBackend.kind === "local"}
+          isForeign={isForeign}
           showHoverMetadata={showHoverMetadata}
           showRepoBranchMetadata={showRepoBranchMetadata}
           showLlmProfiles={showLlmProfiles}

@@ -307,7 +307,7 @@ afterEach(() => {
 describe("conversation route — backend switch", () => {
   it("tears down the conversation view when the active backend changes mid-conversation", async () => {
     // Arrange — the cloud conversation renders while the cloud backend is active.
-    setActiveSelection({ backendId: cloudBackend.id });
+    setActiveSelection({ backendId: cloudBackend.id, orgId: "org-a" });
     renderConversation();
     expect(await screen.findByTestId("conversation-main")).toBeInTheDocument();
 
@@ -344,7 +344,7 @@ describe("conversation route — backend switch", () => {
     vi.mocked(
       AgentServerConversationService.batchGetAppConversations,
     ).mockImplementation(async (ids) => ids.map((id) => makeConversation(id)));
-    setActiveSelection({ backendId: cloudBackend.id });
+    setActiveSelection({ backendId: cloudBackend.id, orgId: "org-a" });
     const { rerender } = renderConversation();
     await screen.findByTestId("conversation-main");
 
@@ -593,7 +593,7 @@ describe("conversation route — shared read-only fallback", () => {
   it("sends an org member to the read-only shared view when only the shared lookup can see the conversation", async () => {
     // Arrange — the owner lookup misses on cloud, but the conversation is
     // shared with this user (an automation conversation from their org).
-    setActiveSelection({ backendId: cloudBackend.id });
+    setActiveSelection({ backendId: cloudBackend.id, orgId: "org-a" });
     vi.mocked(
       AgentServerConversationService.batchGetAppConversations,
     ).mockResolvedValue([null]);
@@ -616,7 +616,7 @@ describe("conversation route — shared read-only fallback", () => {
 
   it("reports the conversation as missing when neither lookup can see it on cloud", async () => {
     // Arrange
-    setActiveSelection({ backendId: cloudBackend.id });
+    setActiveSelection({ backendId: cloudBackend.id, orgId: "org-a" });
     vi.mocked(
       AgentServerConversationService.batchGetAppConversations,
     ).mockResolvedValue([null]);
