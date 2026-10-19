@@ -50,6 +50,7 @@ interface ConversationCardProps {
   createdAt?: string;
   executionStatus?: ExecutionStatus | null;
   sandboxStatus?: SandboxStatus | null;
+  runtimeStatus?: string | null;
   conversationId?: string;
   contextMenuOpen?: boolean;
   onContextMenuToggle?: (isOpen: boolean) => void;
@@ -93,6 +94,7 @@ export function ConversationCard({
   conversationId,
   executionStatus,
   sandboxStatus,
+  runtimeStatus,
   contextMenuOpen = false,
   onContextMenuToggle,
   isActive = false,
@@ -285,6 +287,7 @@ export function ConversationCard({
             onTitleSave={onTitleSave}
             executionStatus={executionStatus}
             sandboxStatus={sandboxStatus}
+            runtimeStatus={runtimeStatus}
             isArchived={effectiveArchived}
           />
           {sandboxStatus === "ERROR" && !effectiveArchived && (

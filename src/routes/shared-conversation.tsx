@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { useSharedConversation } from "#/hooks/query/use-shared-conversation";
 import { useSharedConversationEvents } from "#/hooks/query/use-shared-conversation-events";
+import { useDiscoveredBackends } from "#/hooks/query/use-discovered-backends";
+import { findDiscoveredPeer } from "#/api/discovery/discovery-backends.api";
 import { useCloudOrgMember } from "#/hooks/query/use-cloud-org-member";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { Messages } from "#/components/conversation-events/chat/messages";
@@ -30,11 +32,20 @@ export default function SharedConversation() {
   const { t } = useTranslation("openhands");
   const { conversationId } = useParams<{ conversationId: string }>();
   const [searchParams] = useSearchParams();
-  // An automation run's transcript is read from the deployment that owns it.
-  // The conversation route resolves that root from the discovery document and
-  // carries it in the URL, so a reload reads the same backend.
+  // A conversation that runs on another backend of the deployment is read from
+  // the server that owns it. The conversation route resolves that root from the
+  // discovery document and carries it in the URL, so a reload reads the same
+  // backend.
   const host = searchParams.get("host") ?? "";
   const active = useActiveBackend();
+
+  // Name the backend the transcript is read from, so a reader can tell which
+  // server in the deployment owns the conversation. The lookup reuses the
+  // discovery query the read's own host gate already loads — no extra request.
+  const { data: peers, isFetched: peersFetched } = useDiscoveredBackends({
+    enabled: !!host,
+  });
+  const owner = findDiscoveredPeer(host, peers ?? []);
 
   const {
     data: conversation,
@@ -50,7 +61,12 @@ export default function SharedConversation() {
     isFetchingNextPage,
   } = useSharedConversationEvents(conversationId, { host });
 
-  const isLoading = isLoadingConversation || isLoadingEvents;
+  // A foreign read is gated on the discovery document, so until that document
+  // answers the read queries stay disabled. Counting that wait as loading
+  // keeps a reload of a foreign transcript from flashing "not found".
+  const awaitingDiscovery = !!host && !peersFetched;
+  const isLoading =
+    isLoadingConversation || isLoadingEvents || awaitingDiscovery;
   const error = conversationError || eventsError;
 
   // Flatten all pages of events into a single array
@@ -129,6 +145,11 @@ export default function SharedConversation() {
             {conversation?.llm_model && (
               <div className="text-sm text-muted">
                 {t(I18nKey.LLM$MODEL)}: {conversation.llm_model}
+              </div>
+            )}
+            {owner && (
+              <div className="text-sm text-muted" data-testid="owner-backend">
+                {t(I18nKey.BACKEND$NAME_LABEL)}: {owner.name}
               </div>
             )}
             {conversation?.created_by_user_id && (
