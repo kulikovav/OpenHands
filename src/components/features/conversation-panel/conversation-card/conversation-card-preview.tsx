@@ -24,6 +24,7 @@ interface ConversationCardPreviewProps {
   titlePending?: boolean;
   executionStatus?: ExecutionStatus | null;
   sandboxStatus?: SandboxStatus | null;
+  runtimeStatus?: string | null;
   selectedRepository: RepositorySelection | null;
   workspaceWorkingDir?: string | null;
   llmModel?: string | null;
@@ -126,6 +127,7 @@ export function ConversationCardPreview({
   titlePending,
   executionStatus,
   sandboxStatus,
+  runtimeStatus,
   selectedRepository,
   workspaceWorkingDir,
   llmModel,
@@ -165,6 +167,7 @@ export function ConversationCardPreview({
             <ConversationStatusDot
               executionStatus={executionStatus}
               sandboxStatus={sandboxStatus}
+              runtimeStatus={runtimeStatus}
               isArchived={effectiveArchived}
               showTooltip={false}
             />
