@@ -10,17 +10,19 @@ import {
   getActiveBackend,
   getEffectiveLocalBackend,
 } from "#/api/backend-registry/active-store";
+import { isDiscoveredPeerHost } from "#/api/discovery/discovery-backends.api";
 import {
   searchCloudSharedEvents,
   type SharedEventPage,
 } from "#/api/cloud/shared-conversation-service.api";
-import { useAutomationRunsBackend } from "#/hooks/query/use-automation-runs-backend";
+import { useDiscoveredBackends } from "#/hooks/query/use-discovered-backends";
 import type { OpenHandsEvent } from "#/types/agent-server/core";
 
 interface UseSharedConversationEventsOptions {
   /**
    * Root of the deployment that owns the conversation, for a read-only
-   * transcript of an automation run. An empty value keeps the active backend.
+   * transcript of a conversation that runs on another backend. An empty value
+   * keeps the active backend.
    */
   host?: string;
 }
@@ -30,14 +32,15 @@ export const useSharedConversationEvents = (
   options: UseSharedConversationEventsOptions = {},
 ) => {
   const requestedHost = options.host?.trim() ?? "";
-  const { data: runsBackend, isFetched: isRunsBackendFetched } =
-    useAutomationRunsBackend({ enabled: !!requestedHost });
+  const { data: peers, isFetched: peersFetched } = useDiscoveredBackends({
+    enabled: !!requestedHost,
+  });
   // A host is honoured only when the deployment's own discovery document
-  // reports it as the automation runs backend. Any other value would send the
-  // session key to an address the link chose.
+  // reports it as one of its backends. Any other value would send the session
+  // key to an address the link chose.
   const hostAllowed =
     !requestedHost ||
-    (isRunsBackendFetched && runsBackend?.url === requestedHost);
+    (peersFetched && isDiscoveredPeerHost(requestedHost, peers ?? []));
   const host = hostAllowed ? requestedHost : "";
   return useInfiniteQuery({
     queryKey: ["shared-conversation-events", conversationId, host],
@@ -47,7 +50,7 @@ export const useSharedConversationEvents = (
       }
       const request = { conversationId, limit: 100, pageId: pageParam };
       if (host) {
-        // The runs backend serves the agent-server event search, which is the
+        // The owning backend serves the agent-server event search, which is the
         // same log the live conversation view reads.
         const apiKey =
           getEffectiveLocalBackend()?.apiKey ??
