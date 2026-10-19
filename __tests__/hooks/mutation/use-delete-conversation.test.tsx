@@ -66,4 +66,76 @@ describe("useDeleteConversation", () => {
       });
     });
   });
+
+  it("deletes the conversation on every peer that still lists it", async () => {
+    vi.spyOn(
+      AgentServerConversationService,
+      "deleteConversation",
+    ).mockResolvedValue(undefined);
+    const deleteOnPeerSpy = vi
+      .spyOn(AgentServerConversationService, "deleteConversationOn")
+      .mockResolvedValue(undefined);
+
+    const queryClient = new QueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    // Two peers list the deleted conversation; a third lists another one.
+    queryClient.setQueryData(
+      ["peer-conversations", "https://oh.example:8443"],
+      [
+        { id: "conv-1", source_backend_url: "https://oh.example:8443" },
+        { id: "conv-2", source_backend_url: "https://oh.example:8443" },
+      ],
+    );
+    queryClient.setQueryData(
+      ["peer-conversations", "https://oh.example:8445"],
+      [{ id: "conv-1", source_backend_url: "https://oh.example:8445" }],
+    );
+    queryClient.setQueryData(
+      ["peer-conversations", "https://oh.example:8446"],
+      [{ id: "conv-3", source_backend_url: "https://oh.example:8446" }],
+    );
+
+    const { result } = renderHook(() => useDeleteConversation(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={queryClient}>
+          {children}
+        </QueryClientProvider>
+      ),
+    });
+
+    await result.current.mutateAsync({ conversationId: "conv-1" });
+
+    // Assert — a peer that does not list the conversation is left alone.
+    expect(deleteOnPeerSpy).toHaveBeenCalledTimes(2);
+    expect(deleteOnPeerSpy).toHaveBeenCalledWith(
+      "conv-1",
+      "https://oh.example:8443",
+    );
+    expect(deleteOnPeerSpy).toHaveBeenCalledWith(
+      "conv-1",
+      "https://oh.example:8445",
+    );
+
+    // Assert — the cached peer lists drop the deleted row immediately, and the
+    // peer queries refetch to confirm the peers no longer report it.
+    expect(
+      queryClient.getQueryData([
+        "peer-conversations",
+        "https://oh.example:8443",
+      ]),
+    ).toEqual([
+      { id: "conv-2", source_backend_url: "https://oh.example:8443" },
+    ]);
+    expect(
+      queryClient.getQueryData([
+        "peer-conversations",
+        "https://oh.example:8446",
+      ]),
+    ).toEqual([
+      { id: "conv-3", source_backend_url: "https://oh.example:8446" },
+    ]);
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["peer-conversations"],
+    });
+  });
 });
