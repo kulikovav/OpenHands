@@ -144,18 +144,24 @@ RUN if [ -n "${AGENT_SERVER_SDK_GIT_REF}" ]; then \
 #    the conversation runs in the agent-server process; without the handler it
 #    outlives the run and keeps spending tokens. The handler uses the one
 #    second between SIGTERM and SIGKILL.
-# The version assert and --fuzz=0 make a version bump fail the build, so the
-# fixes cannot be dropped silently.
+# 3. Keep template dedupe keyed to the setup, not only to the catalog entry id.
+#    A second setup of one template must get its own automation.
+# --fuzz=0 makes a version bump fail the build when the patched context
+# changed, so the fixes cannot be dropped silently.
 COPY docker/patches/automation-1.22.0-dispatcher-queue.patch /tmp/bleenk-patches/automation-dispatcher-queue.patch
 COPY docker/patches/automation-1.22.0-interrupt-on-sigterm.patch /tmp/bleenk-patches/automation-interrupt-on-sigterm.patch
+COPY docker/patches/automation-1.22.0-template-dedupe.patch /tmp/bleenk-patches/automation-template-dedupe.patch
 COPY docker/patches/automation-queue-selfcheck.py /tmp/bleenk-patches/automation-queue-selfcheck.py
 COPY docker/patches/automation-sigterm-selfcheck.py /tmp/bleenk-patches/automation-sigterm-selfcheck.py
+COPY docker/patches/automation-template-dedupe-selfcheck.py /tmp/bleenk-patches/automation-template-dedupe-selfcheck.py
 RUN python -c "import openhands.automation as m; assert m.__version__ == '${AUTOMATION_VERSION}', m.__version__" \
     && SITE_PACKAGES="$(python -c 'import openhands.automation as m, pathlib; print(pathlib.Path(m.__file__).resolve().parents[2])')" \
     && patch -p1 -d "${SITE_PACKAGES}" --forward --fuzz=0 < /tmp/bleenk-patches/automation-dispatcher-queue.patch \
     && patch -p1 -d "${SITE_PACKAGES}" --forward --fuzz=0 < /tmp/bleenk-patches/automation-interrupt-on-sigterm.patch \
+    && patch -p1 -d "${SITE_PACKAGES}" --forward --fuzz=0 < /tmp/bleenk-patches/automation-template-dedupe.patch \
     && python /tmp/bleenk-patches/automation-queue-selfcheck.py "${SITE_PACKAGES}" \
     && python /tmp/bleenk-patches/automation-sigterm-selfcheck.py "${SITE_PACKAGES}" \
+    && python /tmp/bleenk-patches/automation-template-dedupe-selfcheck.py "${SITE_PACKAGES}" \
     && rm -rf /tmp/bleenk-patches
 
 # Copy the frontend build output.
