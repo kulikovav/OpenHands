@@ -247,6 +247,8 @@ describe("recommended automations", () => {
           ?.replace("recommended-automation-card-", ""),
       );
 
+    // Pins the packed catalog: a card that arrives with an extensions re-pin
+    // must fail here, so the new card is reviewed with the bump.
     expect(cardIds).toEqual([
       "github-pr-reviewer",
       "custom-automation",
