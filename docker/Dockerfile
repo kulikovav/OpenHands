@@ -121,6 +121,27 @@ RUN if command -v apt-get >/dev/null 2>&1; then \
       rm -rf /var/lib/apt/lists/*; \
     fi
 
+# glab is the GitLab CLI the GitLab skills drive, and this image is the runtime
+# they execute in. The release archive is architecture-specific, so pin the
+# version and verify its published checksum: a replaced asset then fails the
+# build instead of silently changing the binary.
+ARG GLAB_VERSION=1.124.0
+ARG TARGETARCH
+RUN set -eu; \
+    case "${TARGETARCH}" in \
+      amd64|arm64) ;; \
+      *) echo "glab: unsupported architecture ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    URL="https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/packages/generic/glab/${GLAB_VERSION}"; \
+    FILE="glab_${GLAB_VERSION}_linux_${TARGETARCH}.tar.gz"; \
+    curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused "${URL}/${FILE}" -o "/tmp/${FILE}" \
+    && curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused "${URL}/checksums.txt" -o /tmp/glab-checksums.txt \
+    && (cd /tmp && grep "  ${FILE}\$" glab-checksums.txt | sha256sum -c -) \
+    && tar -xzf "/tmp/${FILE}" -C /tmp bin/glab \
+    && install -m 0755 /tmp/bin/glab /usr/local/bin/glab \
+    && rm -rf "/tmp/${FILE}" /tmp/glab-checksums.txt /tmp/bin \
+    && glab --version
+
 # Install automation server and the tool models its SDK clients deserialize.
 # Match openhands-tools to the SDK already provided by the agent-server image,
 # just as the local Canvas launcher does. Pin openhands-agent-server too: it
