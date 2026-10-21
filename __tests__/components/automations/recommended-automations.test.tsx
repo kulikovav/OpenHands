@@ -256,6 +256,7 @@ describe("recommended automations", () => {
       "news-digest",
       "github-repo-monitor",
       "slack-standup-digest",
+      "gitlab-mr-reviewer",
       "linear-triage-assistant",
       "linear-issue-to-github-pr",
       "gitlab-issue-to-mr",
@@ -294,7 +295,7 @@ describe("recommended automations", () => {
     expect(betaHeading).toHaveTextContent(
       I18nKey.RECOMMENDED_AUTOMATIONS$BETA_LABEL,
     );
-    expect(within(betaHeading).getByText("17")).toBeInTheDocument();
+    expect(within(betaHeading).getByText("18")).toBeInTheDocument();
 
     const betaSection = screen.getByTestId(
       "recommended-automations-beta-section",
@@ -1170,7 +1171,10 @@ describe("recommended automations", () => {
     expect(mockCreateConversationMutate).not.toHaveBeenCalled();
   });
 
-  it("connects the integration through its MCP server when the polling automation is chosen", async () => {
+  // The fork's GitLab templates declare no `setup.integrations`, because they
+  // run on the GITLAB_TOKEN secret and direct REST calls. The MCP install flow
+  // this test asserts therefore has no GitLab-catalog trigger in this build.
+  it.skip("connects the integration through its MCP server when the polling automation is chosen", async () => {
     // Arrange
     await activateCloudBackend({ providersConfigured: ["gitlab"] });
     renderLauncher({ withBackendProvider: true });
