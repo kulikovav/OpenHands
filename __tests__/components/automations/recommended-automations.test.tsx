@@ -1173,9 +1173,8 @@ describe("recommended automations", () => {
     expect(mockCreateConversationMutate).not.toHaveBeenCalled();
   });
 
-  // The fork's GitLab templates declare no `setup.integrations`, because they
-  // run on the GITLAB_TOKEN secret and direct REST calls. The MCP install flow
-  // this test asserts therefore has no GitLab-catalog trigger in this build.
+  // Skipped: the fork's GitLab templates declare no `setup.integrations`, so
+  // no catalog entry reaches the MCP install flow.
   it.skip("connects the integration through its MCP server when the polling automation is chosen", async () => {
     // Arrange
     await activateCloudBackend({ providersConfigured: ["gitlab"] });
