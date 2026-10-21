@@ -1,0 +1,144 @@
+--- a/openhands/automation/utils/templates.py
++++ b/openhands/automation/utils/templates.py
+@@ -12,7 +12,7 @@
+
+ from openhands.automation.db import using_sqlite
+ from openhands.automation.models import Automation
+-from openhands.automation.schemas import AutomationResponse
++from openhands.automation.schemas import AutomationResponse, TemplateProvenance
+
+
+ # Documents the 200 a creation path returns when the template is already
+@@ -21,23 +21,45 @@
+     200: {
+         "model": AutomationResponse,
+         "description": (
+-            "An automation created from this template already exists in this "
+-            "organization; it is returned unchanged."
++            "An automation created from this template with the same "
++            "configuration already exists in this organization; it is returned "
++            "unchanged."
+         ),
+     },
+ }
+
+
++def template_matches(
++    preset_metadata: dict[str, Any] | None,
++    template: TemplateProvenance,
++) -> bool:
++    """Whether stored provenance describes the same template setup.
++
++    ``template.id`` is the catalog entry; ``template.config`` is the setup the
++    user chose for one automation of it. An id-only match made a second setup
++    impossible: a new project, label or schedule returned the first automation.
++    ``version`` stays out of the identity, because a version bump describes the
++    same setup from a newer catalog and must keep pointing at its automation.
++    """
++    stored = (preset_metadata or {}).get("template")
++    if not isinstance(stored, dict):
++        return False
++    if stored.get("id") != template.id:
++        return False
++    return (stored.get("config") or {}) == (template.config or {})
++
++
+ async def find_existing_template_automation(
+     session: AsyncSession,
+     org_id: uuid.UUID,
+-    template_id: str,
++    template: TemplateProvenance,
+ ) -> Automation | None:
+-    """Find the org's live automation created from the given template.
++    """Find the org's live automation created from this exact template setup.
+
+     JSON extraction mirrors ``get_event_automations``: ``json_extract`` on
+     SQLite, ``->``/``->>`` on PostgreSQL. Rows without provenance yield NULL and
+-    are excluded on both.
++    are excluded on both. The id narrows the query; the configuration is
++    compared in Python so key order and dialect do not decide identity.
+
+     Two concurrent creates can both miss the existing row, since no
+     cross-database unique index on a JSON path is available; the earliest-created
+@@ -46,11 +68,11 @@
+     if using_sqlite():
+         template_filter = func.json_extract(
+             Automation.preset_metadata, "$.template.id"
+-        ) == literal(template_id)
++        ) == literal(template.id)
+     else:
+         template_filter = Automation.preset_metadata.op("->")("template").op("->>")(
+             "id"
+-        ) == literal(template_id)
++        ) == literal(template.id)
+
+     result = await session.execute(
+         select(Automation)
+@@ -60,6 +82,8 @@
+             template_filter,
+         )
+         .order_by(Automation.created_at.asc())
+-        .limit(1)
+     )
+-    return result.scalars().first()
++    for automation in result.scalars():
++        if template_matches(automation.preset_metadata, template):
++            return automation
++    return None
+--- a/openhands/automation/router.py
++++ b/openhands/automation/router.py
+@@ -240,12 +240,13 @@
+     """
+     validate_agent_profile_combination(body.agent_profile_id, body.model)
+
+-    # Enabling the same template twice returns the existing automation rather
+-    # than a duplicate. Before tarball validation, so a repeat enable costs one
+-    # query and leaves the new upload unreferenced rather than adopting it.
++    # Enabling the same template with the same setup returns the existing
++    # automation rather than a duplicate. Before tarball validation, so a repeat
++    # enable costs one query and leaves the new upload unreferenced rather than
++    # adopting it.
+     if body.template is not None:
+         existing = await find_existing_template_automation(
+-            session, user.org_id, body.template.id
++            session, user.org_id, body.template
+         )
+         if existing is not None:
+             response.status_code = status.HTTP_200_OK
+@@ -327,7 +328,7 @@
+     """Create an automation from an executable plugin specification."""
+     if body.template is not None:
+         existing = await find_existing_template_automation(
+-            session, user.org_id, body.template.id
++            session, user.org_id, body.template
+         )
+         if existing is not None:
+             response.status_code = status.HTTP_200_OK
+--- a/openhands/automation/preset_router.py
++++ b/openhands/automation/preset_router.py
+@@ -513,11 +513,9 @@
+     5. Execute the provided prompt
+     6. Report completion status back to the automation service
+     """
+-    # Idempotent creation: enabling the same extension template twice returns
+-    # the existing automation unchanged instead of creating a duplicate.
+     if body.template is not None:
+         existing = await find_existing_template_automation(
+-            session, user.org_id, body.template.id
++            session, user.org_id, body.template
+         )
+         if existing is not None:
+             response.status_code = status.HTTP_200_OK
+@@ -954,11 +952,9 @@
+     - With ref: branch, tag, or commit SHA
+     - With repo_path: subdirectory for monorepos
+     """
+-    # Idempotent creation: enabling the same extension template twice returns
+-    # the existing automation unchanged instead of creating a duplicate.
+     if body.template is not None:
+         existing = await find_existing_template_automation(
+-            session, user.org_id, body.template.id
++            session, user.org_id, body.template
+         )
+         if existing is not None:
+             response.status_code = status.HTTP_200_OK
