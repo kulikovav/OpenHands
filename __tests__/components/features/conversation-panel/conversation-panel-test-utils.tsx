@@ -16,12 +16,7 @@ import AgentServerConversationService from "#/api/conversation-service/agent-ser
 import { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
-import {
-  __resetActiveStoreForTests,
-  setActiveSelection,
-  setRegisteredBackends,
-} from "#/api/backend-registry/active-store";
-import { SEEDED_DEFAULT_BACKEND_ID } from "#/api/backend-registry/default-backend";
+import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
 
 // Registered at module scope on purpose:  is hoisted per test file and
@@ -170,4 +165,12 @@ export const setupConversationPanelTest = () => {
 };
 
 // Re-exported render helper for specs that build a custom router stub.
-export { render, QueryClient, QueryClientProvider, I18nextProvider, i18n, NavigationProvider, ActiveBackendProvider };
+export {
+  render,
+  QueryClient,
+  QueryClientProvider,
+  I18nextProvider,
+  i18n,
+  NavigationProvider,
+  ActiveBackendProvider,
+};
