@@ -18,6 +18,7 @@ import { useMigrateDefaultAgentProfile } from "#/hooks/use-migrate-default-agent
 import { useMigrateEnabledSkills } from "#/hooks/use-migrate-enabled-skills";
 import { useSyncTelemetryConsent } from "#/hooks/use-sync-telemetry-consent";
 import { useSyncAutomationTelemetryConsent } from "#/hooks/use-sync-automation-telemetry-consent";
+import { useSyncProfileSkills } from "#/hooks/use-sync-profile-skills";
 
 import { useTelemetryIdentity } from "#/hooks/use-telemetry-identity";
 import { useSyncDocumentLanguage } from "#/hooks/use-sync-document-language";
@@ -139,6 +140,8 @@ function MainAppContent() {
   useMigrateEnabledSkills();
   // One-shot move of global agent behavior into the `default` profile.
   useMigrateDefaultAgentProfile();
+  // Carry the Skills page selection to every profile a launch can resolve.
+  useSyncProfileSkills();
 
   React.useEffect(() => {
     if (settings?.language) {
