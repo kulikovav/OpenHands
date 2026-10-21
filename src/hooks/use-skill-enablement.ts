@@ -79,7 +79,7 @@ function useLocalOpenHandsProfile(
  * A local OpenHands `default`'s lists, which the Skills page edits; `null`
  * where there is none and the page keeps the lists in settings.
  */
-function useDefaultProfileSkills(): {
+export function useDefaultProfileSkills(): {
   ready: boolean;
   failed: boolean;
   selection: SkillEnablement | null;
