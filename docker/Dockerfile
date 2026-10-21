@@ -122,10 +122,7 @@ RUN if command -v apt-get >/dev/null 2>&1; then \
       rm -rf /var/lib/apt/lists/*; \
     fi
 
-# glab is the GitLab CLI the GitLab skills drive, and this image is the runtime
-# they execute in. The release archive is architecture-specific, so pin the
-# version and verify its published checksum: a replaced asset then fails the
-# build instead of silently changing the binary.
+# Verify the published checksum so a replaced release asset fails the build.
 ARG GLAB_VERSION=1.124.0
 ARG TARGETARCH
 RUN set -eu; \
