@@ -16,7 +16,8 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # ── Build args ────────────────────────────────────────────────────────────────
-# No hardcoded defaults — values are derived from config/defaults.json.
+# Shared version pins are derived from config/defaults.json; image-only tooling
+# pins stay as ARG defaults below.
 # CI passes these via --build-arg; for local builds use:
 #   node scripts/docker-build.mjs          (recommended, reads JSON for you)
 #   docker build --build-arg AGENT_SERVER_IMAGE=... --build-arg AUTOMATION_VERSION=... -f docker/Dockerfile .
@@ -136,7 +137,7 @@ RUN set -eu; \
     FILE="glab_${GLAB_VERSION}_linux_${TARGETARCH}.tar.gz"; \
     curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused "${URL}/${FILE}" -o "/tmp/${FILE}" \
     && curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused "${URL}/checksums.txt" -o /tmp/glab-checksums.txt \
-    && (cd /tmp && grep "  ${FILE}\$" glab-checksums.txt | sha256sum -c -) \
+    && (cd /tmp && grep -F "  ${FILE}" glab-checksums.txt | sha256sum -c -) \
     && tar -xzf "/tmp/${FILE}" -C /tmp bin/glab \
     && install -m 0755 /tmp/bin/glab /usr/local/bin/glab \
     && rm -rf "/tmp/${FILE}" /tmp/glab-checksums.txt /tmp/bin \
