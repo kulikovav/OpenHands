@@ -55,4 +55,19 @@ for marker in (
 ):
     assert marker in config_source + dispatcher_source, f"{marker} is missing"
 
+# A permanent dispatch error must fail at once: only a transient failure may
+# return the run to PENDING for another poll.
+fail_helper = next(
+    (
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "_fail"
+    ),
+    None,
+)
+assert fail_helper is not None, "_fail is missing from the dispatcher"
+fail_source = ast.get_source_segment(dispatcher_source, fail_helper) or ""
+assert '"transient"' in fail_source, "_fail must requeue only transient failures"
+
 print("dispatcher queue self-check passed")
