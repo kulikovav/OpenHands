@@ -44,18 +44,16 @@
  from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
  from sqlalchemy.orm import selectinload
  
-@@ -95,6 +95,10 @@
+@@ -95,6 +95,8 @@
      maybe_disable_unhealthy_automation_after_run,
  )
  
-+# The retry counter lives in the run's ``run_metadata`` JSON, so a requeue
-+# needs no schema change.
 +DISPATCH_RETRIES_KEY: Final[str] = "dispatch_retries"
 +
  
  logger = logging.getLogger("automation.dispatcher")
  
-@@ -465,8 +469,22 @@
+@@ -465,8 +467,22 @@
          error: str,
          disable: bool = False,
          status_detail: dict | None = None,
@@ -79,7 +77,7 @@
          await mark_run_terminal(
              session_factory,
              run,
-@@ -704,6 +722,7 @@
+@@ -704,6 +720,7 @@
          source = "agent_server" if backend.is_local_mode else "sandbox_api"
          await _fail(
              "Failed to get execution context",
@@ -87,7 +85,7 @@
              status_detail=run_status_detail_from_exception(
                  exc,
                  phase=RunStatusPhase.DISPATCH,
-@@ -973,6 +992,9 @@
+@@ -973,6 +990,9 @@
          "Execution failed: %s", result.error, extra=_log_ctx(sandbox_id=ctx.sandbox_id)
      )
      await backend.release_context(client, ctx)
@@ -97,7 +95,7 @@
      await _fail(
          error,
          status_detail=make_run_status_detail(
-@@ -986,6 +1008,18 @@
+@@ -986,6 +1006,18 @@
      )
  
  
@@ -116,7 +114,7 @@
  async def dispatch_pending_runs(
      session_factory: async_sessionmaker[AsyncSession],
      settings: ServiceSettings,
-@@ -1004,12 +1038,30 @@
+@@ -1004,12 +1036,30 @@
          batch_size: Number of pending runs to fetch per poll (from config if None)
      """
      # Use config defaults if not provided
@@ -149,7 +147,7 @@
  
          dispatched_runs = []
          for run in pending_runs:
-@@ -1082,6 +1134,11 @@
+@@ -1082,6 +1132,11 @@
              await _execute_run(run, settings, session_factory, client)
      except Exception as exc:
          logger.exception("Background execution failed", extra=extra)
@@ -161,7 +159,7 @@
          await mark_run_terminal(
              session_factory,
              run,
-@@ -1096,6 +1153,77 @@
+@@ -1096,6 +1151,77 @@
          )
  
  
@@ -239,3 +237,4 @@
  async def dispatcher_loop(
      session_factory: async_sessionmaker[AsyncSession],
      settings: ServiceSettings,
+
