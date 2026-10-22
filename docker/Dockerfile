@@ -169,9 +169,9 @@ RUN if [ -n "${AGENT_SERVER_SDK_GIT_REF}" ]; then \
 #    A second setup of one template must get its own automation.
 # --fuzz=0 makes a version bump fail the build when the patched context
 # changed, so the fixes cannot be dropped silently.
-COPY docker/patches/automation-1.22.0-dispatcher-queue.patch /tmp/bleenk-patches/automation-dispatcher-queue.patch
-COPY docker/patches/automation-1.22.0-interrupt-on-sigterm.patch /tmp/bleenk-patches/automation-interrupt-on-sigterm.patch
-COPY docker/patches/automation-1.22.0-template-dedupe.patch /tmp/bleenk-patches/automation-template-dedupe.patch
+COPY docker/patches/automation-1.23.2-dispatcher-queue.patch /tmp/bleenk-patches/automation-dispatcher-queue.patch
+COPY docker/patches/automation-1.23.2-interrupt-on-sigterm.patch /tmp/bleenk-patches/automation-interrupt-on-sigterm.patch
+COPY docker/patches/automation-1.23.2-template-dedupe.patch /tmp/bleenk-patches/automation-template-dedupe.patch
 COPY docker/patches/automation-queue-selfcheck.py /tmp/bleenk-patches/automation-queue-selfcheck.py
 COPY docker/patches/automation-sigterm-selfcheck.py /tmp/bleenk-patches/automation-sigterm-selfcheck.py
 COPY docker/patches/automation-template-dedupe-selfcheck.py /tmp/bleenk-patches/automation-template-dedupe-selfcheck.py
