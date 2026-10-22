@@ -53,7 +53,7 @@
  
  logger = logging.getLogger("automation.dispatcher")
  
-@@ -465,8 +467,22 @@
+@@ -465,8 +467,25 @@
          error: str,
          disable: bool = False,
          status_detail: dict | None = None,
@@ -62,11 +62,14 @@
 -        """Mark run as failed and optionally disable the automation."""
 +        """Mark run as failed and optionally disable the automation.
 +
-+        A retryable failure that still has retries left returns the run to
-+        PENDING instead, so the next poll dispatches it again.
++        A transient failure marked retryable, with retries left, returns the
++        run to PENDING instead, so the next poll dispatches it again.
 +        """
-+        if retryable and not disable and await _requeue_transient_failure(
-+            session_factory, run, status_detail
++        if (
++            retryable
++            and not disable
++            and (status_detail or {}).get("transient", False)
++            and await _requeue_transient_failure(session_factory, run, status_detail)
 +        ):
 +            logger.warning(
 +                "Requeued run after a transient dispatch failure: %s",
@@ -77,7 +80,7 @@
          await mark_run_terminal(
              session_factory,
              run,
-@@ -704,6 +720,7 @@
+@@ -704,6 +723,7 @@
          source = "agent_server" if backend.is_local_mode else "sandbox_api"
          await _fail(
              "Failed to get execution context",
@@ -85,7 +88,7 @@
              status_detail=run_status_detail_from_exception(
                  exc,
                  phase=RunStatusPhase.DISPATCH,
-@@ -973,6 +990,9 @@
+@@ -973,6 +993,9 @@
          "Execution failed: %s", result.error, extra=_log_ctx(sandbox_id=ctx.sandbox_id)
      )
      await backend.release_context(client, ctx)
@@ -95,7 +98,7 @@
      await _fail(
          error,
          status_detail=make_run_status_detail(
-@@ -986,6 +1006,18 @@
+@@ -986,6 +1009,18 @@
      )
  
  
@@ -114,7 +117,7 @@
  async def dispatch_pending_runs(
      session_factory: async_sessionmaker[AsyncSession],
      settings: ServiceSettings,
-@@ -1004,12 +1036,29 @@
+@@ -1004,12 +1039,29 @@
          batch_size: Number of pending runs to fetch per poll (from config if None)
      """
      # Use config defaults if not provided
@@ -146,7 +149,7 @@
  
          dispatched_runs = []
          for run in pending_runs:
-@@ -1082,6 +1131,11 @@
+@@ -1082,6 +1134,11 @@
              await _execute_run(run, settings, session_factory, client)
      except Exception as exc:
          logger.exception("Background execution failed", extra=extra)
@@ -158,7 +161,7 @@
          await mark_run_terminal(
              session_factory,
              run,
-@@ -1096,6 +1150,77 @@
+@@ -1096,6 +1153,77 @@
          )
  
  
