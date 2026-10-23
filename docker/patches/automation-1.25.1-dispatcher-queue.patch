@@ -12,7 +12,7 @@
          AUTOMATION_WATCHDOG_INTERVAL_SECONDS: Watchdog poll interval (default: 60)
          AUTOMATION_FAILURE_DISABLE_THRESHOLD: Consecutive permanent failures before
              auto-disabling an automation (default: 3, <=0 disables auto-disable)
-@@ -643,6 +648,15 @@
+@@ -647,6 +652,15 @@
      scheduler_batch_size: int = 50
      dispatcher_interval_seconds: int = 10
      dispatcher_batch_size: int = 10
@@ -239,4 +239,3 @@
  async def dispatcher_loop(
      session_factory: async_sessionmaker[AsyncSession],
      settings: ServiceSettings,
-
