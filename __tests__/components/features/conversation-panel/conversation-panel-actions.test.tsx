@@ -1065,7 +1065,8 @@ describe("ConversationPanel conversation actions", () => {
     it.each<SandboxStatus>(["MISSING", "ERROR"])(
       "offers no sandbox item when the sandbox is %s",
       async (sandboxStatus) => {
-        // Arrange: a MISSING runtime is only listed with archived rows shown.
+        // Arrange: a MISSING runtime is only listed with archived rows shown;
+        // ERROR is not archived, so it lists either way.
         useConversationPanelPreferencesStore.setState({
           showArchivedConversations: true,
         });

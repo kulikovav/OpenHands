@@ -1005,8 +1005,9 @@ export function ConversationPanel({
       );
       // "New Conversation in Sandbox" needs a sandbox the backend can start a
       // conversation in: Cloud rows only (the local adapter carries no sandbox
-      // id), and not one whose runtime is MISSING or ERROR, which the start
-      // task rejects. A PAUSED sandbox is resumed by the backend.
+      // id), not one whose runtime is MISSING or ERROR, which the start task
+      // rejects, and not a foreign row, whose mutations belong to its own
+      // backend. A PAUSED sandbox is resumed by the backend.
       const sandboxId = conversation.sandbox_id;
       // A conversation another backend of the deployment owns. Every mutation
       // would be sent to the active backend, which does not hold it, so the row
