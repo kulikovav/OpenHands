@@ -87,7 +87,7 @@
 +    return None
 --- a/openhands/automation/router.py
 +++ b/openhands/automation/router.py
-@@ -244,12 +244,13 @@
+@@ -249,12 +249,13 @@
      """
      validate_agent_profile_combination(body.agent_profile_id, body.model)
  
@@ -105,7 +105,7 @@
          )
          if existing is not None:
              response.status_code = status.HTTP_200_OK
-@@ -332,7 +333,7 @@
+@@ -338,7 +339,7 @@
      """Create an automation from an executable plugin specification."""
      if body.template is not None:
          existing = await find_existing_template_automation(
