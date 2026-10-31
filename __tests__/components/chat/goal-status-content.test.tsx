@@ -1,8 +1,12 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { GoalStatusContent } from "#/components/features/chat/goal-status-content";
 import { I18nKey } from "#/i18n/declaration";
 import { GoalStatus } from "#/types/agent-server/core/events/conversation-state-event";
+
+vi.mock("#/hooks/use-owner-conversation-url", () => ({
+  useOwnerConversationUrl: () => undefined,
+}));
 
 const makeStatus = (overrides: Partial<GoalStatus> = {}): GoalStatus => ({
   active: true,
