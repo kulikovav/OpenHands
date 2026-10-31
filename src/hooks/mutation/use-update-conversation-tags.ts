@@ -13,10 +13,12 @@ export const useUpdateConversationTags = () => {
     mutationFn: (variables: {
       conversationId: string;
       tags: Record<string, string>;
+      conversationUrl?: string | null;
     }) =>
       AgentServerConversationService.updateConversationTags(
         variables.conversationId,
         variables.tags,
+        variables.conversationUrl,
       ),
     onMutate: async (variables) => {
       // The active conversation is cached under a prefix-extended key
