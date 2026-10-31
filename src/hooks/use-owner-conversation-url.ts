@@ -1,19 +1,14 @@
-import { useActiveConversation } from "#/hooks/query/use-active-conversation";
+import { useConversationOwnerBackend } from "#/hooks/query/use-conversation-owner-backend";
 
 /**
- * The conversation URL of the backend that holds the open conversation.
- *
- * The conversation route resolves the owning server into `conversation_url`, so
- * a conversation-view operation passes this to target the server that holds the
- * conversation instead of the active backend. Returns `undefined` while the
- * conversation loads or when it is not the requested one; the caller then falls
- * back to the active backend.
+ * Root of the deployment that owns a conversation, or null when the active
+ * backend does. Mutations pass it so a peer-owned conversation is written on
+ * the server that holds it instead of the one that only lists it.
  */
-export const useOwnerConversationUrl = (
-  conversationId: string | null | undefined,
-): string | undefined => {
-  const { data: conversation } = useActiveConversation();
-  return conversation?.id === conversationId
-    ? (conversation?.conversation_url ?? undefined)
-    : undefined;
-};
+export function useOwnerConversationUrl(conversationId?: string | null) {
+  const { data: ownerBackend } = useConversationOwnerBackend(
+    conversationId ?? null,
+    { enabled: !!conversationId },
+  );
+  return ownerBackend?.url ?? null;
+}
