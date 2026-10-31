@@ -19,20 +19,32 @@ interface UseDiscoveredBackendsOptions {
  * document is refreshed often because the deployment compiles it from the live
  * slot units: a slot that starts, stops, or restarts appears without a reload.
  */
+/**
+ * The discovery document query. Shared so a caller that needs the peer list at
+ * an arbitrary moment can await the same cache entry the hook reads.
+ */
+export const discoveryBackendsQueryOptions = () => ({
+  queryKey: ["discovery-backends"] as const,
+  queryFn: async ({
+    signal,
+  }: {
+    signal: AbortSignal;
+  }): Promise<DiscoveryBackend[]> =>
+    selectForeignReadBackends(
+      await fetchDiscoveryBackends(signal),
+      getAgentServerBaseUrl() ?? "",
+    ),
+  retry: false,
+  staleTime: 15_000,
+  // A deployment without the document is a compatibility state, and the
+  // conversation route reports the miss itself.
+  meta: { disableToast: true },
+});
+
 export const useDiscoveredBackends = (
   options: UseDiscoveredBackendsOptions = {},
 ) =>
   useQuery({
-    queryKey: ["discovery-backends"],
-    queryFn: async ({ signal }): Promise<DiscoveryBackend[]> =>
-      selectForeignReadBackends(
-        await fetchDiscoveryBackends(signal),
-        getAgentServerBaseUrl() ?? "",
-      ),
+    ...discoveryBackendsQueryOptions(),
     enabled: options.enabled ?? true,
-    retry: false,
-    staleTime: 15_000,
-    // A deployment without the document is a compatibility state, and the
-    // conversation route reports the miss itself.
-    meta: { disableToast: true },
   });

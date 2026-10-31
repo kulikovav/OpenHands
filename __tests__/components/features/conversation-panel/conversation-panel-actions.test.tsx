@@ -331,16 +331,23 @@ describe("ConversationPanel conversation actions", () => {
       AgentServerConversationService,
       "searchConversations",
     ).mockResolvedValue({ items, next_page_id: null });
-    // Stateful fake: tag-flag writes update what later searches return,
-    // mirroring the server round-trip the settle-invalidation performs.
+    // Stateful fake: the archive write reads the record and replaces the full
+    // tag map, and later searches see the result, mirroring the server
+    // round-trip the settle-invalidation performs.
+    vi.spyOn(
+      AgentServerConversationService,
+      "batchGetAppConversations",
+    ).mockImplementation(async (ids) =>
+      ids.map((id) => items.find((item) => item.id === id) ?? null),
+    );
     vi.spyOn(
       AgentServerConversationService,
       "updateConversationTagFlags",
-    ).mockImplementation(async (conversationId, _currentTags, changes) => {
+    ).mockImplementation(async (conversationId, currentTags, changes) => {
       const target = items.find(
         (conversation) => conversation.id === conversationId,
       )!;
-      target.tags = withConversationTagFlags(target.tags, changes);
+      target.tags = withConversationTagFlags(currentTags, changes);
       return target;
     });
     renderConversationPanel();
@@ -387,7 +394,7 @@ describe("ConversationPanel conversation actions", () => {
     await waitFor(() => {
       expect(
         AgentServerConversationService.updateConversationTagFlags,
-      ).toHaveBeenCalledWith("2", undefined, { pinned: true });
+      ).toHaveBeenCalledWith("2", undefined, { pinned: true }, undefined);
     });
     await waitFor(() => {
       expect(
@@ -427,7 +434,7 @@ describe("ConversationPanel conversation actions", () => {
     await waitFor(() => {
       expect(
         AgentServerConversationService.updateConversationTagFlags,
-      ).toHaveBeenCalledWith("1", undefined, { archived: true });
+      ).toHaveBeenCalledWith("1", undefined, { archived: true }, undefined);
     });
     await waitFor(() => {
       expect(
@@ -484,6 +491,7 @@ describe("ConversationPanel conversation actions", () => {
         pinned: true,
         archived: true,
       },
+      undefined,
     );
     expect(
       usePinnedConversationsStore.getState().pinsByBackendId["default-local"],
@@ -583,6 +591,14 @@ describe("ConversationPanel conversation actions", () => {
       items,
       next_page_id: null,
     });
+    // The archive write reads the record first, so it must answer with the
+    // conversation the list shows.
+    vi.spyOn(
+      AgentServerConversationService,
+      "batchGetAppConversations",
+    ).mockImplementation(async (ids) =>
+      ids.map((id) => items.find((item) => item.id === id) ?? null),
+    );
     vi.spyOn(
       AgentServerConversationService,
       "updateConversationTagFlags",
@@ -614,7 +630,7 @@ describe("ConversationPanel conversation actions", () => {
     await waitFor(() => {
       expect(
         AgentServerConversationService.updateConversationTagFlags,
-      ).toHaveBeenCalledWith("1", { archived: "true" }, { archived: false });
+      ).toHaveBeenCalledWith("1", { archived: "true" }, { archived: false }, undefined);
     });
     await waitFor(() => {
       expect(
@@ -1612,7 +1628,7 @@ describe("ConversationPanel conversation actions", () => {
     // The archive lives in the server tag, so a refused write leaves it in this
     // browser alone: the user must hear about it instead of a silent loss.
     vi.mocked(
-      AgentServerConversationService.updateConversationTags,
+      AgentServerConversationService.updateConversationTagFlags,
     ).mockRejectedValueOnce(new Error("the tag write failed"));
     const user = userEvent.setup();
     renderConversationPanel();
@@ -1636,7 +1652,7 @@ describe("ConversationPanel conversation actions", () => {
       AgentServerConversationService.batchGetAppConversations,
     ).mockResolvedValueOnce([null]);
     const updateTags = vi.mocked(
-      AgentServerConversationService.updateConversationTags,
+      AgentServerConversationService.updateConversationTagFlags,
     );
     const user = userEvent.setup();
     renderConversationPanel();
