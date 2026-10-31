@@ -70,6 +70,7 @@ import { useCloseOnEscape } from "#/hooks/use-close-on-escape";
 import { useSettings } from "#/hooks/query/use-settings";
 import { usePromptTextareaResize } from "#/hooks/use-prompt-textarea-resize";
 import { useSendMessage } from "#/hooks/use-send-message";
+import { useOwnerConversationUrl } from "#/hooks/use-owner-conversation-url";
 import {
   formControlBorderClassName,
   formControlFieldClassName,
@@ -663,6 +664,8 @@ export function AutomationSetupPanel({
 }: AutomationSetupPanelProps) {
   const { t } = useTranslation("openhands");
   const { navigate } = useNavigation();
+  // Tag writes must reach the owner, not the active backend.
+  const conversationUrl = useOwnerConversationUrl(conversationId);
   const deploymentCapabilities = useDeploymentCapabilities();
   // Connected self-hosted providers name their hosts here; a repository on
   // one of them is sent with its provider so the run can authenticate, as
@@ -811,6 +814,7 @@ export function AutomationSetupPanel({
             await AgentServerConversationService.updateConversationTags(
               conversationId,
               nextTags,
+              conversationUrl,
             );
           const savedTags = updatedConversation.tags ?? nextTags;
           latestConversationTagsRef.current = savedTags;
@@ -827,7 +831,7 @@ export function AutomationSetupPanel({
       );
       return update;
     },
-    [conversationId, queryClient],
+    [conversationId, conversationUrl, queryClient],
   );
 
   useEffect(() => {

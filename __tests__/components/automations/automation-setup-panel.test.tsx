@@ -146,6 +146,16 @@ vi.mock(
   }),
 );
 
+// The panel resolves the owning backend of an open conversation before it
+// writes a tag. Most cases below serve the active backend, so the default
+// answer is "no other owner".
+const mockOwnerConversationUrl = vi.hoisted(() => ({
+  value: undefined as string | undefined,
+}));
+vi.mock("#/hooks/use-owner-conversation-url", () => ({
+  useOwnerConversationUrl: () => mockOwnerConversationUrl.value,
+}));
+
 vi.mock("#/api/automation-service/automation-service.api", () => ({
   default: {
     validateDraft: vi.fn(),
@@ -365,6 +375,7 @@ describe("AutomationSetupPanel", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    mockOwnerConversationUrl.value = undefined;
   });
 
   it("preserves fixed card edges and root-scaled schedule fields in compiled CSS", async () => {
@@ -1868,6 +1879,27 @@ describe("AutomationSetupPanel", () => {
         ).toHaveBeenCalledWith(
           "conv-1",
           expect.objectContaining({ automationsetup: "draft" }),
+          undefined,
+        ),
+      );
+    });
+
+    it("sends the setup tag to the backend that owns the conversation", async () => {
+      // Arrange — the setup view opened a conversation a peer server holds.
+      const ownerUrl = "https://a1.oh.example:8443/api/conversations/conv-1";
+      mockOwnerConversationUrl.value = ownerUrl;
+
+      // Act
+      renderPanel();
+
+      // Assert
+      await waitFor(() =>
+        expect(
+          AgentServerConversationService.updateConversationTags,
+        ).toHaveBeenCalledWith(
+          "conv-1",
+          expect.objectContaining({ automationsetup: "draft" }),
+          ownerUrl,
         ),
       );
     });
@@ -2140,6 +2172,7 @@ describe("AutomationSetupPanel", () => {
             automationsetup: "draft",
             automationdraftid: "draft-1",
           }),
+          undefined,
         ),
       );
     });
@@ -2298,6 +2331,7 @@ describe("AutomationSetupPanel", () => {
       ).toHaveBeenCalledWith(
         "conv-1",
         expect.objectContaining({ automationdraftid: "draft-2" }),
+        undefined,
       );
     });
 
@@ -2682,6 +2716,7 @@ describe("AutomationSetupPanel", () => {
       ).toHaveBeenCalledWith(
         "conv-1",
         expect.not.objectContaining({ automationdraftid: expect.any(String) }),
+        undefined,
       );
       expect(mockNavigate).toHaveBeenCalledWith(
         "/automations/automation-final",

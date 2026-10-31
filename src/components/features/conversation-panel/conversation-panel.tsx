@@ -21,6 +21,7 @@ import { Provider } from "#/types/settings";
 import type { LocalWorkspace } from "#/types/workspace";
 import { useUpdateConversation } from "#/hooks/mutation/use-update-conversation";
 import { useUpdateConversationTags } from "#/hooks/mutation/use-update-conversation-tags";
+import { useConversationOwnerUrlResolver } from "#/hooks/query/use-conversation-owner-backend";
 import { EditConversationTagsModal } from "./edit-conversation-tags-modal";
 import {
   displayErrorToast,
@@ -69,7 +70,10 @@ import {
 import { useArchivedConversationsStore } from "#/stores/archived-conversations-store";
 import { usePinnedConversationsStore } from "#/stores/pinned-conversations-store";
 import { uniqueById } from "#/utils/unique-by-id";
-import type { SandboxStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
+import type {
+  AppConversation,
+  SandboxStatus,
+} from "#/api/conversation-service/agent-server-conversation-service.types";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 
 interface ConversationPanelProps {
@@ -744,6 +748,62 @@ export function ConversationPanel({
   const { mutate: pauseConversation } = useUnifiedPauseConversation();
   const { mutate: updateConversation } = useUpdateConversation();
   const { mutate: updateConversationTags } = useUpdateConversationTags();
+  const resolveOwnerUrl = useConversationOwnerUrlResolver();
+
+  // The record is read back from the server that holds it: the active backend
+  // lists a peer row but its own catalog does not hold it. A read that does not
+  // settle on exactly one server returns null, because a replace-all write from
+  // a stale or foreign copy would drop the tags another client wrote.
+  const readConversationOwnerRecord = React.useCallback(
+    async (
+      conversationId: string,
+    ): Promise<{
+      ownerUrl: string | undefined;
+      record: AppConversation;
+    } | null> => {
+      const ownerUrl = await resolveOwnerUrl(conversationId);
+      const [record] =
+        await AgentServerConversationService.batchGetAppConversations(
+          [conversationId],
+          ownerUrl,
+        );
+      return record ? { ownerUrl, record } : null;
+    },
+    [resolveOwnerUrl],
+  );
+
+  /** Read back, merge the edit into the full map, then write to the owner. */
+  const writeEditedTags = React.useCallback(
+    async (conversationId: string, editedTags: Record<string, string>) => {
+      let saved: Awaited<ReturnType<typeof readConversationOwnerRecord>>;
+      try {
+        saved = await readConversationOwnerRecord(conversationId);
+      } catch {
+        // The read-back is the only source of the full map, so a failed read
+        // reports rather than writing a partial map.
+        displayErrorToast(t(I18nKey.ERROR$GENERIC));
+        return;
+      }
+      if (!saved) {
+        displayErrorToast(t(I18nKey.ERROR$GENERIC));
+        return;
+      }
+      updateConversationTags(
+        {
+          conversationId,
+          tags: { ...(saved.record.tags ?? {}), ...editedTags },
+          conversationUrl: saved.ownerUrl,
+        },
+        {
+          onSuccess: () => {
+            displaySuccessToast(t(I18nKey.CONVERSATION$TAGS_UPDATED));
+          },
+          onError: () => displayErrorToast(t(I18nKey.ERROR$GENERIC)),
+        },
+      );
+    },
+    [readConversationOwnerRecord, t, updateConversationTags],
+  );
 
   // Mirrors an archive state change into the conversation's server tags. Only
   // tag-capable (local) backends carry them; cloud conversations report no
@@ -759,24 +819,24 @@ export function ConversationPanel({
       if (activeBackend.kind !== "local") {
         return;
       }
-      try {
-        const [fetched] =
-          await AgentServerConversationService.batchGetAppConversations([
-            conversationId,
-          ]);
-        if (!fetched) {
-          displayErrorToast(ARCHIVE_TAG_SAVE_FAILED);
-          return;
-        }
-        updateConversationTags(
-          { conversationId, tags: withArchivedTag(fetched.tags, archived) },
-          { onError: () => displayErrorToast(ARCHIVE_TAG_SAVE_FAILED) },
-        );
-      } catch {
+      // A read that does not settle on exactly one server must not write at
+      // all; a replace-all PATCH from the wrong or a stale copy would drop the
+      // tags another client wrote.
+      const saved = await readConversationOwnerRecord(conversationId);
+      if (!saved) {
         displayErrorToast(ARCHIVE_TAG_SAVE_FAILED);
+        return;
       }
+      updateConversationTags(
+        {
+          conversationId,
+          tags: withArchivedTag(saved.record.tags, archived),
+          conversationUrl: saved.ownerUrl,
+        },
+        { onError: () => displayErrorToast(ARCHIVE_TAG_SAVE_FAILED) },
+      );
     },
-    [activeBackend.kind, updateConversationTags],
+    [activeBackend.kind, readConversationOwnerRecord, updateConversationTags],
   );
 
   // The next page of conversations is loaded only via the explicit "Load
@@ -863,21 +923,16 @@ export function ConversationPanel({
     setSelectedConversationId(conversationId);
   }, []);
 
+  // The owner read and write run in a promise chain so the confirm handler stays
+  // synchronous, which the tags modal relies on.
   const handleConfirmEditTags = React.useCallback(
     (mergedTags: Record<string, string>) => {
       if (!selectedConversationId) {
         return;
       }
-      updateConversationTags(
-        { conversationId: selectedConversationId, tags: mergedTags },
-        {
-          onSuccess: () => {
-            displaySuccessToast(t(I18nKey.CONVERSATION$TAGS_UPDATED));
-          },
-        },
-      );
+      void writeEditedTags(selectedConversationId, mergedTags);
     },
-    [selectedConversationId, t, updateConversationTags],
+    [selectedConversationId, writeEditedTags],
   );
 
   // Unarchiving needs no confirmation: it restores a row the user can archive

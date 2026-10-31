@@ -1302,19 +1302,23 @@ class AgentServerConversationService {
    * replace-all, so callers must merge user edits with any reserved/internal
    * keys before calling). Mirrors `updateConversationTitle`; local
    * agent-server conversations only — Cloud conversations don't carry tags.
+   * Pass `conversationUrl` for a conversation the active backend lists but does
+   * not own, so the operation reaches the server that holds it.
    */
   static async updateConversationTags(
     conversationId: string,
     tags: Record<string, string>,
+    conversationUrl?: string | null,
   ): Promise<AppConversation> {
     await new ConversationClient(
-      getAgentServerClientOptions(),
+      getAgentServerClientOptions({ conversationUrl }),
     ).updateConversation(conversationId, {
       tags,
     });
-    const [conversation] = await this.batchGetAppConversations([
-      conversationId,
-    ]);
+    const [conversation] = await this.batchGetAppConversations(
+      [conversationId],
+      conversationUrl,
+    );
     return requireAppConversation(conversation, conversationId);
   }
 
