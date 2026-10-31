@@ -1455,15 +1455,17 @@ class AgentServerConversationService {
   static async updateConversationTags(
     conversationId: string,
     tags: Record<string, string>,
+    conversationUrl?: string | null,
   ): Promise<AppConversation> {
     await new ConversationClient(
-      getAgentServerClientOptions(),
+      getAgentServerClientOptions({ conversationUrl }),
     ).updateConversation(conversationId, {
       tags,
     });
-    const [conversation] = await this.batchGetAppConversations([
-      conversationId,
-    ]);
+    const [conversation] = await this.batchGetAppConversations(
+      [conversationId],
+      conversationUrl,
+    );
     return requireAppConversation(conversation, conversationId);
   }
 
@@ -1478,6 +1480,7 @@ class AgentServerConversationService {
     conversationId: string,
     currentTags: Record<string, string> | null | undefined,
     nextTags: Record<string, string>,
+    conversationUrl?: string | null,
   ): Promise<AppConversation> {
     if (getActiveBackend().backend.kind === "cloud") {
       const patch: Record<string, string | null> = {};
@@ -1489,7 +1492,11 @@ class AgentServerConversationService {
       }
       return updateCloudConversationTags(conversationId, patch);
     }
-    return this.updateConversationTags(conversationId, nextTags);
+    return this.updateConversationTags(
+      conversationId,
+      nextTags,
+      conversationUrl,
+    );
   }
 
   /**
@@ -1504,6 +1511,7 @@ class AgentServerConversationService {
     conversationId: string,
     currentTags: Record<string, string> | null | undefined,
     changes: Record<string, boolean>,
+    conversationUrl?: string | null,
   ): Promise<AppConversation> {
     if (getActiveBackend().backend.kind === "cloud") {
       return updateCloudConversationTags(
@@ -1513,13 +1521,14 @@ class AgentServerConversationService {
     }
 
     await new ConversationClient(
-      getAgentServerClientOptions(),
+      getAgentServerClientOptions({ conversationUrl }),
     ).updateConversation(conversationId, {
       tags: withConversationTagFlags(currentTags, changes),
     });
-    const [conversation] = await this.batchGetAppConversations([
-      conversationId,
-    ]);
+    const [conversation] = await this.batchGetAppConversations(
+      [conversationId],
+      conversationUrl,
+    );
     return requireAppConversation(conversation, conversationId);
   }
 
