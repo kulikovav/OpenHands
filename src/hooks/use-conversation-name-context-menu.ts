@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigation } from "#/context/navigation-context";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useDeleteConversation } from "./mutation/use-delete-conversation";
+import { useOwnerConversationUrl } from "./use-owner-conversation-url";
 import { useUnifiedPauseConversation } from "./mutation/use-unified-stop-conversation";
 import { useUpdateConversationPublicFlag } from "./mutation/use-update-conversation-public-flag";
 import { useActiveConversation } from "./query/use-active-conversation";
@@ -53,6 +54,11 @@ export function useConversationNameContextMenu({
   const { mutateAsync: downloadConversation } = useDownloadConversation();
   const { navigateToTab } = useSelectConversationTab();
 
+  // Delete, stop, and download target the backend that holds the conversation
+  // instead of the active one. The public-flag toggle stays with the cloud app
+  // API, which owns that state.
+  const ownerConversationUrl = useOwnerConversationUrl(conversationId);
+
   const systemMessage: SystemMessageForModal | null =
     adaptSystemMessage(events);
 
@@ -73,7 +79,7 @@ export function useConversationNameContextMenu({
   const handleConfirmDelete = () => {
     if (conversationId) {
       deleteConversation(
-        { conversationId },
+        { conversationId, conversationUrl: ownerConversationUrl },
         {
           onSuccess: () => {
             if (conversationId === currentConversationId) {
@@ -88,7 +94,10 @@ export function useConversationNameContextMenu({
 
   const handleConfirmStop = () => {
     if (conversationId) {
-      stopConversation({ conversationId });
+      stopConversation({
+        conversationId,
+        conversationUrl: ownerConversationUrl,
+      });
     }
     setConfirmStopModalVisible(false);
   };
@@ -107,7 +116,10 @@ export function useConversationNameContextMenu({
     event.stopPropagation();
     if (conversationId) {
       try {
-        await downloadConversation(conversationId);
+        await downloadConversation({
+          conversationId,
+          conversationUrl: ownerConversationUrl,
+        });
       } catch {
         // useDownloadConversation already showed the error toast; close the
         // menu as on success instead of leaking the rejection.
