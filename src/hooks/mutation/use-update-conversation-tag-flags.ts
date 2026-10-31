@@ -44,11 +44,13 @@ export const useUpdateConversationTagFlags = () => {
       conversationId: string;
       currentTags: Record<string, string> | null | undefined;
       changes: Record<string, boolean>;
+      conversationUrl?: string | null;
     }) =>
       AgentServerConversationService.updateConversationTagFlags(
         variables.conversationId,
         variables.currentTags,
         variables.changes,
+        variables.conversationUrl,
       ),
     onMutate: async (variables) => {
       const conversationPrefix: QueryKey = [
