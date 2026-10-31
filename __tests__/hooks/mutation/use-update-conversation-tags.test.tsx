@@ -65,7 +65,11 @@ describe("useUpdateConversationTags", () => {
 
     expect(
       AgentServerConversationService.updateConversationTags,
-    ).toHaveBeenCalledWith("test-conversation-id", { origin: "slack" });
+    ).toHaveBeenCalledWith(
+      "test-conversation-id",
+      { origin: "slack" },
+      undefined,
+    );
   });
 
   it("optimistically updates the prefix-keyed conversation cache and rolls back on error", async () => {
