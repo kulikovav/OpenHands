@@ -19,7 +19,9 @@ export const useUnifiedResumeConversation = () => {
     mutationFn: async (variables: {
       conversationId: string;
       providers?: Provider[];
-    }) => resumeConversation(variables.conversationId),
+      conversationUrl?: string | null;
+    }) =>
+      resumeConversation(variables.conversationId, variables.conversationUrl),
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ["user", "conversations"] });
       const previousConversations = queryClient.getQueryData([

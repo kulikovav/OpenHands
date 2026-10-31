@@ -138,4 +138,29 @@ describe("useDeleteConversation", () => {
       queryKey: ["peer-conversations"],
     });
   });
+
+  it("routes the delete to the conversation's owning backend", async () => {
+    const deleteSpy = vi
+      .spyOn(AgentServerConversationService, "deleteConversation")
+      .mockResolvedValue(undefined);
+
+    const queryClient = new QueryClient();
+    const { result } = renderHook(() => useDeleteConversation(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={queryClient}>
+          {children}
+        </QueryClientProvider>
+      ),
+    });
+
+    await result.current.mutateAsync({
+      conversationId: "conv-1",
+      conversationUrl: "https://a1.oh.example/api/conversations/conv-1",
+    });
+
+    expect(deleteSpy).toHaveBeenCalledWith(
+      "conv-1",
+      "https://a1.oh.example/api/conversations/conv-1",
+    );
+  });
 });

@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import type { StartGoalRequest } from "@openhands/typescript-client";
 import { startGoal } from "#/hooks/mutation/conversation-mutation-utils";
+import { useOwnerConversationUrl } from "#/hooks/use-owner-conversation-url";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
 import { GOAL_COMMAND } from "#/utils/constants";
@@ -23,6 +24,7 @@ export const useGoalInterceptor = (
   onSubmit: (message: string) => void,
 ) => {
   const { t } = useTranslation();
+  const ownerConversationUrl = useOwnerConversationUrl(conversationId);
 
   return useCallback(
     (message: string) => {
@@ -53,13 +55,15 @@ export const useGoalInterceptor = (
         request.max_iterations = maxIterations;
       }
 
-      startGoal(conversationId, request).catch((err: unknown) => {
-        const fallback = t(I18nKey.GOAL$START_FAILED);
-        const messageText =
-          err instanceof Error && err.message ? err.message : fallback;
-        displayErrorToast(messageText);
-      });
+      startGoal(conversationId, request, ownerConversationUrl).catch(
+        (err: unknown) => {
+          const fallback = t(I18nKey.GOAL$START_FAILED);
+          const messageText =
+            err instanceof Error && err.message ? err.message : fallback;
+          displayErrorToast(messageText);
+        },
+      );
     },
-    [conversationId, onSubmit, t],
+    [conversationId, ownerConversationUrl, onSubmit, t],
   );
 };

@@ -49,7 +49,7 @@ function peerBackendsListingConversation(
  * listing it after another backend deletes it — the panel would show the
  * deleted conversation again from that peer's list. A best-effort delete on
  * each such peer drops the stale record; a peer that cannot act is ignored,
- * because the active backend's delete is the operation that must succeed. The
+ * because the conversation's own delete is the operation that must succeed. The
  * cached peer lists drop the row immediately, so the panel does not wait for
  * the refetch that then confirms the peers no longer report it.
  */
@@ -101,10 +101,14 @@ export const useDeleteConversation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (variables: { conversationId: string }) => {
+    mutationFn: async (variables: {
+      conversationId: string;
+      conversationUrl?: string | null;
+    }) => {
       const { backend, orgId } = getActiveBackend();
       const result = await AgentServerConversationService.deleteConversation(
         variables.conversationId,
+        variables.conversationUrl,
       );
       useSessionActivityStore
         .getState()
