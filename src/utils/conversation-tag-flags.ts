@@ -29,7 +29,10 @@ export function hasConversationTagFlag(
 /**
  * Full tag map with the given flags applied, for backends whose PATCH
  * replaces the complete map (local agent-server). Returns a new object;
- * disabling a flag deletes the key rather than stamping a false value.
+ * disabling a flag deletes the key rather than stamping a false value, except
+ * `archived`: the Cursor bridge falls back to its own `bridgearchived` key when
+ * the shared key is absent, so clearing it must stamp `"false"` or a stale
+ * bridge mark keeps the conversation archived there.
  */
 export function withConversationTagFlags(
   tags: Record<string, string> | null | undefined,
@@ -39,6 +42,8 @@ export function withConversationTagFlags(
   for (const [key, enabled] of Object.entries(changes)) {
     if (enabled) {
       next[key] = CONVERSATION_TAG_FLAG_VALUE;
+    } else if (key === ARCHIVED_CONVERSATION_TAG_KEY) {
+      next[key] = "false";
     } else {
       delete next[key];
     }
