@@ -13,13 +13,16 @@ export const useDownloadConversation = () => {
 
   return useMutation({
     mutationKey: ["conversations", "download"],
-    mutationFn: async (conversationId: string) => {
+    mutationFn: async (variables: {
+      conversationId: string;
+      conversationUrl?: string | null;
+    }) => {
       trackDownloadTrajectoryButtonClicked();
-      const blob =
-        await AgentServerConversationService.downloadConversation(
-          conversationId,
-        );
-      downloadBlob(blob, `conversation_${conversationId}.zip`);
+      const blob = await AgentServerConversationService.downloadConversation(
+        variables.conversationId,
+        variables.conversationUrl,
+      );
+      downloadBlob(blob, `conversation_${variables.conversationId}.zip`);
     },
     // onError below is the only toast for a failed download; without this the
     // global MutationCache handler adds a second, raw HTTP-error toast.

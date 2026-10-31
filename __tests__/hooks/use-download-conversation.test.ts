@@ -48,12 +48,30 @@ describe("useDownloadConversation - tracking", () => {
     ).mockResolvedValue(new Blob(["data"], { type: "application/zip" }));
   });
 
+  it("forwards the conversation's owning backend to the download", async () => {
+    const { result } = renderHook(() => useDownloadConversation(), {
+      wrapper: createWrapper(),
+    });
+
+    await result.current.mutateAsync({
+      conversationId: "conv-foreign",
+      conversationUrl: "https://a1.example/api/conversations/conv-foreign",
+    });
+
+    expect(
+      AgentServerConversationService.downloadConversation,
+    ).toHaveBeenCalledWith(
+      "conv-foreign",
+      "https://a1.example/api/conversations/conv-foreign",
+    );
+  });
+
   it("calls trackDownloadTrajectoryButtonClicked when download is triggered", async () => {
     const { result } = renderHook(() => useDownloadConversation(), {
       wrapper: createWrapper(),
     });
 
-    await result.current.mutateAsync("conv-123");
+    await result.current.mutateAsync({ conversationId: "conv-123" });
 
     await waitFor(() => {
       expect(trackDownloadTrajectoryButtonClickedMock).toHaveBeenCalledTimes(1);
@@ -77,7 +95,7 @@ describe("useDownloadConversation - tracking", () => {
       wrapper: createWrapper(),
     });
 
-    await result.current.mutateAsync("conv-123");
+    await result.current.mutateAsync({ conversationId: "conv-123" });
 
     expect(callOrder).toEqual(["tracking", "api"]);
   });
@@ -95,7 +113,9 @@ describe("useDownloadConversation - tracking", () => {
       wrapper: createWrapper(),
     });
 
-    await result.current.mutateAsync("conv-123").catch(() => {});
+    await result.current
+      .mutateAsync({ conversationId: "conv-123" })
+      .catch(() => {});
 
     expect(trackDownloadTrajectoryButtonClickedMock).toHaveBeenCalledTimes(1);
   });
@@ -122,7 +142,9 @@ describe("useDownloadConversation - failure", () => {
         ),
     });
 
-    await expect(result.current.mutateAsync("conv-123")).rejects.toThrow();
+    await expect(
+      result.current.mutateAsync({ conversationId: "conv-123" }),
+    ).rejects.toThrow();
 
     expect(displayErrorToast).toHaveBeenCalledTimes(1);
     expect(displayErrorToast).toHaveBeenCalledWith(

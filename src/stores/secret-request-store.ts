@@ -6,6 +6,11 @@ export interface SecretRequest {
   toolCallId: string;
   name: string;
   reason: string | null;
+  /**
+   * The backend that holds the conversation when it is not the active one, so
+   * the saved secret is attached on the owning server.
+   */
+  conversationUrl?: string | null;
 }
 
 interface SecretRequestState {

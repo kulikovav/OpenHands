@@ -91,6 +91,7 @@ import {
   AUTOMATION_SETUP_SYSTEM_SUFFIX,
   buildAutomationFormUpdateClientTool,
 } from "../automation-form-client-tool";
+import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import type { DeploymentCapabilities } from "#/manifests/types";
 import { CANVAS_UI_CLIENT_TOOL } from "../canvas-ui-client-tool";
 import { LAUNCH_CHILD_CONVERSATION_CLIENT_TOOL } from "../launch-child-conversation-client-tool";
@@ -1021,20 +1022,29 @@ class AgentServerConversationService {
 
   static async batchGetAppConversations(
     ids: string[],
-    client?: ConversationClient,
+    // Either the scope-bound client upstream callers pass, or the owning
+    // backend URL the owner-routing callers pass; null keeps the active
+    // backend.
+    clientOrUrl?: ConversationClient | string | null,
   ): Promise<(AppConversation | null)[]> {
     if (ids.length === 0) return [];
+
+    const client =
+      clientOrUrl instanceof ConversationClient ? clientOrUrl : undefined;
+    const conversationUrl =
+      typeof clientOrUrl === "string" ? clientOrUrl : null;
 
     if (!client && getActiveBackend().backend.kind === "cloud") {
       return batchGetCloudConversations(ids);
     }
 
+    const options = getAgentServerClientOptions({ conversationUrl });
     const data: unknown = await (
-      client ?? new ConversationClient(getAgentServerClientOptions())
+      client ?? new ConversationClient(options)
     ).getConversations<DirectConversationInfo>(ids);
 
     return readBatchConversationItems(data).map((item) =>
-      item ? toAppConversation(item) : null,
+      item ? toAppConversation(item, { host: options.host }) : null,
     );
   }
 
@@ -1138,14 +1148,23 @@ class AgentServerConversationService {
     ).downloadTextFile(path);
   }
 
-  static async downloadConversation(conversationId: string): Promise<Blob> {
+  static async downloadConversation(
+    conversationId: string,
+    conversationUrl?: string | null,
+  ): Promise<Blob> {
     if (getActiveBackend().backend.kind === "cloud") {
       return downloadCloudConversation(conversationId);
     }
 
-    return new FileClient(getAgentServerClientOptions()).downloadTrajectory(
-      conversationId,
-    );
+    // Pass the owner as a host, not a full conversation URL: a URL would set
+    // the client's `conversationId` and switch this download to the
+    // conversation-scoped transport, changing the endpoint the call has always
+    // used (and making it differ from the panel card's download).
+    return new FileClient(
+      getAgentServerClientOptions(
+        conversationUrl ? { host: buildHttpBaseUrl(conversationUrl) } : {},
+      ),
+    ).downloadTrajectory(conversationId);
   }
 
   /**
@@ -1329,8 +1348,15 @@ class AgentServerConversationService {
 
   static async deleteConversation(
     conversationId: string,
-    scope: ConversationDeletionScope = this.createConversationDeletionScope(),
+    // Either the deletion scope upstream callers pass, or the owning backend
+    // URL the owner-routing callers pass.
+    scopeOrUrl?: ConversationDeletionScope | string | null,
   ): Promise<void> {
+    const conversationUrl = typeof scopeOrUrl === "string" ? scopeOrUrl : null;
+    const scope: ConversationDeletionScope =
+      typeof scopeOrUrl === "object" && scopeOrUrl !== null
+        ? scopeOrUrl
+        : this.createConversationDeletionScope();
     if (scope.kind === "cloud") {
       await deleteCloudConversation(conversationId, scope);
       removeStoredConversationMetadata(conversationId);
@@ -1340,7 +1366,9 @@ class AgentServerConversationService {
     // The agent-server orphans children rather than cascading, and the local
     // planner helper is hidden from the conversation list by its
     // `plannerparent` tag — so without this it would survive its parent as an
-    // invisible, unreachable conversation (plus its events and state).
+    // invisible, unreachable conversation (plus its events and state). The
+    // planner is built on the active backend, so its cleanup keeps that client
+    // even when the parent itself lives on another server of the deployment.
     const planningConversationIds = await this.getLocalPlanningConversationIds(
       conversationId,
       scope.client,
@@ -1363,7 +1391,13 @@ class AgentServerConversationService {
       }),
     );
 
-    await client.deleteConversation(conversationId);
+    // A conversation may be absent from the active backend, so the parent
+    // delete targets the given owning server when one is passed; without one the
+    // active backend is the only candidate.
+    const parentClient = conversationUrl
+      ? new ConversationClient(getAgentServerClientOptions({ conversationUrl }))
+      : client;
+    await parentClient.deleteConversation(conversationId);
     removeStoredConversationMetadata(conversationId);
   }
 
@@ -1391,19 +1425,21 @@ class AgentServerConversationService {
   static async updateConversationTitle(
     conversationId: string,
     title: string,
+    conversationUrl?: string | null,
   ): Promise<AppConversation> {
     if (getActiveBackend().backend.kind === "cloud") {
       return updateCloudConversationTitle(conversationId, title);
     }
 
     await new ConversationClient(
-      getAgentServerClientOptions(),
+      getAgentServerClientOptions({ conversationUrl }),
     ).updateConversation(conversationId, {
       title,
     });
-    const [conversation] = await this.batchGetAppConversations([
-      conversationId,
-    ]);
+    const [conversation] = await this.batchGetAppConversations(
+      [conversationId],
+      conversationUrl,
+    );
     return requireAppConversation(conversation, conversationId);
   }
 

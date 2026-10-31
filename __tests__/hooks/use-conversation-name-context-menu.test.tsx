@@ -26,6 +26,7 @@ const harness = vi.hoisted(() => ({
     id?: string;
     public: boolean;
     sandbox_status?: string | null;
+    conversation_url?: string;
   } | null,
   systemMessage: null as {
     content: string;
@@ -338,7 +339,9 @@ describe("useConversationNameContextMenu", () => {
     await act(async () =>
       result.current.handleDownloadConversation(downloadClick.event),
     );
-    expect(harness.downloadConversation).toHaveBeenCalledWith("conv-active");
+    expect(harness.downloadConversation).toHaveBeenCalledWith({
+      conversationId: "conv-active",
+    });
     expect(onContextMenuToggle).toHaveBeenCalledOnce();
     expect(onContextMenuToggle).toHaveBeenCalledWith(false);
 
@@ -453,6 +456,41 @@ describe("useConversationNameContextMenu", () => {
     act(() => options.onSuccess());
 
     expect(harness.navigate).not.toHaveBeenCalled();
+  });
+
+  it("routes conversation-view mutations to the conversation's owning backend", async () => {
+    harness.conversation = {
+      id: "conv-foreign",
+      public: false,
+      conversation_url: "https://a1.example/api/conversations/conv-foreign",
+    };
+    const { result } = renderHook(() =>
+      useConversationNameContextMenu({ conversationId: "conv-foreign" }),
+    );
+
+    act(() => result.current.handleConfirmDelete());
+
+    expect(harness.deleteConversation).toHaveBeenCalledWith(
+      {
+        conversationId: "conv-foreign",
+        conversationUrl: "https://a1.example/api/conversations/conv-foreign",
+      },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+
+    act(() => result.current.handleConfirmStop());
+    expect(harness.stopConversation).toHaveBeenCalledWith({
+      conversationId: "conv-foreign",
+      conversationUrl: "https://a1.example/api/conversations/conv-foreign",
+    });
+
+    await act(async () =>
+      result.current.handleDownloadConversation(clickEvent().event),
+    );
+    expect(harness.downloadConversation).toHaveBeenCalledWith({
+      conversationId: "conv-foreign",
+      conversationUrl: "https://a1.example/api/conversations/conv-foreign",
+    });
   });
 
   it("updates share links when the conversation or backend changes", () => {

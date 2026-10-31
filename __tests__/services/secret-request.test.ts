@@ -39,6 +39,7 @@ vi.mock("#/hooks/mutation/conversation-mutation-utils", () => ({
 }));
 
 const CONVERSATION_ID = "conversation-1";
+const OWNER_URL = "https://owner.example/api/conversations/conversation-1";
 
 const action: RequestSecretAction = {
   kind: REQUEST_SECRET_ACTION_KIND,
@@ -51,6 +52,7 @@ const request: SecretRequest = {
   toolCallId: "tool-call-1",
   name: "GITHUB_TOKEN",
   reason: "Push the factory branch; needs repo scope.",
+  conversationUrl: OWNER_URL,
 };
 
 /** The text the service posted back into the conversation. */
@@ -81,12 +83,44 @@ beforeEach(() => {
 describe("handleRequestSecretAction", () => {
   it("queues one request per tool call, ignoring replays", async () => {
     useSecretRequestStore.setState({ requests: [] });
-    await handleRequestSecretAction(action, CONVERSATION_ID, "tool-call-1");
-    await handleRequestSecretAction(action, CONVERSATION_ID, "tool-call-1");
+    await handleRequestSecretAction(
+      action,
+      CONVERSATION_ID,
+      "tool-call-1",
+      OWNER_URL,
+    );
+    await handleRequestSecretAction(
+      action,
+      CONVERSATION_ID,
+      "tool-call-1",
+      OWNER_URL,
+    );
 
     expect(useSecretRequestStore.getState().requests).toEqual([request]);
     expect(mockUpdateConversationSecrets).not.toHaveBeenCalled();
     expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it("attaches a secret the user already saved without asking again", async () => {
+    useSecretRequestStore.setState({ requests: [] });
+    mockGetSecretsOrThrow.mockResolvedValueOnce([
+      { name: "GITHUB_TOKEN", description: "Saved in Settings" },
+    ]);
+
+    await handleRequestSecretAction(
+      action,
+      CONVERSATION_ID,
+      "tool-call-1",
+      OWNER_URL,
+    );
+
+    expect(useSecretRequestStore.getState().requests).toEqual([]);
+    expect(mockUpdateConversationSecrets).toHaveBeenCalledExactlyOnceWith(
+      CONVERSATION_ID,
+      [{ name: "GITHUB_TOKEN", description: "Saved in Settings" }],
+      OWNER_URL,
+    );
+    expect(reportedResult()).toEqual({ status: "saved", name: "GITHUB_TOKEN" });
   });
 });
 
@@ -101,6 +135,7 @@ describe("completeSecretRequest", () => {
     expect(mockUpdateConversationSecrets).toHaveBeenCalledExactlyOnceWith(
       CONVERSATION_ID,
       [{ name: "GH_FACTORY_TOKEN", description: "Factory repo access" }],
+      OWNER_URL,
     );
     expect(reportedResult()).toEqual({
       status: "saved",

@@ -126,7 +126,10 @@ describe("useUnifiedPauseConversation", () => {
     expect(cancelQueries.mock.invocationCallOrder[0]).toBeLessThan(
       pauseConversationMock.mock.invocationCallOrder[0]!,
     );
-    expect(pauseConversationMock).toHaveBeenCalledWith("conversation-1");
+    expect(pauseConversationMock).toHaveBeenCalledWith(
+      "conversation-1",
+      undefined,
+    );
     expect(toastDismissMock).toHaveBeenCalledWith("stop-toast");
     expect(toastSuccessMock).toHaveBeenCalledWith(
       `translated:${I18nKey.TOAST$CONVERSATION_STOPPED}`,
