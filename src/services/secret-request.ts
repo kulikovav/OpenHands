@@ -25,6 +25,7 @@ export async function handleRequestSecretAction(
   action: RequestSecretAction,
   conversationId: string,
   toolCallId: string,
+  conversationUrl?: string | null,
 ): Promise<void> {
   // A replayed call would ask again and report the outcome twice.
   if (
@@ -41,6 +42,7 @@ export async function handleRequestSecretAction(
     toolCallId,
     name: action.name,
     reason: action.reason ?? null,
+    conversationUrl,
   };
   useSecretRequestStore.getState().enqueue(request);
 }
@@ -59,7 +61,11 @@ async function resolveResult(
   }
 
   try {
-    await updateConversationSecrets(request.conversationId, [savedSecret]);
+    await updateConversationSecrets(
+      request.conversationId,
+      [savedSecret],
+      request.conversationUrl,
+    );
     return { status: "saved", name: savedSecret.name };
   } catch (error) {
     return {

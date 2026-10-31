@@ -1100,6 +1100,7 @@ describe("ConversationPanel conversation actions", () => {
     expect(updateConversationTitleSpy).toHaveBeenCalledWith(
       "1",
       "Updated Title",
+      undefined,
     );
   });
 
@@ -1135,6 +1136,7 @@ describe("ConversationPanel conversation actions", () => {
     expect(updateConversationTitleSpy).toHaveBeenCalledWith(
       "1",
       "Title Updated via Enter",
+      undefined,
     );
   });
 
@@ -1170,6 +1172,7 @@ describe("ConversationPanel conversation actions", () => {
     expect(updateConversationTitleSpy).toHaveBeenCalledWith(
       "1",
       "Trimmed Title",
+      undefined,
     );
   });
 
@@ -1234,6 +1237,7 @@ describe("ConversationPanel conversation actions", () => {
     expect(updateConversationTitleSpy).toHaveBeenCalledWith(
       "1",
       "Failed Update",
+      undefined,
     );
 
     // Wait for error handling
@@ -1329,6 +1333,7 @@ describe("ConversationPanel conversation actions", () => {
     expect(updateConversationTitleSpy).toHaveBeenCalledWith(
       "1",
       "Special @#$%^&*()_+ Characters",
+      undefined,
     );
   });
 

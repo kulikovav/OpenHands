@@ -15,6 +15,13 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
+const { OWNER_URL } = vi.hoisted(() => ({
+  OWNER_URL: "https://owner.example/api/conversations/conv-1",
+}));
+vi.mock("#/hooks/use-owner-conversation-url", () => ({
+  useOwnerConversationUrl: () => OWNER_URL,
+}));
+
 const CONV = "conv-1";
 
 const setup = (conversationId: string | null) => {
@@ -56,19 +63,27 @@ describe("useGoalInterceptor", () => {
   it("starts a goal loop with the objective", () => {
     const { intercept } = setup(CONV);
     intercept("/goal build a hello world script");
-    expect(startGoal).toHaveBeenCalledWith(CONV, {
-      objective: "build a hello world script",
-    });
+    expect(startGoal).toHaveBeenCalledWith(
+      CONV,
+      {
+        objective: "build a hello world script",
+      },
+      OWNER_URL,
+    );
     expect(displayErrorToast).not.toHaveBeenCalled();
   });
 
   it("parses a leading --max flag into max_iterations", () => {
     const { intercept } = setup(CONV);
     intercept("/goal --max 3 build it");
-    expect(startGoal).toHaveBeenCalledWith(CONV, {
-      objective: "build it",
-      max_iterations: 3,
-    });
+    expect(startGoal).toHaveBeenCalledWith(
+      CONV,
+      {
+        objective: "build it",
+        max_iterations: 3,
+      },
+      OWNER_URL,
+    );
   });
 
   it("passes through (no toast, no loop) when there is no conversation", () => {

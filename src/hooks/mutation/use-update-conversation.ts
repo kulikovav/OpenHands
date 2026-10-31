@@ -27,11 +27,16 @@ export const useUpdateConversation = () => {
     CONVERSATION_QUERY_KEYS.detail(id, backend.id, orgId);
 
   return useMutation({
-    mutationFn: (variables: { conversationId: string; newTitle: string }) => {
+    mutationFn: (variables: {
+      conversationId: string;
+      newTitle: string;
+      conversationUrl?: string | null;
+    }) => {
       assertActiveEnvironment({ backend, orgId });
       return AgentServerConversationService.updateConversationTitle(
         variables.conversationId,
         variables.newTitle,
+        variables.conversationUrl,
       );
     },
     onMutate: async ({ conversationId, newTitle }) => {

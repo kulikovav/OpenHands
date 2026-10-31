@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { askAgent } from "#/hooks/mutation/conversation-mutation-utils";
+import { useOwnerConversationUrl } from "#/hooks/use-owner-conversation-url";
 import { useBtwStore } from "#/stores/btw-store";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
@@ -18,6 +19,7 @@ export const useBtwInterceptor = (
   onSubmit: (message: string) => void,
 ) => {
   const { t } = useTranslation();
+  const ownerConversationUrl = useOwnerConversationUrl(conversationId);
   const addPending = useBtwStore((s) => s.addPending);
   const resolve = useBtwStore((s) => s.resolve);
   const fail = useBtwStore((s) => s.fail);
@@ -37,12 +39,20 @@ export const useBtwInterceptor = (
       }
 
       const entryId = addPending(conversationId, question);
-      askAgent(conversationId, question)
+      askAgent(conversationId, question, ownerConversationUrl)
         .then(({ response }) => resolve(conversationId, entryId, response))
         .catch((err) =>
           fail(conversationId, entryId, err?.message ?? "Failed to ask agent"),
         );
     },
-    [conversationId, onSubmit, addPending, resolve, fail, t],
+    [
+      conversationId,
+      ownerConversationUrl,
+      onSubmit,
+      addPending,
+      resolve,
+      fail,
+      t,
+    ],
   );
 };
