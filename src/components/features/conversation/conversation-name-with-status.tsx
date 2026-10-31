@@ -6,6 +6,7 @@ import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useUnifiedPauseConversation } from "#/hooks/mutation/use-unified-stop-conversation";
 import { useUnifiedResumeConversation } from "#/hooks/mutation/use-unified-start-conversation";
 import { useConversationId } from "#/hooks/use-conversation-id";
+import { useOwnerConversationUrl } from "#/hooks/use-owner-conversation-url";
 import { useCloseOnEscape } from "#/hooks/use-close-on-escape";
 import { useUserProviders } from "#/hooks/use-user-providers";
 import { getStatusColor, cn } from "#/utils/utils";
@@ -27,6 +28,7 @@ export function ConversationNameWithStatus() {
   const { t } = useTranslation("openhands");
   const { conversationId } = useConversationId();
   const { data: conversation } = useActiveConversation();
+  const ownerConversationUrl = useOwnerConversationUrl(conversationId);
   const { curAgentState } = useAgentState();
   const { isTask, taskStatus } = useTaskPolling();
   const { mutate: pauseConversation } = useUnifiedPauseConversation();
@@ -65,7 +67,10 @@ export function ConversationNameWithStatus() {
     event.preventDefault();
     event.stopPropagation();
     if (conversationId) {
-      pauseConversation({ conversationId });
+      pauseConversation({
+        conversationId,
+        conversationUrl: ownerConversationUrl,
+      });
     }
     closeMenu();
   };
@@ -74,7 +79,11 @@ export function ConversationNameWithStatus() {
     event.preventDefault();
     event.stopPropagation();
     if (conversationId) {
-      resumeConversation({ conversationId, providers });
+      resumeConversation({
+        conversationId,
+        providers,
+        conversationUrl: ownerConversationUrl,
+      });
     }
     closeMenu();
   };

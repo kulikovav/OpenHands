@@ -18,6 +18,13 @@ vi.mock("#/hooks/mutation/conversation-mutation-utils", () => ({
 vi.mock("#/hooks/use-conversation-id", () => ({
   useOptionalConversationId: () => ({ conversationId: "conv-1" }),
 }));
+
+const { OWNER_URL } = vi.hoisted(() => ({
+  OWNER_URL: "https://owner.example/api/conversations/conv-1",
+}));
+vi.mock("#/hooks/use-owner-conversation-url", () => ({
+  useOwnerConversationUrl: () => OWNER_URL,
+}));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
@@ -60,16 +67,20 @@ describe("GoalStatusContent loop controls", () => {
       />,
     );
     await userEvent.click(screen.getByTestId("goal-stop"));
-    await waitFor(() => expect(stopGoal).toHaveBeenCalledWith("conv-1"));
     await waitFor(() =>
-      expect(pauseConversation).toHaveBeenCalledWith("conv-1"),
+      expect(stopGoal).toHaveBeenCalledWith("conv-1", OWNER_URL),
+    );
+    await waitFor(() =>
+      expect(pauseConversation).toHaveBeenCalledWith("conv-1", OWNER_URL),
     );
   });
 
   it("Resume continues an interrupted goal", async () => {
     render(<GoalStatusContent status={status({ status: "interrupted" })} />);
     await userEvent.click(screen.getByTestId("goal-resume"));
-    await waitFor(() => expect(resumeGoal).toHaveBeenCalledWith("conv-1"));
+    await waitFor(() =>
+      expect(resumeGoal).toHaveBeenCalledWith("conv-1", OWNER_URL),
+    );
   });
 
   it("hides Resume while another goal is already active", () => {

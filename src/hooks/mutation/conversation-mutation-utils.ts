@@ -18,15 +18,17 @@ type ExecutionStatusValue = AppConversation["execution_status"];
 
 const fetchConversationData = async (
   conversationId: string,
+  ownerConversationUrl?: string | null,
 ): Promise<{
   conversationUrl: string | null;
   sessionApiKey: string | null;
   sandboxId: string | null;
 }> => {
   const conversations =
-    await AgentServerConversationService.batchGetAppConversations([
-      conversationId,
-    ]);
+    await AgentServerConversationService.batchGetAppConversations(
+      [conversationId],
+      ownerConversationUrl,
+    );
 
   const appConversation = conversations[0];
   if (!appConversation) {
@@ -45,9 +47,12 @@ const fetchConversationData = async (
  * - Cloud mode: Pauses the sandbox (waits for current LLM call to finish).
  * - Local mode: Interrupts immediately (cancels in-flight requests).
  */
-export const pauseConversation = async (conversationId: string) => {
+export const pauseConversation = async (
+  conversationId: string,
+  ownerConversationUrl?: string | null,
+) => {
   const { conversationUrl, sessionApiKey, sandboxId } =
-    await fetchConversationData(conversationId);
+    await fetchConversationData(conversationId, ownerConversationUrl);
 
   if (getActiveBackend().backend.kind === "cloud") {
     if (!sandboxId) {
@@ -73,9 +78,12 @@ export const pauseConversation = async (conversationId: string) => {
 export const askAgent = async (
   conversationId: string,
   question: string,
+  ownerConversationUrl?: string | null,
 ): Promise<{ response: string }> => {
-  const { conversationUrl, sessionApiKey } =
-    await fetchConversationData(conversationId);
+  const { conversationUrl, sessionApiKey } = await fetchConversationData(
+    conversationId,
+    ownerConversationUrl,
+  );
   return new ConversationClient(
     getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
   ).askAgent(conversationId, question);
@@ -90,9 +98,12 @@ export const askAgent = async (
 export const startGoal = async (
   conversationId: string,
   request: StartGoalRequest,
+  ownerConversationUrl?: string | null,
 ): Promise<void> => {
-  const { conversationUrl, sessionApiKey } =
-    await fetchConversationData(conversationId);
+  const { conversationUrl, sessionApiKey } = await fetchConversationData(
+    conversationId,
+    ownerConversationUrl,
+  );
   await new ConversationClient(
     getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
   ).startGoal(conversationId, request);
@@ -104,18 +115,28 @@ export const startGoal = async (
  * deliberately leaves the in-flight agent turn running, so callers should also
  * interrupt the conversation (e.g. `pauseConversation`) to actually halt it.
  */
-export const stopGoal = async (conversationId: string): Promise<void> => {
-  const { conversationUrl, sessionApiKey } =
-    await fetchConversationData(conversationId);
+export const stopGoal = async (
+  conversationId: string,
+  ownerConversationUrl?: string | null,
+): Promise<void> => {
+  const { conversationUrl, sessionApiKey } = await fetchConversationData(
+    conversationId,
+    ownerConversationUrl,
+  );
   await new ConversationClient(
     getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
   ).stopGoal(conversationId);
 };
 
 /** Resume the last interrupted `/goal` loop in this conversation. */
-export const resumeGoal = async (conversationId: string): Promise<void> => {
-  const { conversationUrl, sessionApiKey } =
-    await fetchConversationData(conversationId);
+export const resumeGoal = async (
+  conversationId: string,
+  ownerConversationUrl?: string | null,
+): Promise<void> => {
+  const { conversationUrl, sessionApiKey } = await fetchConversationData(
+    conversationId,
+    ownerConversationUrl,
+  );
   await new ConversationClient(
     getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
   ).resumeGoal(conversationId);
@@ -130,13 +151,16 @@ export const resumeGoal = async (conversationId: string): Promise<void> => {
 export const updateConversationSecrets = async (
   conversationId: string,
   customSecrets: CustomSecretInput[],
+  ownerConversationUrl?: string | null,
 ): Promise<void> => {
   if (getActiveBackend().backend.kind === "cloud") return;
   const secrets = buildCustomSecrets(customSecrets);
   if (!secrets) return;
 
-  const { conversationUrl, sessionApiKey } =
-    await fetchConversationData(conversationId);
+  const { conversationUrl, sessionApiKey } = await fetchConversationData(
+    conversationId,
+    ownerConversationUrl,
+  );
   await new ConversationClient(
     getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
   ).updateSecrets(conversationId, { secrets });
@@ -149,9 +173,12 @@ export const updateConversationSecrets = async (
  *   (mirrors `pauseConversation`). The status poll picks up the transition.
  * - Otherwise: resume the agent through the conversation's runtime.
  */
-export const resumeConversation = async (conversationId: string) => {
+export const resumeConversation = async (
+  conversationId: string,
+  ownerConversationUrl?: string | null,
+) => {
   const { conversationUrl, sessionApiKey, sandboxId } =
-    await fetchConversationData(conversationId);
+    await fetchConversationData(conversationId, ownerConversationUrl);
 
   if (!conversationUrl && getActiveBackend().backend.kind === "cloud") {
     if (!sandboxId) {

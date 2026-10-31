@@ -1072,6 +1072,24 @@ describe("AgentServerConversationService", () => {
       );
       expect(result).toBe(zipBlob);
     });
+
+    it("routes the download to the conversation's owning backend", async () => {
+      const zipBlob = new Blob(["zip-bytes"], { type: "application/zip" });
+      mockHttpGet.mockResolvedValue({ data: zipBlob });
+
+      await AgentServerConversationService.downloadConversation(
+        "conv-abc",
+        "https://a1.oh.example:8443/api/conversations/conv-abc",
+      );
+
+      expect(vi.mocked(FileClient)).toHaveBeenCalledWith(
+        expect.objectContaining({ host: "https://a1.oh.example:8443" }),
+      );
+      // A conversation-scoped client would switch the download to another
+      // endpoint; the plain trajectory endpoint must stay.
+      const [fileOptions] = vi.mocked(FileClient).mock.calls.at(-1) ?? [];
+      expect(fileOptions).not.toHaveProperty("conversationId");
+    });
   });
 
   describe("deleteConversation local branch", () => {
@@ -1092,6 +1110,22 @@ describe("AgentServerConversationService", () => {
 
       expect(mockHttpDelete).toHaveBeenCalledWith(
         "/api/conversations/conv-abc",
+      );
+    });
+
+    it("routes the delete to the conversation's owning backend", async () => {
+      mockHttpDelete.mockResolvedValue({ data: undefined });
+
+      await AgentServerConversationService.deleteConversation(
+        "conv-abc",
+        "https://a1.oh.example:8443/api/conversations/conv-abc",
+      );
+
+      expect(mockHttpDelete).toHaveBeenCalledWith(
+        "/api/conversations/conv-abc",
+      );
+      expect(vi.mocked(ConversationClient)).toHaveBeenCalledWith(
+        expect.objectContaining({ host: "https://a1.oh.example:8443" }),
       );
     });
   });
@@ -2660,6 +2694,25 @@ describe("AgentServerConversationService", () => {
         title: "New title",
       });
       expect(result.title).toBe("New title");
+    });
+
+    it("routes the title update and refresh to the conversation's owning backend", async () => {
+      mockUpdateConversation.mockResolvedValue(undefined);
+      mockHttpGet.mockResolvedValue({
+        data: [
+          makeDirectConversation({ id: "conv-title", title: "New title" }),
+        ],
+      });
+
+      await AgentServerConversationService.updateConversationTitle(
+        "conv-title",
+        "New title",
+        "https://a1.oh.example:8443/api/conversations/conv-title",
+      );
+
+      expect(vi.mocked(ConversationClient)).toHaveBeenCalledWith(
+        expect.objectContaining({ host: "https://a1.oh.example:8443" }),
+      );
     });
 
     it("persists a selected repository when creating a local conversation", async () => {

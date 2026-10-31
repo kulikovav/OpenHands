@@ -123,7 +123,10 @@ const expectRuntimeClient = (
   conversation: AppConversation,
 ) => {
   expect(mocks.batchGetAppConversations).toHaveBeenCalledOnce();
-  expect(mocks.batchGetAppConversations).toHaveBeenCalledWith([conversationId]);
+  expect(mocks.batchGetAppConversations).toHaveBeenCalledWith(
+    [conversationId],
+    undefined,
+  );
   expect(mocks.getAgentServerClientOptions).toHaveBeenCalledOnce();
   expect(mocks.getAgentServerClientOptions).toHaveBeenCalledWith({
     conversationUrl: conversation.conversation_url,
@@ -145,9 +148,10 @@ describe("conversation runtime commands", () => {
       askAgent("missing-conversation", "Are you there?"),
     ).rejects.toThrow("V1 conversation not found: missing-conversation");
 
-    expect(mocks.batchGetAppConversations).toHaveBeenCalledWith([
-      "missing-conversation",
-    ]);
+    expect(mocks.batchGetAppConversations).toHaveBeenCalledWith(
+      ["missing-conversation"],
+      undefined,
+    );
     expect(mocks.getAgentServerClientOptions).not.toHaveBeenCalled();
     expect(ConversationClient).not.toHaveBeenCalled();
     expect(mocks.askAgent).not.toHaveBeenCalled();
@@ -167,6 +171,22 @@ describe("conversation runtime commands", () => {
     expect(mocks.interruptConversation).toHaveBeenCalledOnce();
     expect(mocks.interruptConversation).toHaveBeenCalledWith(CONV_ID);
     expect(mocks.pauseCloudSandbox).not.toHaveBeenCalled();
+  });
+
+  it("reads a foreign conversation's runtime from its owning backend", async () => {
+    const ownerUrl = "https://a1.example/api/conversations/conv-foreign";
+    prepareRuntimeConversation();
+    mocks.getActiveBackend.mockReturnValueOnce({
+      backend: { kind: "local" },
+    });
+    mocks.interruptConversation.mockResolvedValueOnce({ success: true });
+
+    await pauseConversation(CONV_ID, ownerUrl);
+
+    expect(mocks.batchGetAppConversations).toHaveBeenCalledWith(
+      [CONV_ID],
+      ownerUrl,
+    );
   });
 
   it("pauses a cloud sandbox without constructing a runtime client", async () => {
@@ -325,6 +345,24 @@ describe("conversation runtime commands", () => {
         },
       },
     });
+  });
+
+  it("reads a foreign conversation from its owning backend before attaching secrets", async () => {
+    const ownerUrl = "https://a1.example/api/conversations/conv-foreign";
+    prepareRuntimeConversation();
+    mocks.getActiveBackend.mockReturnValueOnce({ backend: { kind: "local" } });
+    mocks.updateSecrets.mockResolvedValueOnce({ success: true });
+
+    await updateConversationSecrets(
+      CONV_ID,
+      [{ name: "GITHUB_TOKEN", description: "Factory repo access" }],
+      ownerUrl,
+    );
+
+    expect(mocks.batchGetAppConversations).toHaveBeenCalledWith(
+      [CONV_ID],
+      ownerUrl,
+    );
   });
 
   it("leaves cloud conversations to resolve secrets server-side", async () => {

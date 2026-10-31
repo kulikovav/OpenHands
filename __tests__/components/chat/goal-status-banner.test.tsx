@@ -1,8 +1,12 @@
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GoalStatusBanner } from "#/components/features/chat/goal-status-banner";
 import { useGoalStore } from "#/stores/goal-store";
 import { GoalStatus } from "#/types/agent-server/core/events/conversation-state-event";
+
+vi.mock("#/hooks/use-owner-conversation-url", () => ({
+  useOwnerConversationUrl: () => undefined,
+}));
 
 const CONV = "conv-1";
 

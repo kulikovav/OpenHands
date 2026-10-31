@@ -475,6 +475,38 @@ describe("ConversationCard", () => {
     );
   });
 
+  it("forwards the owning backend when downloading a foreign conversation", async () => {
+    const user = userEvent.setup();
+    const downloadSpy = vi
+      .spyOn(AgentServerConversationService, "downloadConversation")
+      .mockResolvedValue(new Blob(["zip"], { type: "application/zip" }));
+    renderWithProviders(
+      <ConversationCard
+        conversationId="conv-foreign"
+        conversationUrl="https://a1.example:8443"
+        onDelete={onDelete}
+        title="Conversation 1"
+        selectedRepository={null}
+        lastUpdatedAt="2021-10-01T12:00:00Z"
+        contextMenuOpen
+        onContextMenuToggle={vi.fn()}
+      />,
+    );
+
+    await user.click(
+      within(screen.getByTestId("context-menu")).getByTestId(
+        "download-trajectory-button",
+      ),
+    );
+
+    await vi.waitFor(() =>
+      expect(downloadSpy).toHaveBeenCalledWith(
+        "conv-foreign",
+        "https://a1.example:8443",
+      ),
+    );
+  });
+
   test("clicking the selectedRepository should not trigger the onClick handler", async () => {
     const user = userEvent.setup();
     renderWithProviders(

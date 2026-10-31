@@ -5,10 +5,15 @@ export const useUpdateConversation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (variables: { conversationId: string; newTitle: string }) =>
+    mutationFn: (variables: {
+      conversationId: string;
+      newTitle: string;
+      conversationUrl?: string | null;
+    }) =>
       AgentServerConversationService.updateConversationTitle(
         variables.conversationId,
         variables.newTitle,
+        variables.conversationUrl,
       ),
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: ["user", "conversations"] });

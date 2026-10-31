@@ -133,7 +133,10 @@ describe("pause conversation mutation behavior", () => {
     expect(getQueryData).toHaveBeenCalledOnce();
     expect(getQueryData).toHaveBeenCalledWith(["user", "conversations"]);
     expect(pauseConversationMock).toHaveBeenCalledOnce();
-    expect(pauseConversationMock).toHaveBeenCalledWith("conversation-42");
+    expect(pauseConversationMock).toHaveBeenCalledWith(
+      "conversation-42",
+      undefined,
+    );
     expect(cancelQueries.mock.invocationCallOrder[0]).toBeLessThan(
       getQueryData.mock.invocationCallOrder[0]!,
     );
@@ -204,7 +207,10 @@ describe("pause conversation mutation behavior", () => {
       ).rejects.toBe(failure);
     });
 
-    expect(pauseConversationMock).toHaveBeenCalledWith("conversation-2");
+    expect(pauseConversationMock).toHaveBeenCalledWith(
+      "conversation-2",
+      undefined,
+    );
     expect(setQueryData).not.toHaveBeenCalled();
     expect(queryClient.getQueryData(CONVERSATIONS_QUERY_KEY)).toBeUndefined();
   });

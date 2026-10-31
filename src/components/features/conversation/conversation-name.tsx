@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useUpdateConversation } from "#/hooks/mutation/use-update-conversation";
 import { useConversationId } from "#/hooks/use-conversation-id";
+import { useOwnerConversationUrl } from "#/hooks/use-owner-conversation-url";
 import { useConversationNameContextMenu } from "#/hooks/use-conversation-name-context-menu";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
@@ -19,6 +20,7 @@ export function ConversationName() {
   const { t } = useTranslation("openhands");
   const { conversationId } = useConversationId();
   const { data: conversation } = useActiveConversation();
+  const ownerConversationUrl = useOwnerConversationUrl(conversationId);
   const { mutate: updateConversation } = useUpdateConversation();
 
   const [titleMode, setTitleMode] = React.useState<"view" | "edit">("view");
@@ -75,7 +77,11 @@ export function ConversationName() {
       const trimmed = inputRef.current.value.trim();
       if (trimmed !== conversation?.title) {
         updateConversation(
-          { conversationId, newTitle: trimmed },
+          {
+            conversationId,
+            newTitle: trimmed,
+            conversationUrl: ownerConversationUrl,
+          },
           {
             onSuccess: () => {
               displaySuccessToast(t(I18nKey.CONVERSATION$TITLE_UPDATED));

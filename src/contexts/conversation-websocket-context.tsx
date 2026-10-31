@@ -897,6 +897,7 @@ export function ConversationWebSocketProvider({
               event.action,
               conversationId,
               event.tool_call_id,
+              conversationUrl,
             );
           }
         }
@@ -910,6 +911,7 @@ export function ConversationWebSocketProvider({
       consumeMatchingPendingMessage,
       queryClient,
       conversationId,
+      conversationUrl,
       setExecutionStatus,
       appendInput,
       appendOutput,

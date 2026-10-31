@@ -581,8 +581,8 @@ describe("ConversationPanel filters and pagination", () => {
       await waitFor(() => {
         expect(deleteSpy).toHaveBeenCalledTimes(2);
       });
-      expect(deleteSpy).toHaveBeenCalledWith("recent-1");
-      expect(deleteSpy).toHaveBeenCalledWith("recent-2");
+      expect(deleteSpy).toHaveBeenCalledWith("recent-1", undefined);
+      expect(deleteSpy).toHaveBeenCalledWith("recent-2", undefined);
     });
 
     it("delete-all still deletes hidden archived conversations", async () => {
@@ -649,9 +649,9 @@ describe("ConversationPanel filters and pagination", () => {
       await waitFor(() => {
         expect(deleteSpy).toHaveBeenCalledTimes(3);
       });
-      expect(deleteSpy).toHaveBeenCalledWith("visible-1");
-      expect(deleteSpy).toHaveBeenCalledWith("archived-1");
-      expect(deleteSpy).toHaveBeenCalledWith("archived-2");
+      expect(deleteSpy).toHaveBeenCalledWith("visible-1", undefined);
+      expect(deleteSpy).toHaveBeenCalledWith("archived-1", undefined);
+      expect(deleteSpy).toHaveBeenCalledWith("archived-2", undefined);
     });
 
     it("navigates away after the active conversation is deleted successfully even when another deletion fails", async () => {
