@@ -5,8 +5,11 @@ export const useResumeConversation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (variables: { conversationId: string }) =>
-      resumeConversation(variables.conversationId),
+    mutationFn: (variables: {
+      conversationId: string;
+      conversationUrl?: string | null;
+    }) =>
+      resumeConversation(variables.conversationId, variables.conversationUrl),
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ["user", "conversations"] });
       const previousConversations = queryClient.getQueryData([

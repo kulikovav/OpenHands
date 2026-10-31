@@ -1062,6 +1062,7 @@ export function ConversationWebSocketProvider({
               event.action,
               conversationId,
               event.tool_call_id,
+              conversationUrl,
             );
           }
         }
@@ -1076,6 +1077,7 @@ export function ConversationWebSocketProvider({
       queryClient,
       conversationId,
       historyConnectionKey,
+      conversationUrl,
       setExecutionStatus,
       updateMetricsFromStats,
       handleNonErrorEvent,

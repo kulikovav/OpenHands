@@ -4,13 +4,22 @@ import { useBtwInterceptor } from "#/hooks/chat/use-btw-interceptor";
 import { useBtwStore } from "#/stores/btw-store";
 
 const mockAskAgent = vi.hoisted(() =>
-  vi.fn<(id: string, q: string) => Promise<{ response: string }>>(),
+  vi.fn<
+    (id: string, q: string, ownerUrl?: string) => Promise<{ response: string }>
+  >(),
 );
 
 const mockDisplayErrorToast = vi.hoisted(() => vi.fn());
 
+const { OWNER_URL } = vi.hoisted(() => ({
+  OWNER_URL: "https://owner.example/api/conversations/conv-1",
+}));
+
 vi.mock("#/hooks/mutation/conversation-mutation-utils", () => ({
-  askAgent: (id: string, q: string) => mockAskAgent(id, q),
+  askAgent: (...args: [string, string, string?]) => mockAskAgent(...args),
+}));
+vi.mock("#/hooks/use-owner-conversation-url", () => ({
+  useOwnerConversationUrl: () => OWNER_URL,
 }));
 vi.mock("#/utils/custom-toast-handlers", () => ({
   displayErrorToast: (message: string) => mockDisplayErrorToast(message),
@@ -46,7 +55,7 @@ describe("useBtwInterceptor", () => {
     act(() => result.current("/btw why?"));
 
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(mockAskAgent).toHaveBeenCalledWith(CONV, "why?");
+    expect(mockAskAgent).toHaveBeenCalledWith(CONV, "why?", OWNER_URL);
     expect(entries()[0]).toMatchObject({ question: "why?", status: "pending" });
 
     await waitFor(() => expect(entries()[0].status).toBe("done"));

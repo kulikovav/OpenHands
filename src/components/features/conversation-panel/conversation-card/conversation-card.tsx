@@ -61,6 +61,8 @@ interface ConversationCardProps {
   sandboxStatus?: SandboxStatus | null;
   runtimeStatus?: string | null;
   conversationId?: string;
+  /** The backend that holds the conversation, when it is not the active one. */
+  conversationUrl?: string | null;
   contextMenuOpen?: boolean;
   onContextMenuToggle?: (isOpen: boolean) => void;
   isActive?: boolean;
@@ -104,6 +106,7 @@ export function ConversationCard({
   timestampLabel,
   createdAt,
   conversationId,
+  conversationUrl,
   executionStatus,
   isStarting,
   sandboxStatus,
@@ -231,7 +234,7 @@ export function ConversationCard({
 
     if (conversationId) {
       try {
-        await downloadConversation(conversationId);
+        await downloadConversation({ conversationId, conversationUrl });
       } catch {
         // useDownloadConversation already showed the error toast; close the
         // menu as on success instead of leaking the rejection.
