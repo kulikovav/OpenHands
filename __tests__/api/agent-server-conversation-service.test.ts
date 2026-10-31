@@ -2962,6 +2962,29 @@ describe("AgentServerConversationService", () => {
       );
     });
 
+    it("routes the tag update and refresh to the conversation's owning backend", async () => {
+      // Arrange — the active backend lists the conversation but does not hold it.
+      vi.mocked(ConversationClient).mockClear();
+      mockUpdateConversation.mockResolvedValue(undefined);
+      mockHttpGet.mockResolvedValue({
+        data: [makeDirectConversation({ id: "conv-tags" })],
+      });
+
+      // Act
+      await AgentServerConversationService.updateConversationTags(
+        "conv-tags",
+        { archived: "false" },
+        "https://a1.oh.example:8443/api/conversations/conv-tags",
+      );
+
+      // Assert — both the PATCH and the read-back client carry the owner.
+      expect(
+        vi
+          .mocked(ConversationClient)
+          .mock.calls.map(([options]) => options.host),
+      ).toEqual(["https://a1.oh.example:8443", "https://a1.oh.example:8443"]);
+    });
+
     it("persists a selected repository when creating a local conversation", async () => {
       mockGetSettings.mockResolvedValue({
         agent_settings: { llm: { model: "gpt-4o" } },

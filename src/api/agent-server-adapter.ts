@@ -684,6 +684,9 @@ export const RESERVED_CONVERSATION_TAG_KEYS: ReadonlySet<string> = new Set([
   // presentation rather than as generic tag chips.
   "pinned",
   "archived",
+  // The Cursor bridge's own archive mark, written beside `archived` so a
+  // pre-shared-key record still reads as archived. It is not a user chip.
+  "bridgearchived",
   LOCAL_PLANNER_PARENT_TAG_KEY,
   // The launched agent profile, which the app server stamps as tags; the
   // hovercard names the profile instead of echoing the raw id and revision.
