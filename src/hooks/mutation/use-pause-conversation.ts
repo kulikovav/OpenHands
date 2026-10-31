@@ -12,8 +12,11 @@ export const usePauseConversation = () => {
   const { backend } = useActiveBackend();
 
   return useMutation({
-    mutationFn: (variables: { conversationId: string }) =>
-      pauseConversation(variables.conversationId),
+    mutationFn: (variables: {
+      conversationId: string;
+      conversationUrl?: string | null;
+    }) =>
+      pauseConversation(variables.conversationId, variables.conversationUrl),
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ["user", "conversations"] });
       const previousConversations = queryClient.getQueryData([

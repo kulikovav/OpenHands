@@ -20,8 +20,11 @@ export const useUnifiedPauseConversation = () => {
 
   return useMutation({
     mutationKey: ["stop-conversation"],
-    mutationFn: async (variables: { conversationId: string }) =>
-      pauseConversation(variables.conversationId),
+    mutationFn: async (variables: {
+      conversationId: string;
+      conversationUrl?: string | null;
+    }) =>
+      pauseConversation(variables.conversationId, variables.conversationUrl),
     onMutate: async () => {
       const toastId = toast.loading(
         t(I18nKey.TOAST$STOPPING_CONVERSATION),

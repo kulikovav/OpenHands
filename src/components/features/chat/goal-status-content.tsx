@@ -11,6 +11,7 @@ import {
   isGoalConversationStateUpdateEvent,
 } from "#/types/agent-server/type-guards";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
+import { useOwnerConversationUrl } from "#/hooks/use-owner-conversation-url";
 import {
   pauseConversation,
   resumeGoal,
@@ -75,6 +76,7 @@ export function GoalStatusContent({
 }) {
   const { t } = useTranslation("openhands");
   const { conversationId } = useOptionalConversationId();
+  const ownerConversationUrl = useOwnerConversationUrl(conversationId);
   // Whether *some* goal loop is currently live for this conversation. Used to
   // hide a stale inline Resume button once the user has resumed (or started a
   // new goal): resuming again would just 409 on the backend.
@@ -123,11 +125,15 @@ export function GoalStatusContent({
   // running, so interrupt the conversation too to actually halt it.
   const handleStop = () =>
     runAction(async (id) => {
-      await stopGoal(id);
-      await pauseConversation(id);
+      await stopGoal(id, ownerConversationUrl);
+      await pauseConversation(id, ownerConversationUrl);
     }, I18nKey.GOAL$STOP_FAILED);
 
-  const handleResume = () => runAction(resumeGoal, I18nKey.GOAL$RESUME_FAILED);
+  const handleResume = () =>
+    runAction(
+      (id) => resumeGoal(id, ownerConversationUrl),
+      I18nKey.GOAL$RESUME_FAILED,
+    );
 
   let actionButton: ReactNode = null;
   if (conversationId && active) {

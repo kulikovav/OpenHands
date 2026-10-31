@@ -21,6 +21,7 @@ import ThreeDotsVerticalIcon from "#/icons/three-dots-vertical.svg?react";
 import { CodePillIcon } from "#/icons/code-pill";
 import { useUnifiedPauseConversation } from "#/hooks/mutation/use-unified-stop-conversation";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
+import { useOwnerConversationUrl } from "#/hooks/use-owner-conversation-url";
 import { usePauseConversation } from "#/hooks/mutation/use-pause-conversation";
 import { useResumeConversation } from "#/hooks/mutation/use-resume-conversation";
 import { useActiveBackend } from "#/contexts/active-backend-context";
@@ -76,6 +77,7 @@ export function ChatInputActions({
   const pauseConversationMutation = usePauseConversation();
   const resumeConversationMutation = useResumeConversation();
   const { conversationId } = useOptionalConversationId();
+  const ownerConversationUrl = useOwnerConversationUrl(conversationId);
   const { backend } = useActiveBackend();
   const isCloud = backend.kind === "cloud";
   const modelState = useChatInputModelState();
@@ -184,12 +186,18 @@ export function ChatInputActions({
 
   const handlePauseAgent = () => {
     if (!conversationId) return;
-    pauseConversationMutation.mutate({ conversationId });
+    pauseConversationMutation.mutate({
+      conversationId,
+      conversationUrl: ownerConversationUrl,
+    });
   };
 
   const handleResumeAgentClick = () => {
     if (!conversationId) return;
-    resumeConversationMutation.mutate({ conversationId });
+    resumeConversationMutation.mutate({
+      conversationId,
+      conversationUrl: ownerConversationUrl,
+    });
   };
 
   const isPausing =
