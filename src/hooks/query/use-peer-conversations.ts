@@ -4,7 +4,7 @@ import AgentServerConversationService from "#/api/conversation-service/agent-ser
 import { PEER_CONVERSATIONS_QUERY_KEYS } from "#/hooks/query/query-keys";
 import { useDiscoveredBackends } from "./use-discovered-backends";
 
-/** How often each peer's conversation list is refreshed. */
+/** How long a peer's conversation list stays fresh before the next read. */
 const PEER_CONVERSATIONS_STALE_TIME_MS = 30_000;
 
 /**

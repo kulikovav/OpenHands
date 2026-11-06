@@ -1013,9 +1013,10 @@ class AgentServerConversationService {
    * The servers share a conversation store but not a catalog: each builds its
    * catalog once at start and extends it only with what it creates itself, so a
    * conversation another server created is absent from the active backend's
-   * reads entirely. Reading it from the server that holds it, and pointing the
-   * returned entry at that server, is what lets the live view — history, event
-   * socket, and sends — address the backend that actually owns it.
+   * list and batch reads. Reading it from the server that holds it, and
+   * pointing the returned entry at that server, is what lets the live view —
+   * history, event socket, and sends — address the backend that actually owns
+   * it.
    */
   static async getAppConversationOn(
     conversationId: string,
