@@ -1,5 +1,5 @@
 import { useConversationLaunchStore } from "#/stores/conversation-launch-store";
-import { screen, within, waitFor } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   afterAll,
@@ -215,6 +215,7 @@ describe("ConversationName", () => {
       {
         conversationId: "test-conversation-id",
         newTitle: "New Conversation Title",
+        conversationUrl: undefined,
       },
       expect.any(Object),
     );
@@ -286,6 +287,7 @@ describe("ConversationName", () => {
       {
         conversationId: "test-conversation-id",
         newTitle: "Trimmed Title",
+        conversationUrl: undefined,
       },
       expect.any(Object),
     );

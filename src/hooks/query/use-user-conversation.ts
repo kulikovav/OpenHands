@@ -38,14 +38,16 @@ function userConversationQueryOptions(
   active: ResolvedActiveBackend,
   ownerUrl = "",
 ) {
+  // The key stays owner-free on purpose: one detail entry per conversation
+  // must serve every consumer. The owner only changes where the fetch reads
+  // from, and `useUserConversation` gates that read until it resolves.
+  // eslint-disable-next-line @tanstack/query/exhaustive-deps
   return {
-    // The owner belongs in the key too: the entry it produces points
-    // `conversation_url` at a different server, so it must not be served from
-    // the cache entry the active backend produced.
-    queryKey: [
-      ...CONVERSATION_QUERY_KEYS.detail(cid, active.backend.id, active.orgId),
-      ownerUrl,
-    ],
+    queryKey: CONVERSATION_QUERY_KEYS.detail(
+      cid,
+      active.backend.id,
+      active.orgId,
+    ),
     queryFn: async ({
       client,
       queryKey,
@@ -164,9 +166,10 @@ export const useUserConversation = (
   // active backend already does, so the single-server path is untouched. The
   // probe keeps the main query's scope gate: an org-less cloud backend serves
   // no conversation here, so a discovery request would have no consumer.
-  const { data: ownerBackend } = useConversationOwnerBackend(cid, {
-    enabled: !!cid && !isTaskId && !backendChanged && hasConversationScope,
-  });
+  const { data: ownerBackend, isFetched: ownerFetched } =
+    useConversationOwnerBackend(cid, {
+      enabled: !!cid && !isTaskId && !backendChanged && hasConversationScope,
+    });
   const ownerUrl = ownerBackend?.url ?? "";
 
   return useQuery({
@@ -178,7 +181,16 @@ export const useUserConversation = (
     // "conversation not available or no permission" until the user
     // hard-refreshes the page. Mirrors `usePaginatedConversations`.
     ...userConversationQueryOptions(cid, active, ownerUrl),
-    enabled: !!cid && !isPendingId && !backendChanged && hasConversationScope,
+    // Wait for the owner lookup before the first read: the entry must be built
+    // by the server that holds the conversation. The key stays owner-free, so
+    // every detail consumer reads one entry, and the gate starts the fetch when
+    // the owner resolves.
+    enabled:
+      !!cid &&
+      !isPendingId &&
+      !backendChanged &&
+      hasConversationScope &&
+      ownerFetched,
     // Freshness while it matters is already covered by `refetchInterval`
     // above. Refetching on every window focus too means every open
     // conversation tab/browser tab fires a request the instant it regains
