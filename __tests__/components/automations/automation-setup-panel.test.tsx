@@ -2753,14 +2753,15 @@ describe("AutomationSetupPanel", () => {
       mockOwnerConversationUrl.value = ownerUrl;
 
       // Act
-      renderPanel();
+      renderPanel(undefined, "conv-1", {});
 
       // Assert
       await waitFor(() =>
         expect(
-          AgentServerConversationService.updateConversationTags,
+          AgentServerConversationService.replaceConversationTags,
         ).toHaveBeenCalledWith(
           "conv-1",
+          {},
           expect.objectContaining({ automationsetup: "draft" }),
           ownerUrl,
         ),
@@ -3469,7 +3470,7 @@ describe("AutomationSetupPanel", () => {
       expect(
         vi
           .mocked(AgentServerConversationService.replaceConversationTags)
-          .mock.calls[1].slice(1),
+          .mock.calls[1].slice(1, 3),
       ).toEqual([
         { existing: "tag", automationsetup: "draft" },
         expect.objectContaining({
