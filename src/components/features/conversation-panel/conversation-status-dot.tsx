@@ -175,7 +175,7 @@ export function ConversationStatusDot({
   // A runtime on another backend outranks every sandbox reading: the
   // conversation runs elsewhere, so nothing about this backend's sandbox or
   // archive state describes it. Otherwise an archived row (explicit archive,
-  // shared tag, or missing sandbox) downloads to a gray archive icon so it
+  // shared tag, or missing sandbox) renders as a gray archive icon so it
   // matches the "Archived" chip; an unarchived `ERROR` row keeps its red
   // "Error" dot.
   const runsOnAnotherBackend = runtimeStatus === "missing";

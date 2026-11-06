@@ -33425,6 +33425,24 @@
     "uk": "Теги оновлено",
     "id": "Tag diperbarui"
   },
+  "CONVERSATION$ARCHIVE_SAVE_FAILED": {
+    "en": "The conversation archive state could not be saved.",
+    "ja": "会話のアーカイブ状態を保存できませんでした。",
+    "zh-CN": "无法保存对话的归档状态。",
+    "zh-TW": "無法儲存對話的封存狀態。",
+    "ko-KR": "대화의 보관 상태를 저장할 수 없습니다.",
+    "no": "Samtalets arkivstatus kunne ikke lagres.",
+    "ar": "تعذر حفظ حالة أرشفة المحادثة.",
+    "de": "Der Archivierungsstatus der Unterhaltung konnte nicht gespeichert werden.",
+    "fr": "Impossible d'enregistrer l'état d'archivage de la conversation.",
+    "it": "Impossibile salvare lo stato di archiviazione della conversazione.",
+    "pt": "Não foi possível salvar o estado de arquivamento da conversa.",
+    "es": "No se pudo guardar el estado de archivado de la conversación.",
+    "ca": "No s'ha pogut desar l'estat d'arxivament de la conversa.",
+    "tr": "Konuşmanın arşiv durumu kaydedilemedi.",
+    "uk": "Не вдалося зберегти стан архіву розмови.",
+    "id": "Status arsip percakapan tidak dapat disimpan."
+  },
   "CONVERSATION_PANEL$PREVIEW_GIT": {
     "en": "Git",
     "ja": "Git",
