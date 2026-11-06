@@ -1,6 +1,6 @@
 --- a/openhands/automation/presets/plugin/sdk_main.py
 +++ b/openhands/automation/presets/plugin/sdk_main.py
-@@ -71,6 +71,7 @@
+@@ -86,6 +86,7 @@
  import json
  import os
  import random
@@ -8,7 +8,7 @@
  import sys
  import threading
  import time
-@@ -601,6 +602,33 @@
+@@ -830,6 +831,33 @@
      report_phase("Agent is working on the task")
      threading.Thread(target=_phase_poster, name="phase-poster", daemon=True).start()
  
@@ -44,7 +44,7 @@
          print(f"  sending prompt: {USER_PROMPT[:80]}...")
 --- a/openhands/automation/presets/prompt/sdk_main.py
 +++ b/openhands/automation/presets/prompt/sdk_main.py
-@@ -74,6 +74,7 @@
+@@ -90,6 +90,7 @@
  import inspect
  import json
  import os
@@ -52,7 +52,7 @@
  import sys
  import threading
  import time
-@@ -551,6 +552,33 @@
+@@ -781,6 +782,33 @@
      report_phase("Agent is working on the task")
      threading.Thread(target=_phase_poster, name="phase-poster", daemon=True).start()
  
