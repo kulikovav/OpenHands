@@ -77,16 +77,15 @@ export const useConversationOwnerBackend = (
   });
 
   return useQuery({
-    // The probe depends on the peer set, so the set belongs in the key: a slot
-    // that starts or restarts changes the answer, and the cached result must
-    // not outlive it. React Query hashes the array deterministically.
+    // The probe depends on the peer set: a slot that starts or restarts
+    // changes the answer, and the cached result must not outlive it.
     queryKey: ["conversation-owner-backend", conversationId, peers ?? []],
     queryFn: async (): Promise<DiscoveryBackend | null> => {
       if (!conversationId) return null;
       return resolveConversationOwnerBackend(conversationId, peers ?? []);
     },
-    // Waiting for the document keeps the answer correct; the read that would
-    // otherwise run against the wrong server waits with it.
+    // Without the discovery document the probe sees no peers and would report
+    // the active backend as the owner, so wait for it.
     enabled: (options.enabled ?? true) && !!conversationId && peersFetched,
     retry: false,
     staleTime: 15_000,
@@ -115,17 +114,15 @@ export const useConversationOwnerUrlResolver = () => {
 
   return useCallback(
     async (conversationId: string): Promise<string | undefined> => {
-      // A failed refresh keeps the last known list; only a cold failure (no
-      // list at all) is a discovery error, and it must not read as "no owner".
-      if (!isFetched) {
-        const refreshed = await queryClient.fetchQuery(
-          discoveryBackendsQueryOptions(),
-        );
-        if (refreshed === undefined) return undefined;
-      }
+      // A cold discovery read resolves here. A failed read degrades to the
+      // active backend, the same fallback the open path uses: a deployment
+      // without the document publishes no peer to target.
+      const resolvedPeers = isFetched
+        ? (peers ?? [])
+        : await queryClient.fetchQuery(discoveryBackendsQueryOptions());
       const owner = await resolveConversationOwnerBackend(
         conversationId,
-        peers ?? [],
+        resolvedPeers,
       );
       return owner?.url;
     },

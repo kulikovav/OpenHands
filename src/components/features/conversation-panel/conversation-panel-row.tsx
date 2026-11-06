@@ -26,8 +26,8 @@ interface ConversationPanelRowProps {
   allowEditTags: boolean;
   /**
    * The row belongs to another backend of the deployment. Its record is
-   * read-only here, so every mutation is disabled; opening it hands off to the
-   * backend that owns it.
+   * read-only here, so every mutation is disabled; opening it resolves the
+   * owning backend and reads it there.
    */
   isForeign: boolean;
   showHoverMetadata: boolean;
@@ -197,6 +197,7 @@ export const ConversationPanelRow = React.memo(function ConversationPanelRow({
           sandboxStatus={conversation.sandbox_status}
           runtimeStatus={conversation.runtime_status}
           conversationId={conversation.id}
+          conversationUrl={conversation.source_backend_url}
           contextMenuOpen={contextMenuOpen}
           onContextMenuToggle={(isOpen) =>
             setOpenContextMenuId(isOpen ? conversation.id : null)

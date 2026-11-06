@@ -21,7 +21,8 @@ interface ConversationCardHeaderProps {
   isArchived?: boolean;
   /**
    * Local runtime state. `missing` means the conversation runs on another
-   * backend of the deployment, so it is neither archived nor read-only.
+   * backend of the deployment, so this backend's archive state does not
+   * describe it.
    */
   runtimeStatus?: string | null;
 }
