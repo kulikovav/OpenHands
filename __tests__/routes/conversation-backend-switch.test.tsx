@@ -442,7 +442,6 @@ describe("conversation route — cloud sandbox resume", () => {
           CLOUD_CONVERSATION_ID,
           cloudBackend.id,
           "org-a",
-          "",
         ])?.sandbox_status,
       ).toBe("PAUSED"),
     );
@@ -577,7 +576,6 @@ describe("conversation route — cloud sandbox resume", () => {
     expect(resumeCloudSandbox).toHaveBeenCalledTimes(1);
   });
 });
-
 
 describe("conversation route — shared read-only fallback", () => {
   it("sends an org member to the read-only shared view when only the shared lookup can see the conversation", async () => {
