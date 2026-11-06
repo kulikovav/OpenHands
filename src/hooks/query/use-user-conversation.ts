@@ -160,7 +160,6 @@ export const useUserConversation = (
   const backendChanged = origin.current.backendId !== active.backend.id;
   const hasConversationScope =
     active.backend.kind !== "cloud" || !!active.orgId;
-  const isTaskId = !!cid && cid.startsWith("task-");
 
   // Which server of the deployment holds this conversation. Null when the
   // active backend already does, so the single-server path is untouched. The
@@ -168,7 +167,7 @@ export const useUserConversation = (
   // no conversation here, so a discovery request would have no consumer.
   const { data: ownerBackend, isFetched: ownerFetched } =
     useConversationOwnerBackend(cid, {
-      enabled: !!cid && !isTaskId && !backendChanged && hasConversationScope,
+      enabled: !!cid && !isPendingId && !backendChanged && hasConversationScope,
     });
   const ownerUrl = ownerBackend?.url ?? "";
 
@@ -182,9 +181,7 @@ export const useUserConversation = (
     // hard-refreshes the page. Mirrors `usePaginatedConversations`.
     ...userConversationQueryOptions(cid, active, ownerUrl),
     // Wait for the owner lookup before the first read: the entry must be built
-    // by the server that holds the conversation. The key stays owner-free, so
-    // every detail consumer reads one entry, and the gate starts the fetch when
-    // the owner resolves.
+    // by the server that holds the conversation.
     enabled:
       !!cid &&
       !isPendingId &&

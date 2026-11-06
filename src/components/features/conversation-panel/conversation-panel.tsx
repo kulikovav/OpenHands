@@ -94,11 +94,6 @@ interface ConversationPanelProps {
 
 const noop = () => {};
 
-// The archive mark lives in the server tag, so a refused write leaves it in
-// this browser alone. The user must hear about it instead of a silent loss.
-const ARCHIVE_TAG_SAVE_FAILED =
-  "The conversation archive state could not be saved.";
-
 const EMPTY_PINNED_CONVERSATION_IDS: readonly string[] = [];
 
 export function ConversationPanel({
@@ -394,8 +389,9 @@ export function ConversationPanel({
     return pageById;
   }, [data]);
 
-  // Display collection: every merged conversation from the healthy peers, with
-  // archived rows filtered out unless the user has opted into "Show archived".
+  // Display collection: every merged conversation from the active backend and
+  // the healthy peers, with archived rows filtered out unless the user has
+  // opted into "Show archived".
   const conversations = React.useMemo(() => {
     if (showArchivedConversations) {
       return displayedConversations;
@@ -864,10 +860,10 @@ export function ConversationPanel({
   const { mutate: updateConversationTags } = useUpdateConversationTags();
   const resolveOwnerUrl = useConversationOwnerUrlResolver();
 
-  // The record is read back from the server that holds it: the active backend
-  // lists a peer row but its own catalog does not hold it. A read that does not
-  // settle on exactly one server returns null, because a replace-all write from
-  // a stale or foreign copy would drop the tags another client wrote.
+  // The panel lists a peer row the active backend's catalog does not hold, so
+  // read the record from the server that owns it. If no record comes back,
+  // abort: a replace-all write from a stale or foreign copy would drop tags
+  // another client wrote.
   const readConversationOwnerRecord = React.useCallback(
     async (
       conversationId: string,
@@ -886,7 +882,7 @@ export function ConversationPanel({
     [resolveOwnerUrl],
   );
 
-  /** Read back, merge the edit into the full map, then write to the owner. */
+  /** Merge the edit into the full map read from the owner, then write it. */
   const writeEditedTags = React.useCallback(
     async (conversationId: string, editedTags: Record<string, string>) => {
       let saved: Awaited<ReturnType<typeof readConversationOwnerRecord>>;
@@ -1008,8 +1004,8 @@ export function ConversationPanel({
     setSelectedConversationId(conversationId);
   }, []);
 
-  // The owner read and write run in a promise chain so the confirm handler stays
-  // synchronous, which the tags modal relies on.
+  // Fire the async owner read and write without awaiting them, so the confirm
+  // handler stays synchronous for the tags modal.
   const handleConfirmEditTags = React.useCallback(
     (mergedTags: Record<string, string>) => {
       if (!selectedConversationId) {
@@ -1020,14 +1016,21 @@ export function ConversationPanel({
     [selectedConversationId, writeEditedTags],
   );
 
-  // The archive mark is a server tag, and the local agent-server replaces the
-  // whole map on PATCH. Read the record first so the write carries every tag
-  // another client wrote, including the bridge ownership tags, and report a
-  // write the server refuses instead of leaving the archive in this browser
-  // alone, where no other client sees it.
-  const writeArchiveFlag = React.useCallback(
-    async (conversationId: string, changes: Record<string, boolean>) => {
-      if (activeBackend.kind !== "local") return;
+  // A tag flag write replaces the whole map on the local agent-server, so read
+  // the record from its owner first: the write then carries every tag another
+  // client wrote, including the bridge ownership tags. A refused write rolls
+  // the optimistic tag back, so report it instead of looking successful.
+  //
+  // Unarchive stamps `"false"` instead of deleting the key: the Cursor bridge
+  // reads the shared `archived` key first and falls back to its own
+  // `bridgearchived`, so a deleted key would let a stale bridge mark win and
+  // the conversation would stay archived there.
+  const writeTagFlags = React.useCallback(
+    async (
+      conversationId: string,
+      changes: Record<string, boolean>,
+      failureMessage: string,
+    ) => {
       let saved: Awaited<ReturnType<typeof readConversationOwnerRecord>>;
       try {
         saved = await readConversationOwnerRecord(conversationId);
@@ -1035,13 +1038,9 @@ export function ConversationPanel({
         saved = null;
       }
       if (!saved) {
-        displayErrorToast(ARCHIVE_TAG_SAVE_FAILED);
+        displayErrorToast(failureMessage);
         return;
       }
-      // Unarchive stamps `"false"` instead of deleting the key: the Cursor
-      // bridge reads the shared `archived` key first and falls back to its own
-      // `bridgearchived`, so a deleted key would let a stale bridge mark win
-      // and the conversation would stay archived there.
       updateConversationTagFlags(
         {
           conversationId,
@@ -1049,14 +1048,20 @@ export function ConversationPanel({
           changes,
           conversationUrl: saved.ownerUrl,
         },
-        { onError: () => displayErrorToast(ARCHIVE_TAG_SAVE_FAILED) },
+        { onError: () => displayErrorToast(failureMessage) },
       );
     },
-    [
-      activeBackend.kind,
-      readConversationOwnerRecord,
-      updateConversationTagFlags,
-    ],
+    [readConversationOwnerRecord, updateConversationTagFlags],
+  );
+
+  const writeArchiveFlag = React.useCallback(
+    (conversationId: string, changes: Record<string, boolean>) =>
+      writeTagFlags(
+        conversationId,
+        changes,
+        t(I18nKey.CONVERSATION$ARCHIVE_SAVE_FAILED),
+      ),
+    [t, writeTagFlags],
   );
 
   // Unarchiving needs no confirmation: it restores a row the user can archive
@@ -1075,21 +1080,21 @@ export function ConversationPanel({
 
   const handleTogglePin = React.useCallback(
     (conversation: (typeof allLoadedConversations)[number]) => {
-      updateConversationTagFlags({
-        conversationId: conversation.id,
-        currentTags: conversation.tags,
-        changes: {
+      void writeTagFlags(
+        conversation.id,
+        {
           [PINNED_CONVERSATION_TAG_KEY]: !hasConversationTagFlag(
             conversation.tags,
             PINNED_CONVERSATION_TAG_KEY,
           ),
         },
-      });
+        t(I18nKey.ERROR$GENERIC),
+      );
       // Same anti-resurrection drain as unarchive: a legacy pin awaiting
       // migration must not re-pin a row the user just unpinned.
       unpinConversation(activeBackend.id, conversation.id);
     },
-    [activeBackend.id, unpinConversation, updateConversationTagFlags],
+    [activeBackend.id, t, unpinConversation, writeTagFlags],
   );
 
   const handleStopConversation = React.useCallback((conversationId: string) => {
@@ -1210,10 +1215,9 @@ export function ConversationPanel({
       // runtime cannot be restored from this menu, so such a row offers neither
       // "Archive" nor "Unarchive", even when a stored archive flag is set.
       const explicitlyArchived = archivedIdSet.has(conversation.id);
-      // A conversation another backend of the deployment owns. Every mutation
-      // would be sent to the active backend, which does not hold it, so the row
-      // offers navigation only. Opening it reads the conversation from the
-      // backend that holds it.
+      // A conversation another backend of the deployment owns. The row is
+      // read-only here because its remaining mutations do not target the owner.
+      // Opening it resolves the owner and reads the conversation there.
       const isForeign = !!conversation.source_backend_url;
       if (compact) {
         return (
