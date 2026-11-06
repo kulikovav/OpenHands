@@ -22,7 +22,6 @@ import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useConversationLaunchStore } from "#/stores/conversation-launch-store";
 import { I18nKey } from "#/i18n/declaration";
 import { useOptionalConversationId } from "./use-conversation-id";
-import { useConversationOwnerBackend } from "./query/use-conversation-owner-backend";
 import {
   CONVERSATION_QUERY_KEYS,
   DEFAULT_CONVERSATION_PAGE_SIZE,
@@ -67,21 +66,9 @@ export function useConversationDisplayTitleState() {
       ),
     [list?.data],
   );
-  // The detail entry is keyed by the server that answered it, so the title
-  // state must read the same owner-scoped key the conversation query writes.
-  const { data: ownerBackend } = useConversationOwnerBackend(
-    conversationId ?? null,
-    { enabled: !!conversationId },
+  const detail = useCachedQuery<AppConversation | null>(
+    CONVERSATION_QUERY_KEYS.detail(conversationId ?? null, backend.id, orgId),
   );
-  const ownerUrl = ownerBackend?.url ?? "";
-  const detail = useCachedQuery<AppConversation | null>([
-    ...CONVERSATION_QUERY_KEYS.detail(
-      conversationId ?? null,
-      backend.id,
-      orgId,
-    ),
-    ownerUrl,
-  ]);
   const taskId = conversationId?.startsWith("task-")
     ? conversationId.slice(5)
     : null;
@@ -147,10 +134,9 @@ export function useConversationDisplayTitleState() {
       const realId =
         launch?.conversationId ?? activeTask?.app_conversation_id ?? id;
       const listed = realId ? listedById.get(realId) : undefined;
-      const cachedDetail = queryClient.getQueryState<AppConversation | null>([
-        ...CONVERSATION_QUERY_KEYS.detail(realId, backend.id, orgId),
-        ownerUrl,
-      ]);
+      const cachedDetail = queryClient.getQueryState<AppConversation | null>(
+        CONVERSATION_QUERY_KEYS.detail(realId, backend.id, orgId),
+      );
       const active = cachedDetail?.data;
       const candidates = [
         { conversation: active, fetchedAt: cachedDetail?.dataUpdatedAt ?? 0 },
