@@ -39,6 +39,7 @@ import {
 } from "#/api/backend-registry/active-store";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
+import { I18nKey } from "#/i18n/declaration";
 import { useArchivedConversationsStore } from "#/stores/archived-conversations-store";
 import { usePinnedConversationsStore } from "#/stores/pinned-conversations-store";
 import { useConversationPanelPreferencesStore } from "#/stores/conversation-panel-preferences-store";
@@ -630,7 +631,12 @@ describe("ConversationPanel conversation actions", () => {
     await waitFor(() => {
       expect(
         AgentServerConversationService.updateConversationTagFlags,
-      ).toHaveBeenCalledWith("1", { archived: "true" }, { archived: false }, undefined);
+      ).toHaveBeenCalledWith(
+        "1",
+        { archived: "true" },
+        { archived: false },
+        undefined,
+      );
     });
     await waitFor(() => {
       expect(
@@ -1625,8 +1631,8 @@ describe("ConversationPanel conversation actions", () => {
   });
 
   it("reports an archive whose server tag write failed", async () => {
-    // The archive lives in the server tag, so a refused write leaves it in this
-    // browser alone: the user must hear about it instead of a silent loss.
+    // The archive lives in the server tag, so a refused write rolls back the
+    // optimistic tag: the user must hear about it instead of a silent loss.
     vi.mocked(
       AgentServerConversationService.updateConversationTagFlags,
     ).mockRejectedValueOnce(new Error("the tag write failed"));
@@ -1640,7 +1646,7 @@ describe("ConversationPanel conversation actions", () => {
 
     await waitFor(() => {
       expect(displayErrorToast).toHaveBeenCalledWith(
-        "The conversation archive state could not be saved.",
+        I18nKey.CONVERSATION$ARCHIVE_SAVE_FAILED,
       );
     });
   });
@@ -1664,7 +1670,7 @@ describe("ConversationPanel conversation actions", () => {
 
     await waitFor(() => {
       expect(displayErrorToast).toHaveBeenCalledWith(
-        "The conversation archive state could not be saved.",
+        I18nKey.CONVERSATION$ARCHIVE_SAVE_FAILED,
       );
     });
     expect(updateTags).not.toHaveBeenCalled();

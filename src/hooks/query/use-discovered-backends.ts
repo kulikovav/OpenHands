@@ -11,15 +11,6 @@ interface UseDiscoveredBackendsOptions {
 }
 
 /**
- * The deployment's peer backends: every backend its discovery document reports
- * that is not the ingress itself.
- *
- * This list is the sole permission source for a foreign read of a conversation,
- * so a caller must never target a host this hook did not return. The
- * document is refreshed often because the deployment compiles it from the live
- * slot units: a slot that starts, stops, or restarts appears without a reload.
- */
-/**
  * The discovery document query. Shared so a caller that needs the peer list at
  * an arbitrary moment can await the same cache entry the hook reads.
  */
@@ -41,6 +32,15 @@ export const discoveryBackendsQueryOptions = () => ({
   meta: { disableToast: true },
 });
 
+/**
+ * The deployment's peer backends: every backend its discovery document reports
+ * that is not the ingress itself.
+ *
+ * This list is the sole permission source for a foreign read of a conversation,
+ * so a caller must never target a host this hook did not return. The
+ * document is refreshed often because the deployment compiles it from the live
+ * slot units: a slot that starts, stops, or restarts appears without a reload.
+ */
 export const useDiscoveredBackends = (
   options: UseDiscoveredBackendsOptions = {},
 ) =>

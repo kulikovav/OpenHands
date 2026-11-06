@@ -802,7 +802,7 @@ export function AutomationSetupPanel({
   const { t } = useTranslation("openhands");
   const { navigate } = useNavigation();
   const factoryContext = useFactoryContext();
-  // Tag writes must reach the owner, not the active backend.
+  // Target tag writes at the open conversation's owning backend.
   const conversationUrl = useOwnerConversationUrl(conversationId);
   const deploymentCapabilities = useDeploymentCapabilities();
   // Connected self-hosted providers name their hosts here; a repository on
