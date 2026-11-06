@@ -32,10 +32,8 @@ export default function SharedConversation() {
   const { t } = useTranslation("openhands");
   const { conversationId } = useParams<{ conversationId: string }>();
   const [searchParams] = useSearchParams();
-  // A conversation that runs on another backend of the deployment is read from
-  // the server that owns it. The conversation route resolves that root from the
-  // discovery document and carries it in the URL, so a reload reads the same
-  // backend.
+  // A `?host=` parameter names the backend a shared link reads from; links
+  // built here omit it, so they read the active backend.
   const host = searchParams.get("host") ?? "";
   const active = useActiveBackend();
 

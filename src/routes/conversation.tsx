@@ -171,13 +171,12 @@ function AppContent() {
   // finishing), and each re-run would otherwise toast the same miss again.
   const reportedMissRef = React.useRef<string | null>(null);
 
-  // On a local deployment, the active backend can list a conversation whose
-  // event log it does not hold: the deployment's servers share one conversation
-  // store, so the catalog read answers everywhere, while the transcript read
-  // (`events/search`) answers only on the server that owns the conversation.
-  // Reading it here fails with `404 Conversation not found`, so the peer that
-  // can serve it is resolved first and the conversation opens live, read from
-  // that peer.
+  // On a local deployment, the panel can list a conversation from a peer's
+  // list that the active backend's batch catalog read does not hold: it
+  // returns null for that id, while the transcript read (`events/search`)
+  // answers only on the server that owns the conversation. Reading it here
+  // fails with `404 Conversation not found`, so the peer that can serve it is
+  // resolved first and the conversation opens live, read from that peer.
   //
   // Start-task ids are not conversations.
   const shouldResolveForeignOwner =
@@ -267,10 +266,10 @@ function AppContent() {
     return null;
   }
 
-  // The conversation subtree loads history, metrics, and the event socket
-  // against the active backend. Mounting it before the owning peer is known
-  // would address a server that does not hold this conversation and surface a
-  // 404 the owner read is about to fix.
+  // The conversation subtree drives history, metrics, and the event socket
+  // from the resolved `conversation_url`. Mounting it before the owning peer
+  // is known would address the active backend, which does not hold this
+  // conversation, and surface a 404 the owner read is about to fix.
   if (shouldResolveForeignOwner && !isOwnerBackendFetched) {
     return (
       <div className="flex h-full items-center justify-center">
