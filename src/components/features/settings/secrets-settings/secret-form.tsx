@@ -139,7 +139,9 @@ export function SecretForm({
       const isNameAlreadyUsed = secrets?.some(
         (secret) =>
           normalizeSecretName(secret.name) ===
-            normalizeSecretName(storedName) && secret.name !== selectedSecret,
+            normalizeSecretName(storedName) &&
+          normalizeSecretName(secret.name) !==
+            normalizeSecretName(selectedSecret ?? ""),
       );
       if (isNameAlreadyUsed) {
         setError(t(I18nKey.SECRETS$SECRET_ALREADY_EXISTS));

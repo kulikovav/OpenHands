@@ -38,7 +38,7 @@ import {
   getTemplateGitProviderIds,
 } from "#/utils/automation-catalog";
 import { isResponderAutomation } from "#/utils/responder-deployment";
-import { findSecretNameIgnoringCase } from "#/utils/secret-name";
+import { findSecretIgnoringCase } from "#/utils/secret-name";
 import { useAutomationHealth } from "#/hooks/query/use-automation-health";
 import { useAutomations } from "#/hooks/query/use-automations";
 import { useBuiltInIntegrationConnections } from "#/hooks/query/use-built-in-integration-connections";
@@ -338,7 +338,7 @@ export function RecommendedAutomationsLauncher({
       }
       const secretName =
         getInstallableMcpConnectionOption(entry)?.auth.credentialSecretName;
-      if (secretName && findSecretNameIgnoringCase(secrets, secretName)) {
+      if (secretName && findSecretIgnoringCase(secrets, secretName)) {
         return [];
       }
       return [entry];

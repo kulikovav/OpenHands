@@ -259,6 +259,15 @@ describe("buildAutomationRepoSources", () => {
     ]);
   });
 
+  it("drops the shorthand's provider when the service cannot clone from GitHub", () => {
+    expect(
+      buildAutomationRepoSources(["OpenHands/OpenHands"], [], {}, [
+        "gitlab",
+        "bitbucket",
+      ]),
+    ).toEqual([{ url: "OpenHands/OpenHands" }]);
+  });
+
   it("sends the provider for a URL on a connected self-hosted host", () => {
     expect(
       buildAutomationRepoSources(

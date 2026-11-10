@@ -1960,9 +1960,11 @@ export function AutomationSetupPanel({
     }
     if (kind !== "custom") body.prompt = prompt.trim();
     const repositories = parseAutomationSetupRepositories(repository);
-    if (repositoriesEditable && repositories.length > 0) {
+    if (repositoriesEditable) {
       // An entry saved without a provider is rebuilt with one when its host
-      // became known, so saving the form repairs its clone authentication.
+      // became known, so saving the form repairs its clone authentication. A
+      // cleared list still sends `repos: []`, so the automation stops
+      // cloning the repositories it had.
       const sources = buildAutomationRepoSources(
         repositories,
         existingRepositories,
