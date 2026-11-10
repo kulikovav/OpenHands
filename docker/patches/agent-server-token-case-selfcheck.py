@@ -63,8 +63,11 @@ def main() -> None:
         "derived from the provider and the case variants would be dead code"
     )
     repo_source = repo_path.read_text(encoding="utf-8")
-    assert 'GitProvider.GITLAB: "gitlab_token"' in repo_source, (
-        "PROVIDER_TOKEN_NAMES no longer spells the provider token lowercase"
+    # SDK 1.61.0 moved GitHub, GitLab, and Bitbucket to the settings spelling
+    # but two providers still resolve lowercase, so the candidates stay live.
+    assert 'GitProvider.AZURE_DEVOPS: "azure_devops_token"' in repo_source, (
+        "PROVIDER_TOKEN_NAMES no longer spells a provider token lowercase: "
+        "the case variants would be dead code"
     )
 
     print("agent-server token case self-check passed")
