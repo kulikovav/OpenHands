@@ -53,6 +53,7 @@ describe("the command menu settings group", () => {
       "runtime-settings",
       "app-settings",
       "secrets-settings",
+      "git-providers-settings",
     ]);
   });
 

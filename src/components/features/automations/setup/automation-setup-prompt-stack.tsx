@@ -23,7 +23,7 @@ import { useCloseOnEscape } from "#/hooks/use-close-on-escape";
 import { useDebounce } from "#/hooks/use-debounce";
 import { useUserProviders } from "#/hooks/use-user-providers";
 import { useDeploymentCapabilities } from "#/hooks/query/use-manifest-capabilities";
-import { useSettings } from "#/hooks/query/use-settings";
+import { useGitProviderHosts } from "#/hooks/query/use-git-provider-connections";
 import { usePromptTextareaResize } from "#/hooks/use-prompt-textarea-resize";
 import { I18nKey } from "#/i18n/declaration";
 import CheckIcon from "#/icons/checkmark.svg?react";
@@ -523,8 +523,9 @@ export function AutomationSetupPromptStack({
   );
   const isLocalBackend = getActiveBackend().backend.kind === "local";
   const { providers } = useUserProviders();
-  const { data: settings } = useSettings();
-  const providerHosts = settings?.provider_tokens_set ?? {};
+  // Hosts a cloud instance reports natively, plus the local Settings →
+  // Integrations records; a repository on one of them is addressed by host.
+  const providerHosts = useGitProviderHosts().hosts;
   const deploymentCapabilities = useDeploymentCapabilities();
   // The service says whose repositories its runs clone; older services predate
   // the field and clone from the three hosted providers.
