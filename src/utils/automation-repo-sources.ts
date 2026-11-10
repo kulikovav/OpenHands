@@ -179,9 +179,12 @@ export function providerForAddress(
  * The `repos` a request sends for the setup form's repositories.
  *
  * A repository the automation already clones keeps its saved branch and
- * provider. A new shorthand is a GitHub repository. A full URL is sent with a
- * provider only when it points at a connected self-hosted host, so the
- * service authenticates its clone for that host and for no other.
+ * provider, except that an entry saved without a provider gains one when its
+ * address matches a connected self-hosted host (an entry from before the
+ * provider was recorded would otherwise clone unauthenticated forever). A new
+ * shorthand is a GitHub repository. A full URL is sent with a provider only
+ * when it points at a host a git provider connection reports, so the service
+ * authenticates its clone for that host and for no other.
  */
 export function buildAutomationRepoSources(
   repositories: string[],
@@ -191,18 +194,21 @@ export function buildAutomationRepoSources(
 ): AutomationRepoSource[] {
   return repositories.map((url) => {
     const existing = saved.find((repo) => repo.url === url);
-    if (existing) {
+    if (existing?.provider) {
       return {
-        url: existing.url,
+        url,
         ...(existing.ref && { ref: existing.ref }),
-        ...(existing.provider && { provider: existing.provider }),
+        provider: existing.provider,
       };
     }
-    if (!FULL_GIT_URL_PATTERN.test(url)) {
-      return { url, provider: SHORTHAND_PROVIDER };
-    }
-    const provider = providerForAddress(url, hosts, cloneProviders);
-    return provider ? { url, provider } : { url };
+    const provider = FULL_GIT_URL_PATTERN.test(url)
+      ? providerForAddress(url, hosts, cloneProviders)
+      : SHORTHAND_PROVIDER;
+    return {
+      url,
+      ...(existing?.ref && { ref: existing.ref }),
+      ...(provider && { provider }),
+    };
   });
 }
 
@@ -220,14 +226,23 @@ export function automationRepositoryLabel(
     : path;
 }
 
-/** Whether the form lists other repositories than the automation clones. */
-export function automationRepositoriesChanged(
-  repositories: string[],
+/**
+ * Whether the entries a save would send differ from the saved ones in URL,
+ * branch or provider — a saved entry that only misses a provider still counts,
+ * so saving the form repairs its clone authentication.
+ */
+export function automationRepoSourcesChanged(
+  sources: AutomationRepoSource[],
   saved: AutomationRepository[] = [],
 ): boolean {
   return (
-    repositories.length !== saved.length ||
-    repositories.some((url, index) => url !== saved[index]?.url)
+    sources.length !== saved.length ||
+    sources.some(
+      (source, index) =>
+        source.url !== saved[index]?.url ||
+        source.ref !== saved[index]?.ref ||
+        source.provider !== saved[index]?.provider,
+    )
   );
 }
 

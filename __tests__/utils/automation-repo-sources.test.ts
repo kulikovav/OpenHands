@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { AutomationRepository } from "#/types/automation";
 import {
+  automationRepoSourcesChanged,
   automationRepositoryAddress,
   buildAutomationRepoSources,
   providerBaseUrl,
@@ -352,5 +354,69 @@ describe("buildAutomationRepoSources", () => {
         provider: "gitlab",
       },
     ]);
+  });
+
+  it("gains a provider on a saved entry that misses one and now has a host", () => {
+    // An entry saved before its host was connected would otherwise clone
+    // unauthenticated forever.
+    expect(
+      buildAutomationRepoSources(
+        ["https://git.uzum.io/acme/tools"],
+        [{ url: "https://git.uzum.io/acme/tools", ref: "main" }],
+        { gitlab: "https://git.uzum.io" },
+      ),
+    ).toEqual([
+      {
+        url: "https://git.uzum.io/acme/tools",
+        ref: "main",
+        provider: "gitlab",
+      },
+    ]);
+    expect(
+      buildAutomationRepoSources(["acme/tools"], [{ url: "acme/tools" }], {}),
+    ).toEqual([{ url: "acme/tools", provider: "github" }]);
+  });
+
+  it("keeps a saved entry without a provider when no host claims it", () => {
+    expect(
+      buildAutomationRepoSources(
+        ["https://gitlab.com/acme/tools"],
+        [{ url: "https://gitlab.com/acme/tools" }],
+        {},
+      ),
+    ).toEqual([{ url: "https://gitlab.com/acme/tools" }]);
+  });
+});
+
+describe("automationRepoSourcesChanged", () => {
+  const saved: AutomationRepository[] = [
+    { url: "https://git.uzum.io/acme/tools", ref: "main" },
+  ];
+
+  it("reports a saved entry whose provider the save would repair", () => {
+    const sources = buildAutomationRepoSources(
+      ["https://git.uzum.io/acme/tools"],
+      saved,
+      { gitlab: "https://git.uzum.io" },
+    );
+    expect(automationRepoSourcesChanged(sources, saved)).toBe(true);
+  });
+
+  it("reports unchanged entries as unchanged", () => {
+    const sources = buildAutomationRepoSources(
+      ["https://gitlab.com/acme/tools"],
+      [{ url: "https://gitlab.com/acme/tools" }],
+    );
+    expect(
+      automationRepoSourcesChanged(sources, [
+        { url: "https://gitlab.com/acme/tools" },
+      ]),
+    ).toBe(false);
+    expect(
+      automationRepoSourcesChanged(
+        [{ url: "https://gitlab.com/acme/tools" }],
+        [{ url: "https://gitlab.com/acme/tools", provider: "gitlab" }],
+      ),
+    ).toBe(true);
   });
 });
