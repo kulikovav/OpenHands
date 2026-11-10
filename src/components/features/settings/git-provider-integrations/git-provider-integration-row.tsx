@@ -72,16 +72,25 @@ export function GitProviderIntegrationRow({
           value={token}
           onChange={setToken}
         />
-        <SettingsInput
-          testId={`git-provider-host-input-${provider}`}
-          name={`${provider}-host-input`}
-          label={t(I18nKey.INTEGRATIONS$HOST_LABEL)}
-          type="text"
-          placeholder={t(I18nKey.INTEGRATIONS$HOST_PLACEHOLDER)}
-          hint={t(I18nKey.INTEGRATIONS$HOST_HELP)}
-          value={hostValue}
-          onChange={setHost}
-        />
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <SettingsInput
+            testId={`git-provider-host-input-${provider}`}
+            name={`${provider}-host-input`}
+            label={t(I18nKey.INTEGRATIONS$HOST_LABEL)}
+            type="text"
+            placeholder={t(I18nKey.INTEGRATIONS$HOST_PLACEHOLDER)}
+            ariaDescribedBy={`git-provider-host-help-${provider}`}
+            value={hostValue}
+            onChange={setHost}
+          />
+          <p
+            id={`git-provider-host-help-${provider}`}
+            data-testid={`git-provider-host-help-${provider}`}
+            className="text-xs text-muted"
+          >
+            {t(I18nKey.INTEGRATIONS$HOST_HELP)}
+          </p>
+        </div>
       </div>
       <div className="flex justify-end gap-3">
         {isConnected && (
