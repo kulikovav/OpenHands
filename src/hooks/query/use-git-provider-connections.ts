@@ -1,17 +1,20 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { useMemo } from "react";
 
+import type { Provider } from "#/types/settings";
 import type { GitProviderConnection } from "#/api/git-provider-integrations-service";
 import { listGitProviderConnections } from "#/api/git-provider-integrations-service";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { GIT_INTEGRATIONS_QUERY_KEYS } from "#/hooks/query/query-keys";
 import { useSettings } from "#/hooks/query/use-settings";
-import type { Provider } from "#/types/settings";
 
 export interface UseGitProviderConnectionsResult {
   /** Connections in page order; empty while loading or on a cloud backend. */
   connections: readonly GitProviderConnection[];
   isLoading: boolean;
+  isError: boolean;
+  /** The store read's failure, for callers that render a message. */
+  error: unknown;
   refetch: UseQueryResult<GitProviderConnection[]>["refetch"];
 }
 
@@ -36,6 +39,8 @@ export function useGitProviderConnections(): UseGitProviderConnectionsResult {
   return {
     connections: query.data ?? [],
     isLoading: isLocal && query.isLoading,
+    isError: isLocal && query.isError,
+    error: query.error,
     refetch: query.refetch,
   };
 }
@@ -48,11 +53,10 @@ export function useGitProviderConnections(): UseGitProviderConnectionsResult {
  */
 export function useGitProviderHosts(): {
   hosts: Partial<Record<Provider, string | null>>;
-  isLoading: boolean;
 } {
   const { data: settings } = useSettings();
   const isLocal = useActiveBackend().backend.kind === "local";
-  const { connections, isLoading } = useGitProviderConnections();
+  const { connections } = useGitProviderConnections();
 
   return useMemo(() => {
     const hosts: Partial<Record<Provider, string | null>> = {
@@ -63,6 +67,6 @@ export function useGitProviderHosts(): {
         if (connection.host) hosts[connection.provider] = connection.host;
       }
     }
-    return { hosts, isLoading: isLocal ? isLoading : false };
-  }, [settings?.provider_tokens_set, isLocal, connections, isLoading]);
+    return { hosts };
+  }, [settings?.provider_tokens_set, isLocal, connections]);
 }

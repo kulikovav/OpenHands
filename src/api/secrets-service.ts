@@ -49,6 +49,18 @@ export class SecretsService {
   }
 
   /**
+   * The stored value of one secret, or null when the store holds none or an
+   * empty one. A value read is a local agent-server capability; the callers
+   * (the Integrations page) gate on a local backend.
+   */
+  static async getSecretValue(name: string): Promise<string | null> {
+    const value = await withRetry(() =>
+      new SettingsClient(getAgentServerClientOptions()).getSecret(name),
+    );
+    return value ?? null;
+  }
+
+  /**
    * Create or update a custom secret (upsert by name).
    * Uses the agent-server API endpoint: PUT /api/settings/secrets
    *
