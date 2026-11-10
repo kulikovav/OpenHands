@@ -136,7 +136,7 @@ import { setupDraftFromAutomation } from "#/utils/automation-edit-draft";
 import { withPresetSources } from "#/utils/automation-preset-sources";
 import {
   automationCloneProviders,
-  automationRepositoriesChanged,
+  automationRepoSourcesChanged,
   buildAutomationRepoSources,
 } from "#/utils/automation-repo-sources";
 import { EVENT_SOURCE_GUIDES } from "#/utils/automation-event-sources";
@@ -1910,16 +1910,18 @@ export function AutomationSetupPanel({
       if (selectedAgentProfileId) body.model = null;
     } else body.prompt = prompt.trim();
     const repositories = parseAutomationSetupRepositories(repository);
-    if (
-      repositoriesEditable &&
-      automationRepositoriesChanged(repositories, existingRepositories)
-    ) {
-      body.repos = buildAutomationRepoSources(
+    if (repositoriesEditable && repositories.length > 0) {
+      // An entry saved without a provider is rebuilt with one when its host
+      // became known, so saving the form repairs its clone authentication.
+      const sources = buildAutomationRepoSources(
         repositories,
         existingRepositories,
         providerHosts,
         cloneProviders,
       );
+      if (automationRepoSourcesChanged(sources, existingRepositories)) {
+        body.repos = sources;
+      }
     }
     return body as Partial<Automation>;
   };
