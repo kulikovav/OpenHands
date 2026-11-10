@@ -301,6 +301,31 @@ describe("Secret form behavior", () => {
     );
   });
 
+  it("edits a secret while a same-name case variant exists", async () => {
+    // The store may hold two spellings of one name (the SDK saves the
+    // lowercase one, the settings the uppercase one); rotating either of
+    // them must still work.
+    const user = userEvent.setup();
+    mocks.secrets = [
+      { name: "gitlab_token", description: "SDK" },
+      { name: "GITLAB_TOKEN", description: "Settings" },
+    ];
+    renderForm({ mode: "edit", selectedSecret: "gitlab_token" });
+
+    await user.type(screen.getByTestId("value-input"), "new-value");
+    await user.click(screen.getByTestId("submit-button"));
+
+    expect(mocks.update).toHaveBeenCalledWith(
+      {
+        secretToEdit: "gitlab_token",
+        name: "gitlab_token",
+        description: "SDK",
+        value: "new-value",
+      },
+      expect.any(Object),
+    );
+  });
+
   it("requires a non-whitespace value when adding a secret", () => {
     renderForm();
     fireEvent.change(screen.getByTestId("name-input"), {
