@@ -30,36 +30,33 @@ vi.mock("#/contexts/active-backend-context", () => ({
   }),
 }));
 
-vi.mock("#/api/git-provider-integrations-service", () => ({
-  gitProviderIntegrations: () => [
-    {
-      provider: "github",
-      tokenSecretName: "GITHUB_TOKEN",
-      hostRecordName: "GITHUB_HOST",
-    },
-    {
-      provider: "gitlab",
-      tokenSecretName: "GITLAB_TOKEN",
-      hostRecordName: "GITLAB_HOST",
-    },
-  ],
-  listGitProviderConnections: mocks.listConnections,
-  saveProviderToken: mocks.saveToken,
-  saveProviderHost: mocks.saveHost,
-  disconnectGitProvider: mocks.disconnect,
-}));
+vi.mock("#/api/git-provider-integrations-service", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("#/api/git-provider-integrations-service")
+    >();
+  return {
+    ...actual,
+    listGitProviderConnections: mocks.listConnections,
+    saveProviderToken: mocks.saveToken,
+    saveProviderHost: mocks.saveHost,
+    disconnectGitProvider: mocks.disconnect,
+  };
+});
 
 vi.mock("#/utils/cloud-integrations-url", () => ({
   cloudIntegrationsUrl: mocks.cloudUrl,
 }));
 
-vi.mock("#/hooks/query/use-settings", () => ({
-  useSettings: () => ({ data: { provider_tokens_set: {} } }),
-}));
-
 function renderScreen() {
   return render(
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider
+      client={
+        new QueryClient({
+          defaultOptions: { queries: { retry: false } },
+        })
+      }
+    >
       <IntegrationsSettingsScreen />
     </QueryClientProvider>,
   );
@@ -73,6 +70,7 @@ function gitlabHostInput() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.backendKind = "local";
   mocks.listConnections.mockResolvedValue([
     { provider: "github", isConnected: false, host: null },
     { provider: "gitlab", isConnected: true, host: "https://git.uzum.io" },
@@ -94,12 +92,21 @@ describe("Integrations settings", () => {
     ).toBeInTheDocument();
     const save = screen.getByTestId("git-provider-save-gitlab");
     expect(save).toBeDisabled();
-    // The row is interactive only when the user edits something.
     await userEvent.type(
       screen.getByTestId("git-provider-token-input-gitlab"),
       "glpat-new",
     );
     expect(save).toBeEnabled();
+  });
+
+  it("treats a trailing-slash-only host edit as no change", async () => {
+    renderScreen();
+
+    await waitFor(() => {
+      expect(gitlabHostInput()).toHaveValue("https://git.uzum.io");
+    });
+    await userEvent.type(gitlabHostInput(), "/");
+    expect(screen.getByTestId("git-provider-save-gitlab")).toBeDisabled();
   });
 
   it("saves a typed host change and not an untouched token", async () => {
@@ -108,8 +115,6 @@ describe("Integrations settings", () => {
     await waitFor(() => {
       expect(gitlabHostInput()).toHaveValue("https://git.uzum.io");
     });
-    // A trailing-slash-only edit normalizes to no change, so the save stays
-    // disabled until the host truly differs.
     await userEvent.clear(gitlabHostInput());
     await userEvent.type(gitlabHostInput(), "https://git.example.com");
 
@@ -120,6 +125,22 @@ describe("Integrations settings", () => {
         "gitlab",
         "https://git.example.com",
       );
+    });
+    expect(mocks.saveToken).not.toHaveBeenCalled();
+  });
+
+  it("saves a cleared host as the record's removal", async () => {
+    renderScreen();
+
+    await waitFor(() => {
+      expect(gitlabHostInput()).toHaveValue("https://git.uzum.io");
+    });
+    await userEvent.clear(gitlabHostInput());
+
+    await userEvent.click(screen.getByTestId("git-provider-save-gitlab"));
+
+    await waitFor(() => {
+      expect(mocks.saveHost).toHaveBeenCalledWith("gitlab", "");
     });
     expect(mocks.saveToken).not.toHaveBeenCalled();
   });
@@ -138,6 +159,16 @@ describe("Integrations settings", () => {
     await waitFor(() => {
       expect(mocks.disconnect).toHaveBeenCalledWith("gitlab");
     });
+  });
+
+  it("shows an error with a retry instead of lying rows when the store read fails", async () => {
+    mocks.listConnections.mockRejectedValue(new Error("store down"));
+    renderScreen();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("integrations-retry")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("git-provider-save-gitlab")).toBeNull();
   });
 
   it("points a cloud backend at the instance's integrations page", async () => {

@@ -196,7 +196,7 @@ RUN python -c "import openhands.automation as m; assert m.__version__ == '${AUTO
     && python /tmp/bleenk-patches/automation-sigterm-selfcheck.py "${SITE_PACKAGES}" \
     && python /tmp/bleenk-patches/automation-template-dedupe-selfcheck.py "${SITE_PACKAGES}" \
     && python /tmp/bleenk-patches/agent-server-token-case-selfcheck.py "${SITE_PACKAGES}" \
-    && python -c "import importlib.metadata as md; print('patched openhands-sdk', md.version('openhands-sdk'))" \
+    && python -c "import importlib.metadata as md; v = md.version('openhands-sdk'); assert v == '${AGENT_SERVER_VERSION}', v; print('patched openhands-sdk', v)" \
     && rm -rf /tmp/bleenk-patches
 
 # Copy the frontend build output.

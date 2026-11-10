@@ -1,12 +1,15 @@
-import { SettingsClient } from "@openhands/typescript-client/clients";
-import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { SecretsService } from "#/api/secrets-service";
+import type { CustomSecretWithoutValue } from "#/api/secrets-service.types";
 import {
   GIT_PROVIDER_INTEGRATIONS,
   gitProviderIntegration,
+  type GitProviderIntegration,
 } from "#/constants/git-provider-integrations";
 import type { Provider } from "#/types/settings";
-import { findSecretNameIgnoringCase } from "#/utils/secret-name";
+import {
+  findSecretIgnoringCase,
+  findSecretsIgnoringCase,
+} from "#/utils/secret-name";
 
 /**
  * Git provider connections adapted from the OpenHands Enterprise git settings
@@ -25,57 +28,78 @@ export interface GitProviderConnection {
   provider: Provider;
   /** The token secret exists in the store, under either name spelling. */
   isConnected: boolean;
-  /** The host record's stored value, or null when none is set. */
   host: string | null;
 }
 
-/** The per-provider integration definitions, in page order. */
-export function gitProviderIntegrations() {
-  return GIT_PROVIDER_INTEGRATIONS;
+function requireIntegration(provider: Provider): GitProviderIntegration {
+  const integration = gitProviderIntegration(provider);
+  if (!integration) {
+    throw new Error(`Unknown git provider: ${provider}`);
+  }
+  return integration;
+}
+
+async function findStoredSecret(
+  name: string,
+): Promise<CustomSecretWithoutValue | null> {
+  const secrets = await SecretsService.getSecretsOrThrow();
+  const matches = findSecretsIgnoringCase(secrets, name);
+  if (matches.length > 1) {
+    // Rotating or removing one of them would leave the clone reading the
+    // other spelling, so every write refuses until the store is unambiguous.
+    throw new Error(
+      `Multiple secrets named "${name.trim().toUpperCase()}" differ only in case; remove or rename the duplicates first.`,
+    );
+  }
+  return matches[0] ?? null;
+}
+
+async function upsertStoredSecret(
+  recordName: string,
+  value: string,
+): Promise<void> {
+  const stored = await findStoredSecret(recordName);
+  if (stored) {
+    await SecretsService.updateSecret(
+      stored.name,
+      stored.name,
+      stored.description,
+      value,
+    );
+    return;
+  }
+  await SecretsService.createSecret(recordName, value);
+}
+
+/** The stored form of a host: trimmed, without a trailing slash. */
+export function normalizeProviderHost(host: string | null | undefined): string {
+  return (host ?? "").trim().replace(/\/+$/, "");
 }
 
 async function getSecretValue(name: string): Promise<string | null> {
-  const value = await new SettingsClient(
-    getAgentServerClientOptions(),
-  ).getSecret(name);
+  const value = await SecretsService.getSecretValue(name);
   return value?.trim() ? value : null;
 }
 
-/** The connections in page order, derived from the backend's secrets store. */
 export async function listGitProviderConnections(): Promise<
   GitProviderConnection[]
 > {
   const secrets = await SecretsService.getSecretsOrThrow();
   return Promise.all(
     GIT_PROVIDER_INTEGRATIONS.map(async (integration) => {
-      const hostRecord = findSecretNameIgnoringCase(
+      const hostRecord = findSecretIgnoringCase(
         secrets,
         integration.hostRecordName,
       );
       return {
         provider: integration.provider,
         isConnected: Boolean(
-          findSecretNameIgnoringCase(secrets, integration.tokenSecretName),
+          findSecretIgnoringCase(secrets, integration.tokenSecretName),
         ),
         host: hostRecord ? await getSecretValue(hostRecord.name) : null,
       };
     }),
   );
-}
-
-async function findStoredSecret(name: string): Promise<{
-  name: string;
-  description: string | undefined;
-} | null> {
-  try {
-    const secrets = await SecretsService.getSecretsOrThrow();
-    const stored = findSecretNameIgnoringCase(secrets, name);
-    return stored
-      ? { name: stored.name, description: stored.description ?? undefined }
-      : null;
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -87,25 +111,12 @@ export async function saveProviderToken(
   provider: Provider,
   token: string,
 ): Promise<void> {
-  const integration = gitProviderIntegration(provider);
-  if (!integration) {
-    throw new Error(`Unknown git provider: ${provider}`);
-  }
+  const integration = requireIntegration(provider);
   const value = token.trim();
   if (!value) {
     throw new Error("A git provider token must not be empty.");
   }
-  const stored = await findStoredSecret(integration.tokenSecretName);
-  if (stored) {
-    await SecretsService.updateSecret(
-      stored.name,
-      stored.name,
-      stored.description,
-      value,
-    );
-    return;
-  }
-  await SecretsService.createSecret(integration.tokenSecretName, value);
+  await upsertStoredSecret(integration.tokenSecretName, value);
 }
 
 /**
@@ -117,33 +128,21 @@ export async function saveProviderHost(
   provider: Provider,
   host: string,
 ): Promise<void> {
-  const integration = gitProviderIntegration(provider);
-  if (!integration) {
-    throw new Error(`Unknown git provider: ${provider}`);
-  }
-  const value = host.trim().replace(/\/+$/, "");
+  const integration = requireIntegration(provider);
+  const value = normalizeProviderHost(host);
   if (!value) {
-    throw new Error("A git provider host must not be empty.");
-  }
-  const stored = await findStoredSecret(integration.hostRecordName);
-  if (stored) {
-    await SecretsService.updateSecret(
-      stored.name,
-      stored.name,
-      stored.description,
-      value,
-    );
+    // A blank host means "the provider's hosted service": drop the record.
+    const stored = await findStoredSecret(integration.hostRecordName);
+    if (stored) {
+      await SecretsService.deleteSecret(stored.name);
+    }
     return;
   }
-  await SecretsService.createSecret(integration.hostRecordName, value);
+  await upsertStoredSecret(integration.hostRecordName, value);
 }
 
-/** Remove a provider's token secret and host record; a missing one stays gone. */
 export async function disconnectGitProvider(provider: Provider): Promise<void> {
-  const integration = gitProviderIntegration(provider);
-  if (!integration) {
-    throw new Error(`Unknown git provider: ${provider}`);
-  }
+  const integration = requireIntegration(provider);
   const [token, host] = await Promise.all([
     findStoredSecret(integration.tokenSecretName),
     findStoredSecret(integration.hostRecordName),
