@@ -194,7 +194,12 @@ describe("ResolvedConversationBanner", () => {
 
     await userEvent.click(reopenButton());
 
-    expect(setResolved).toHaveBeenCalledWith("abc", CONVERSATION_ID, false);
+    expect(updateTagFlags).toHaveBeenCalledWith(
+      CONVERSATION_ID,
+      { resolved: "user", project: "abc", turn: "answered" },
+      { resolved: false },
+      undefined,
+    );
     await waitFor(() => {
       expect(
         screen.queryByTestId("resolved-conversation-banner"),

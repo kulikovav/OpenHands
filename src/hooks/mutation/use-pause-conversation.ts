@@ -13,7 +13,11 @@ export const usePauseConversation = () => {
     mutationFn: (variables: {
       conversationId: string;
       conversationUrl?: string | null;
-    }) => interruptConversation(variables.conversationId, variables.conversationUrl),
+    }) =>
+      interruptConversation(
+        variables.conversationId,
+        variables.conversationUrl,
+      ),
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ["user", "conversations"] });
       const previousConversations = queryClient.getQueryData([
