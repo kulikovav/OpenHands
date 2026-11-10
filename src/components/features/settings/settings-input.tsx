@@ -11,6 +11,8 @@ interface SettingsInputProps {
   defaultValue?: string;
   value?: string;
   placeholder?: string;
+  /** The input's autocomplete hint, passed through for password fields. */
+  autoComplete?: string;
   showOptionalTag?: boolean;
   isDisabled?: boolean;
   startContent?: React.ReactNode;
@@ -63,6 +65,7 @@ export const SettingsInput = forwardRef<HTMLInputElement, SettingsInputProps>(
       defaultValue,
       value,
       placeholder,
+      autoComplete,
       showOptionalTag,
       isDisabled,
       startContent,
@@ -120,6 +123,7 @@ export const SettingsInput = forwardRef<HTMLInputElement, SettingsInputProps>(
           defaultValue={defaultValue}
           value={value}
           placeholder={placeholder}
+          autoComplete={autoComplete}
           min={min}
           max={max}
           step={step}

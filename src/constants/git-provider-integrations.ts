@@ -5,9 +5,12 @@ import type { Provider } from "#/types/settings";
  * OpenHands Enterprise git settings page: each provider carries a token secret
  * and a host record in the agent-server secrets store.
  *
- * The token names follow the environment-variable convention the SDK's
- * provider-token lookups resolve case-insensitively (`gitlab_token` finds
- * `GITLAB_TOKEN`). The host record names the provider's self-hosted instance,
+ * The token names follow the environment-variable convention; the SDK fetches
+ * provider tokens by the provider-name spelling (`gitlab_token`), and the
+ * agent-server image patch (`agent-server-1.60.1-token-case-insensitive.patch`)
+ * makes that fetch find `GITLAB_TOKEN` too. A name in neither all-case
+ * spelling stays invisible to the fetch, so the store must not keep one.
+ * The host record names the provider's self-hosted instance,
  * so the automation setup can name a repository's provider from its URL; the
  * value is not a credential and the SDK clone never reads it.
  *
@@ -48,7 +51,6 @@ export const GIT_PROVIDER_INTEGRATIONS: readonly GitProviderIntegration[] = [
   },
 ];
 
-/** The integrations a provider name is managed under, or null for others. */
 export function gitProviderIntegration(
   provider: Provider,
 ): GitProviderIntegration | null {
