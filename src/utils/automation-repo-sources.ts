@@ -182,7 +182,8 @@ export function providerForAddress(
  * provider, except that an entry saved without a provider gains one when its
  * address matches a connected self-hosted host (an entry from before the
  * provider was recorded would otherwise clone unauthenticated forever). A new
- * shorthand is a GitHub repository. A full URL is sent with a provider only
+ * shorthand is a GitHub repository when the service accepts GitHub clones. A
+ * full URL is sent with a provider only
  * when it points at a host a git provider connection reports, so the service
  * authenticates its clone for that host and for no other.
  */
@@ -203,7 +204,9 @@ export function buildAutomationRepoSources(
     }
     const provider = FULL_GIT_URL_PATTERN.test(url)
       ? providerForAddress(url, hosts, cloneProviders)
-      : SHORTHAND_PROVIDER;
+      : cloneProviders.includes(SHORTHAND_PROVIDER)
+        ? SHORTHAND_PROVIDER
+        : undefined;
     return {
       url,
       ...(existing?.ref && { ref: existing.ref }),
