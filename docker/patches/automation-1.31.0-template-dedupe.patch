@@ -87,7 +87,7 @@
 +    return None
 --- a/openhands/automation/router.py
 +++ b/openhands/automation/router.py
-@@ -256,12 +256,13 @@
+@@ -257,12 +257,13 @@
      """
      validate_agent_profile_combination(body.agent_profile_id, body.model)
  
@@ -105,7 +105,7 @@
          )
          if existing is not None:
              response.status_code = status.HTTP_200_OK
-@@ -353,7 +354,7 @@
+@@ -356,7 +357,7 @@
      """Create an automation from an executable plugin specification."""
      if body.template is not None:
          existing = await find_existing_template_automation(
@@ -116,10 +116,10 @@
              response.status_code = status.HTTP_200_OK
 --- a/openhands/automation/preset_router.py
 +++ b/openhands/automation/preset_router.py
-@@ -597,11 +597,9 @@
-     5. Execute the provided prompt
-     6. Report completion status back to the automation service
+@@ -610,11 +610,9 @@
      """
+     validate_agent_profile_combination(body.agent_profile_id, body.model)
+ 
 -    # Idempotent creation: enabling the same extension template twice returns
 -    # the existing automation unchanged instead of creating a duplicate.
      if body.template is not None:
@@ -129,10 +129,10 @@
          )
          if existing is not None:
              response.status_code = status.HTTP_200_OK
-@@ -1090,11 +1088,9 @@
-     - With ref: branch, tag, or commit SHA
-     - With repo_path: subdirectory for monorepos
+@@ -1122,11 +1120,9 @@
      """
+     validate_agent_profile_combination(body.agent_profile_id, body.model)
+ 
 -    # Idempotent creation: enabling the same extension template twice returns
 -    # the existing automation unchanged instead of creating a duplicate.
      if body.template is not None:
