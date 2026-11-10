@@ -4,7 +4,7 @@ import { SecretsService } from "#/api/secrets-service";
 import { getActiveBackend } from "#/api/backend-registry/active-store";
 import type { Provider } from "#/types/settings";
 import { constructPullRequestUrl, getGitProviderBaseUrl } from "#/utils/utils";
-import { findSecretNameIgnoringCase } from "#/utils/secret-name";
+import { findSecretIgnoringCase } from "#/utils/secret-name";
 
 export interface GitProviderItem {
   id: number;
@@ -43,7 +43,7 @@ async function resolveProviderToken(
   // environment-variable spelling the settings save (`GITLAB_TOKEN`) or the
   // provider-name spelling the SDK uses (`gitlab_token`).
   const match = candidates
-    .map((candidate) => findSecretNameIgnoringCase(secrets, candidate)?.name)
+    .map((candidate) => findSecretIgnoringCase(secrets, candidate)?.name)
     .find(Boolean);
   if (!match) {
     return null;

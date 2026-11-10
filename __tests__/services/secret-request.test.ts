@@ -157,6 +157,34 @@ describe("handleRequestSecretAction", () => {
       OWNER_URL,
     );
   });
+
+  it("queues the card instead of guessing when two spellings exist", async () => {
+    // Two spellings of one name: attach the secret the user picks on the
+    // card, not whichever spelling the list returned first.
+    useSecretRequestStore.setState({ requests: [] });
+    mockGetSecretsOrThrow.mockResolvedValueOnce([
+      { name: "gitlab_token" },
+      { name: "GITLAB_TOKEN" },
+    ]);
+
+    const lowercaseAction: RequestSecretAction = {
+      ...action,
+      name: "gitlab_token",
+    };
+    await handleRequestSecretAction(
+      lowercaseAction,
+      CONVERSATION_ID,
+      "tool-call-3",
+      OWNER_URL,
+    );
+
+    expect(mockUpdateConversationSecrets).not.toHaveBeenCalled();
+    expect(
+      useSecretRequestStore
+        .getState()
+        .requests.some((r) => r.toolCallId === "tool-call-3"),
+    ).toBe(true);
+  });
 });
 
 describe("completeSecretRequest", () => {
