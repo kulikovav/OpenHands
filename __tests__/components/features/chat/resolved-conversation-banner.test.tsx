@@ -165,6 +165,7 @@ describe("ResolvedConversationBanner", () => {
       CONVERSATION_ID,
       { resolved: "user", project: "abc", turn: "answered" },
       { resolved: false },
+      undefined,
     );
     await waitFor(() => {
       expect(
