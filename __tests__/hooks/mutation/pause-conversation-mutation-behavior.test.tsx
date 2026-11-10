@@ -152,6 +152,7 @@ describe("pause conversation mutation behavior", () => {
 
     expect(interruptConversationMock).toHaveBeenCalledWith(
       "conversation-cloud",
+      undefined,
     );
     expect(patchConversationInCacheMock).not.toHaveBeenCalled();
   });
