@@ -99,6 +99,17 @@ describe("Integrations settings", () => {
     expect(save).toBeEnabled();
   });
 
+  it("describes the instance URL input with its help text", async () => {
+    renderScreen();
+
+    await waitFor(() => {
+      expect(gitlabHostInput()).toHaveValue("https://git.uzum.io");
+    });
+    const help = screen.getByTestId("git-provider-host-help-gitlab");
+    expect(help.textContent?.trim()).not.toBe("");
+    expect(gitlabHostInput()).toHaveAttribute("aria-describedby", help.id);
+  });
+
   it("treats a trailing-slash-only host edit as no change", async () => {
     renderScreen();
 
