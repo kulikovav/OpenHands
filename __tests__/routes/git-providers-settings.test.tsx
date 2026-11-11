@@ -8,14 +8,14 @@ import type { BackendKind } from "#/api/backend-registry/types";
 import { translationResources } from "#/i18n/resources";
 import { IntegrationsSettingsScreen } from "#/routes/git-providers-settings";
 
-// Resolve the real English copy so the help text's interpolation contract is
+// Resolve the real English copy so the per-provider help text contract is
 // exercised; the global setup mock would return the raw key instead.
 vi.mock("react-i18next", async (importOriginal) => ({
   ...(await importOriginal<typeof import("react-i18next")>()),
   useTranslation: () => ({
     t: (key: string, options?: Record<string, string>) =>
       Object.entries(options ?? {}).reduce(
-        (text, [name, value]) => text.replaceAll(`{${name}}`, value),
+        (text, [name, value]) => text.replaceAll(`{{${name}}}`, value),
         translationResources.en[key] ?? key,
       ),
     i18n: { language: "en", exists: () => true },
@@ -122,10 +122,15 @@ describe("Integrations settings", () => {
     });
     const help = screen.getByTestId("git-provider-host-help-gitlab");
     expect(help.textContent?.trim()).not.toBe("");
-    expect(help.textContent).toContain("GITLAB_HOST");
+    // GitHub needs no instance URL, GitLab does, so the help text is per
+    // provider.
     expect(
       screen.getByTestId("git-provider-host-help-github").textContent,
-    ).toContain("GITHUB_HOST");
+    ).toContain("github.com");
+    expect(help.textContent).toContain("gitlab.com");
+    expect(
+      screen.getByTestId("git-provider-host-help-github").textContent,
+    ).not.toBe(help.textContent);
     expect(gitlabHostInput()).toHaveAttribute("aria-describedby", help.id);
   });
 
@@ -184,6 +189,12 @@ describe("Integrations settings", () => {
       ).toBeEnabled();
     });
     await userEvent.click(screen.getByTestId("git-provider-disconnect-gitlab"));
+
+    // The provider name interpolates; a literal {{provider}} would regress the
+    // double-brace fix.
+    expect(screen.getByText(/Disconnect GitLab\?/)).toBeInTheDocument();
+    expect(screen.queryByText(/\{\{provider\}\}/)).not.toBeInTheDocument();
+
     await userEvent.click(screen.getByTestId("confirm-button"));
 
     await waitFor(() => {
