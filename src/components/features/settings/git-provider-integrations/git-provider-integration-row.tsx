@@ -6,7 +6,6 @@ import { normalizeProviderHost } from "#/api/git-provider-integrations-service";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
-import { gitProviderIntegration } from "#/constants/git-provider-integrations";
 import { I18nKey } from "#/i18n/declaration";
 import { useDisconnectGitProvider } from "#/hooks/mutation/use-disconnect-git-provider";
 import { useSaveGitProviderConnection } from "#/hooks/mutation/use-save-git-provider-connection";
@@ -16,6 +15,15 @@ interface GitProviderIntegrationRowProps {
   provider: GitProviderConnection["provider"];
   connection: GitProviderConnection | null;
 }
+
+// The clone behavior differs per provider, so each managed provider carries
+// its own help text: GitHub's hosted service needs no address, GitLab's does.
+const HOST_HELP_KEYS: Partial<
+  Record<GitProviderIntegrationRowProps["provider"], I18nKey>
+> = {
+  github: I18nKey.INTEGRATIONS$HOST_HELP_GITHUB,
+  gitlab: I18nKey.INTEGRATIONS$HOST_HELP_GITLAB,
+};
 
 export function GitProviderIntegrationRow({
   provider,
@@ -89,9 +97,9 @@ export function GitProviderIntegrationRow({
             data-testid={`git-provider-host-help-${provider}`}
             className="text-xs text-muted"
           >
-            {t(I18nKey.INTEGRATIONS$HOST_HELP, {
-              hostSecret: gitProviderIntegration(provider)?.hostRecordName,
-            })}
+            {t(
+              HOST_HELP_KEYS[provider] ?? I18nKey.INTEGRATIONS$HOST_HELP_GITLAB,
+            )}
           </p>
         </div>
       </div>
