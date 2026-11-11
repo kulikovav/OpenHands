@@ -10,9 +10,11 @@ import type { Provider } from "#/types/settings";
  * agent-server image patch (`agent-server-1.60.1-token-case-insensitive.patch`)
  * makes that fetch find `GITLAB_TOKEN` too. A name in neither all-case
  * spelling stays invisible to the fetch, so the store must not keep one.
- * The host record names the provider's self-hosted instance,
- * so the automation setup can name a repository's provider from its URL; the
- * value is not a credential and the SDK clone never reads it.
+ * The host record names the address the provider serves repositories on,
+ * so the automation setup can name a repository's provider from its URL;
+ * the value is not a credential and the SDK clone never reads it. When
+ * neither this record nor the provider's host secret exists, the setup
+ * cannot name the provider and its runs cannot clone the repository.
  *
  * Providers the SDK's clone literal does not accept are left out: a `repos`
  * entry whose `provider` the service rejects would fail validation after save.
