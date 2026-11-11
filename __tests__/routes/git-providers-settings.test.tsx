@@ -5,7 +5,22 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { BackendKind } from "#/api/backend-registry/types";
+import { translationResources } from "#/i18n/resources";
 import { IntegrationsSettingsScreen } from "#/routes/git-providers-settings";
+
+// Resolve the real English copy so the help text's interpolation contract is
+// exercised; the global setup mock would return the raw key instead.
+vi.mock("react-i18next", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("react-i18next")>()),
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, string>) =>
+      Object.entries(options ?? {}).reduce(
+        (text, [name, value]) => text.replaceAll(`{${name}}`, value),
+        translationResources.en[key] ?? key,
+      ),
+    i18n: { language: "en", exists: () => true },
+  }),
+}));
 
 const mocks = vi.hoisted(() => ({
   backendKind: "local" as BackendKind,
@@ -107,6 +122,10 @@ describe("Integrations settings", () => {
     });
     const help = screen.getByTestId("git-provider-host-help-gitlab");
     expect(help.textContent?.trim()).not.toBe("");
+    expect(help.textContent).toContain("GITLAB_HOST");
+    expect(
+      screen.getByTestId("git-provider-host-help-github").textContent,
+    ).toContain("GITHUB_HOST");
     expect(gitlabHostInput()).toHaveAttribute("aria-describedby", help.id);
   });
 

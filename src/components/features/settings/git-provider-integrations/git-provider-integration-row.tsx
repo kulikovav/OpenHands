@@ -6,6 +6,7 @@ import { normalizeProviderHost } from "#/api/git-provider-integrations-service";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
+import { gitProviderIntegration } from "#/constants/git-provider-integrations";
 import { I18nKey } from "#/i18n/declaration";
 import { useDisconnectGitProvider } from "#/hooks/mutation/use-disconnect-git-provider";
 import { useSaveGitProviderConnection } from "#/hooks/mutation/use-save-git-provider-connection";
@@ -88,7 +89,9 @@ export function GitProviderIntegrationRow({
             data-testid={`git-provider-host-help-${provider}`}
             className="text-xs text-muted"
           >
-            {t(I18nKey.INTEGRATIONS$HOST_HELP)}
+            {t(I18nKey.INTEGRATIONS$HOST_HELP, {
+              hostSecret: gitProviderIntegration(provider)?.hostRecordName,
+            })}
           </p>
         </div>
       </div>
