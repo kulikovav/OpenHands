@@ -204,6 +204,8 @@ jobs:
             AGENT_CANVAS_VERSION=${{ steps.config.outputs.agent_canvas_version }}
             OPENHANDS_BUILD_GIT_SHA=${{ env.RELEVANT_SHA }}
             OPENHANDS_BUILD_GIT_REF=${{ env.RELEVANT_REF }}
+            AGENT_SERVER_SDK_GIT_REF=${{ vars.AGENT_SERVER_SDK_GIT_REF }}
+            AGENT_SERVER_SDK_GIT_REPO=${{ vars.AGENT_SERVER_SDK_GIT_REPO }}
             VITE_POSTHOG_API_KEY=${{ steps.prep.outputs.posthog_api_key }}
             VITE_BASE_PATH=${{ steps.config.outputs.canvas_base_path }}
           cache-from: type=gha
