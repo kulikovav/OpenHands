@@ -244,6 +244,63 @@ describe("Secret form behavior", () => {
     expect(mocks.create).not.toHaveBeenCalled();
   });
 
+  it("rejects a name that differs from an existing one in case only", async () => {
+    // The SDK derives provider-token names from the provider
+    // (`gitlab_token`), while the settings save the environment-variable
+    // spelling (`GITLAB_TOKEN`); both spellings mean the same secret.
+    const user = userEvent.setup();
+    mocks.secrets = [{ name: "GITLAB_TOKEN" }];
+    renderForm();
+
+    await user.type(screen.getByTestId("name-input"), "gitlab_token");
+    await user.type(screen.getByTestId("value-input"), "secret-value");
+    await user.click(screen.getByTestId("submit-button"));
+
+    expect(
+      screen.getByText(I18nKey.SECRETS$SECRET_ALREADY_EXISTS),
+    ).toBeVisible();
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it("saves a typed lowercase name under the uppercase convention", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    await user.type(screen.getByTestId("name-input"), "gitlab_token");
+    await user.type(screen.getByTestId("value-input"), "secret-value");
+    await user.click(screen.getByTestId("submit-button"));
+
+    expect(mocks.create).toHaveBeenCalledWith(
+      {
+        name: "GITLAB_TOKEN",
+        value: "secret-value",
+        description: undefined,
+      },
+      expect.any(Object),
+    );
+  });
+
+  it("keeps a lowercase stored name when an edit changes only the value", async () => {
+    // Profile and automation selections reference the stored name verbatim,
+    // so a value-only edit must not rename it to the uppercase spelling.
+    const user = userEvent.setup();
+    mocks.secrets = [{ name: "gitlab_token" }];
+    renderForm({ mode: "edit", selectedSecret: "gitlab_token" });
+
+    await user.type(screen.getByTestId("value-input"), "new-value");
+    await user.click(screen.getByTestId("submit-button"));
+
+    expect(mocks.update).toHaveBeenCalledWith(
+      {
+        secretToEdit: "gitlab_token",
+        name: "gitlab_token",
+        description: undefined,
+        value: "new-value",
+      },
+      expect.any(Object),
+    );
+  });
+
   it("requires a non-whitespace value when adding a secret", () => {
     renderForm();
     fireEvent.change(screen.getByTestId("name-input"), {

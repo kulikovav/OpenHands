@@ -12,6 +12,7 @@ import { BrandButton } from "../brand-button";
 import { useSearchSecrets } from "#/hooks/query/use-get-secrets";
 import { OptionalTag } from "../optional-tag";
 import type { CustomSecretInput } from "#/api/agent-server-adapter";
+import { normalizeSecretName } from "#/utils/secret-name";
 
 interface SecretFormProps {
   mode: "add" | "edit";
@@ -124,9 +125,21 @@ export function SecretForm({
     if (trimmedName) {
       setError(null);
 
+      // New names follow the environment-variable convention (`GITLAB_TOKEN`),
+      // the spelling the SDK's own provider-token lookups and the templates
+      // document. A name the user did not change keeps its stored spelling:
+      // profile and automation selections reference it verbatim.
+      const normalizedName = normalizeSecretName(trimmedName);
+      const keepsStoredName =
+        mode === "edit" &&
+        selectedSecret &&
+        normalizeSecretName(selectedSecret) === normalizedName;
+      const storedName = keepsStoredName ? selectedSecret : normalizedName;
+
       const isNameAlreadyUsed = secrets?.some(
         (secret) =>
-          secret.name === trimmedName && secret.name !== selectedSecret,
+          normalizeSecretName(secret.name) ===
+            normalizeSecretName(storedName) && secret.name !== selectedSecret,
       );
       if (isNameAlreadyUsed) {
         setError(t(I18nKey.SECRETS$SECRET_ALREADY_EXISTS));
@@ -139,13 +152,13 @@ export function SecretForm({
           return;
         }
 
-        handleCreateSecret(trimmedName, trimmedValue, normalizedDescription);
+        handleCreateSecret(normalizedName, trimmedValue, normalizedDescription);
       } else if (mode === "edit" && selectedSecret) {
         // Blank value means "keep the existing secret"; only send a value when
         // the user typed a replacement (#16134).
         handleEditSecret(
           selectedSecret,
-          trimmedName,
+          storedName,
           normalizedDescription,
           trimmedValue || undefined,
         );

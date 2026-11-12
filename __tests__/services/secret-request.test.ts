@@ -127,6 +127,36 @@ describe("handleRequestSecretAction", () => {
     );
     expect(reportedResult()).toEqual({ status: "saved", name: "GITHUB_TOKEN" });
   });
+
+  it("attaches a secret saved under either spelling of the requested name", async () => {
+    // The SDK derives provider-token names from the provider (`gitlab_token`),
+    // while the settings save the environment-variable spelling
+    // (`GITLAB_TOKEN`); the store compares names verbatim.
+    useSecretRequestStore.setState({ requests: [] });
+    const lowercaseRequest: SecretRequest = {
+      ...request,
+      name: "gitlab_token",
+    };
+    useSecretRequestStore.setState({ requests: [lowercaseRequest] });
+    mockGetSecretsOrThrow.mockResolvedValueOnce([{ name: "GITLAB_TOKEN" }]);
+
+    const lowercaseAction: RequestSecretAction = {
+      ...action,
+      name: "gitlab_token",
+    };
+    await handleRequestSecretAction(
+      lowercaseAction,
+      CONVERSATION_ID,
+      "tool-call-2",
+      OWNER_URL,
+    );
+
+    expect(mockUpdateConversationSecrets).toHaveBeenCalledExactlyOnceWith(
+      CONVERSATION_ID,
+      [{ name: "GITLAB_TOKEN" }],
+      OWNER_URL,
+    );
+  });
 });
 
 describe("completeSecretRequest", () => {
