@@ -1,6 +1,63 @@
+--- a/openhands/automation/preset_router.py
++++ b/openhands/automation/preset_router.py
+@@ -631,11 +631,9 @@ async def create_automation_from_prompt(
+     """
+     validate_agent_profile_combination(body.agent_profile_id, body.model)
+ 
+-    # Idempotent creation: enabling the same extension template twice returns
+-    # the existing automation unchanged instead of creating a duplicate.
+     if body.template is not None:
+         existing = await find_existing_template_automation(
+-            session, user.org_id, body.template.id
++            session, user.org_id, body.template
+         )
+         if existing is not None:
+             response.status_code = status.HTTP_200_OK
+@@ -1143,11 +1141,9 @@ async def create_automation_from_plugin(
+     """
+     validate_agent_profile_combination(body.agent_profile_id, body.model)
+ 
+-    # Idempotent creation: enabling the same extension template twice returns
+-    # the existing automation unchanged instead of creating a duplicate.
+     if body.template is not None:
+         existing = await find_existing_template_automation(
+-            session, user.org_id, body.template.id
++            session, user.org_id, body.template
+         )
+         if existing is not None:
+             response.status_code = status.HTTP_200_OK
+--- a/openhands/automation/router.py
++++ b/openhands/automation/router.py
+@@ -257,12 +257,13 @@ async def create_automation(
+     """
+     validate_agent_profile_combination(body.agent_profile_id, body.model)
+ 
+-    # Enabling the same template twice returns the existing automation rather
+-    # than a duplicate. Before tarball validation, so a repeat enable costs one
+-    # query and leaves the new upload unreferenced rather than adopting it.
++    # Enabling the same template with the same setup returns the existing
++    # automation rather than a duplicate. Before tarball validation, so a repeat
++    # enable costs one query and leaves the new upload unreferenced rather than
++    # adopting it.
+     if body.template is not None:
+         existing = await find_existing_template_automation(
+-            session, user.org_id, body.template.id
++            session, user.org_id, body.template
+         )
+         if existing is not None:
+             response.status_code = status.HTTP_200_OK
+@@ -356,7 +357,7 @@ async def create_automation_from_plugin_spec(
+     """Create an automation from an executable plugin specification."""
+     if body.template is not None:
+         existing = await find_existing_template_automation(
+-            session, user.org_id, body.template.id
++            session, user.org_id, body.template
+         )
+         if existing is not None:
+             response.status_code = status.HTTP_200_OK
 --- a/openhands/automation/utils/templates.py
 +++ b/openhands/automation/utils/templates.py
-@@ -12,7 +12,7 @@
+@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
  
  from openhands.automation.db import using_sqlite
  from openhands.automation.models import Automation
@@ -9,7 +66,7 @@
  
  
  # Documents the 200 a creation path returns when the template is already
-@@ -21,23 +21,45 @@
+@@ -21,23 +21,45 @@ TEMPLATE_EXISTS_RESPONSE: dict[int | str, dict[str, Any]] = {
      200: {
          "model": AutomationResponse,
          "description": (
@@ -60,7 +117,7 @@
  
      Two concurrent creates can both miss the existing row, since no
      cross-database unique index on a JSON path is available; the earliest-created
-@@ -46,11 +68,11 @@
+@@ -46,11 +68,11 @@ async def find_existing_template_automation(
      if using_sqlite():
          template_filter = func.json_extract(
              Automation.preset_metadata, "$.template.id"
@@ -74,7 +131,7 @@
  
      result = await session.execute(
          select(Automation)
-@@ -60,6 +82,8 @@
+@@ -60,6 +82,8 @@ async def find_existing_template_automation(
              template_filter,
          )
          .order_by(Automation.created_at.asc())
@@ -85,60 +142,3 @@
 +        if template_matches(automation.preset_metadata, template):
 +            return automation
 +    return None
---- a/openhands/automation/router.py
-+++ b/openhands/automation/router.py
-@@ -257,12 +257,13 @@
-     """
-     validate_agent_profile_combination(body.agent_profile_id, body.model)
- 
--    # Enabling the same template twice returns the existing automation rather
--    # than a duplicate. Before tarball validation, so a repeat enable costs one
--    # query and leaves the new upload unreferenced rather than adopting it.
-+    # Enabling the same template with the same setup returns the existing
-+    # automation rather than a duplicate. Before tarball validation, so a repeat
-+    # enable costs one query and leaves the new upload unreferenced rather than
-+    # adopting it.
-     if body.template is not None:
-         existing = await find_existing_template_automation(
--            session, user.org_id, body.template.id
-+            session, user.org_id, body.template
-         )
-         if existing is not None:
-             response.status_code = status.HTTP_200_OK
-@@ -356,7 +357,7 @@
-     """Create an automation from an executable plugin specification."""
-     if body.template is not None:
-         existing = await find_existing_template_automation(
--            session, user.org_id, body.template.id
-+            session, user.org_id, body.template
-         )
-         if existing is not None:
-             response.status_code = status.HTTP_200_OK
---- a/openhands/automation/preset_router.py
-+++ b/openhands/automation/preset_router.py
-@@ -610,11 +610,9 @@
-     """
-     validate_agent_profile_combination(body.agent_profile_id, body.model)
- 
--    # Idempotent creation: enabling the same extension template twice returns
--    # the existing automation unchanged instead of creating a duplicate.
-     if body.template is not None:
-         existing = await find_existing_template_automation(
--            session, user.org_id, body.template.id
-+            session, user.org_id, body.template
-         )
-         if existing is not None:
-             response.status_code = status.HTTP_200_OK
-@@ -1122,11 +1120,9 @@
-     """
-     validate_agent_profile_combination(body.agent_profile_id, body.model)
- 
--    # Idempotent creation: enabling the same extension template twice returns
--    # the existing automation unchanged instead of creating a duplicate.
-     if body.template is not None:
-         existing = await find_existing_template_automation(
--            session, user.org_id, body.template.id
-+            session, user.org_id, body.template
-         )
-         if existing is not None:
-             response.status_code = status.HTTP_200_OK

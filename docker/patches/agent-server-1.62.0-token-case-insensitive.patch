@@ -1,6 +1,6 @@
 --- a/openhands/sdk/workspace/remote/base.py
 +++ b/openhands/sdk/workspace/remote/base.py
-@@ -599,6 +599,17 @@
+@@ -599,6 +599,17 @@ class RemoteWorkspace(RemoteWorkspaceMixin, BaseWorkspace):
              logger.warning(f"Invalid secret name: {name}")
              return None
  
@@ -18,7 +18,7 @@
          # Use retry logic for transient failures
          @tenacity.retry(
              stop=tenacity.stop_after_attempt(_MAX_RETRIES),
-@@ -606,26 +617,28 @@
+@@ -606,26 +617,28 @@ class RemoteWorkspace(RemoteWorkspaceMixin, BaseWorkspace):
              retry=tenacity.retry_if_exception(_is_retryable_error),
              reraise=True,
          )
