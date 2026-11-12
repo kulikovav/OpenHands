@@ -12,6 +12,7 @@ import {
 import type { RequestSecretAction } from "#/types/agent-server/core";
 import { claimClientToolCall } from "#/utils/claim-client-tool-call";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
+import { findSecretNameIgnoringCase } from "#/utils/secret-name";
 import { postClientToolResult } from "./client-tool-result";
 
 const LEDGER_STORAGE_KEY_PREFIX = "openhands-secret-requests:";
@@ -26,7 +27,10 @@ async function findSavedSecret(
 ): Promise<CustomSecretInput | null> {
   try {
     const secrets = await SecretsService.getSecretsOrThrow();
-    return secrets.find((secret) => secret.name === name) ?? null;
+    // The store compares names verbatim, while the requester and the user may
+    // spell the same secret in the two live conventions (`gitlab_token` from
+    // the SDK's provider tokens, `GITLAB_TOKEN` from settings and templates).
+    return findSecretNameIgnoringCase(secrets, name) ?? null;
   } catch {
     // Unknown — let the user answer; the form reports a duplicate name.
     return null;

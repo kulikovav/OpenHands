@@ -171,22 +171,32 @@ RUN if [ -n "${AGENT_SERVER_SDK_GIT_REF}" ]; then \
 #    second between SIGTERM and SIGKILL.
 # 3. Keep template dedupe keyed to the setup, not only to the catalog entry id.
 #    A second setup of one template must get its own automation.
+# 4. Resolve a provider token's secret under either spelling. The SDK fetches
+#    `gitlab_token` (the provider name in lowercase), while secrets saved
+#    through the settings carry the environment-variable spelling
+#    (`GITLAB_TOKEN`); the exact-name lookup missed the other convention and
+#    the automation clone went unauthenticated.
 # --fuzz=0 makes a version bump fail the build when the patched context
 # changed, so the fixes cannot be dropped silently.
 COPY docker/patches/automation-1.30.1-dispatcher-queue.patch /tmp/bleenk-patches/automation-dispatcher-queue.patch
 COPY docker/patches/automation-1.30.1-interrupt-on-sigterm.patch /tmp/bleenk-patches/automation-interrupt-on-sigterm.patch
 COPY docker/patches/automation-1.30.1-template-dedupe.patch /tmp/bleenk-patches/automation-template-dedupe.patch
+COPY docker/patches/agent-server-1.60.1-token-case-insensitive.patch /tmp/bleenk-patches/agent-server-token-case-insensitive.patch
 COPY docker/patches/automation-queue-selfcheck.py /tmp/bleenk-patches/automation-queue-selfcheck.py
 COPY docker/patches/automation-sigterm-selfcheck.py /tmp/bleenk-patches/automation-sigterm-selfcheck.py
 COPY docker/patches/automation-template-dedupe-selfcheck.py /tmp/bleenk-patches/automation-template-dedupe-selfcheck.py
+COPY docker/patches/agent-server-token-case-selfcheck.py /tmp/bleenk-patches/agent-server-token-case-selfcheck.py
 RUN python -c "import openhands.automation as m; assert m.__version__ == '${AUTOMATION_VERSION}', m.__version__" \
     && SITE_PACKAGES="$(python -c 'import openhands.automation as m, pathlib; print(pathlib.Path(m.__file__).resolve().parents[2])')" \
     && patch -p1 -d "${SITE_PACKAGES}" --forward --fuzz=0 < /tmp/bleenk-patches/automation-dispatcher-queue.patch \
     && patch -p1 -d "${SITE_PACKAGES}" --forward --fuzz=0 < /tmp/bleenk-patches/automation-interrupt-on-sigterm.patch \
     && patch -p1 -d "${SITE_PACKAGES}" --forward --fuzz=0 < /tmp/bleenk-patches/automation-template-dedupe.patch \
+    && patch -p1 -d "${SITE_PACKAGES}" --forward --fuzz=0 < /tmp/bleenk-patches/agent-server-token-case-insensitive.patch \
     && python /tmp/bleenk-patches/automation-queue-selfcheck.py "${SITE_PACKAGES}" \
     && python /tmp/bleenk-patches/automation-sigterm-selfcheck.py "${SITE_PACKAGES}" \
     && python /tmp/bleenk-patches/automation-template-dedupe-selfcheck.py "${SITE_PACKAGES}" \
+    && python /tmp/bleenk-patches/agent-server-token-case-selfcheck.py "${SITE_PACKAGES}" \
+    && python -c "import importlib.metadata as md; print('patched openhands-sdk', md.version('openhands-sdk'))" \
     && rm -rf /tmp/bleenk-patches
 
 # Copy the frontend build output.

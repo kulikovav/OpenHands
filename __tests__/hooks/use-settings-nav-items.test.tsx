@@ -93,9 +93,13 @@ describe("useSettingsNavItems", () => {
 
     // Agent profiles are available on cloud too (OpenHands #15060), so every
     // OSS item is present; only the `/settings` LLM-Profiles rename stays
-    // local-only, so on cloud every item is passed through unchanged.
+    // local-only. The one exception is `/settings/git-providers`: a cloud
+    // backend manages its git provider connections on the instance, so the
+    // nav hides the page there.
     expect(result.current).toEqual(
-      OSS_NAV_ITEMS.map((item) => ({ type: "item", item })),
+      OSS_NAV_ITEMS.filter((item) => item.to !== "/settings/git-providers").map(
+        (item) => ({ type: "item", item }),
+      ),
     );
   });
 

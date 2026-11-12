@@ -84,7 +84,7 @@ import { ContextMenuListItem } from "#/components/features/context-menu/context-
 import { formatTriggerSourceLabel } from "#/components/features/home/featured-automations/automation-run-health";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { useCloseOnEscape } from "#/hooks/use-close-on-escape";
-import { useSettings } from "#/hooks/query/use-settings";
+import { useGitProviderHosts } from "#/hooks/query/use-git-provider-connections";
 import { usePromptTextareaResize } from "#/hooks/use-prompt-textarea-resize";
 import { useSendMessage } from "#/hooks/use-send-message";
 import { useOwnerConversationUrl } from "#/hooks/use-owner-conversation-url";
@@ -145,7 +145,7 @@ import { setupDraftFromAutomation } from "#/utils/automation-edit-draft";
 import { withPresetSources } from "#/utils/automation-preset-sources";
 import {
   automationCloneProviders,
-  automationRepositoriesChanged,
+  automationRepoSourcesChanged,
   buildAutomationRepoSources,
 } from "#/utils/automation-repo-sources";
 import { EVENT_SOURCE_GUIDES } from "#/utils/automation-event-sources";
@@ -792,10 +792,11 @@ export function AutomationSetupPanel({
   // Target tag writes at the open conversation's owning backend.
   const conversationUrl = useOwnerConversationUrl(conversationId);
   const deploymentCapabilities = useDeploymentCapabilities();
-  // Connected self-hosted providers name their hosts here; a repository on
-  // one of them is sent with its provider so the run can authenticate, as
-  // long as the service can clone from that provider at all.
-  const providerHosts = useSettings().data?.provider_tokens_set;
+  // Hosts a cloud instance reports natively plus the local Settings →
+  // Integrations records: a repository on one of them is sent with its
+  // provider so the run can authenticate, as long as the service can clone
+  // from that provider at all.
+  const providerHosts = useGitProviderHosts().hosts;
   const cloneProviders = automationCloneProviders(
     deploymentCapabilities.data?.repoProviders,
   );
@@ -1963,16 +1964,18 @@ export function AutomationSetupPanel({
     }
     if (kind !== "custom") body.prompt = prompt.trim();
     const repositories = parseAutomationSetupRepositories(repository);
-    if (
-      repositoriesEditable &&
-      automationRepositoriesChanged(repositories, existingRepositories)
-    ) {
-      body.repos = buildAutomationRepoSources(
+    if (repositoriesEditable && repositories.length > 0) {
+      // An entry saved without a provider is rebuilt with one when its host
+      // became known, so saving the form repairs its clone authentication.
+      const sources = buildAutomationRepoSources(
         repositories,
         existingRepositories,
         providerHosts,
         cloneProviders,
       );
+      if (automationRepoSourcesChanged(sources, existingRepositories)) {
+        body.repos = sources;
+      }
     }
     return body as Partial<Automation>;
   };
