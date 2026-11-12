@@ -81,6 +81,7 @@ FROM ${AGENT_SERVER_IMAGE} AS final
 ARG AUTOMATION_VERSION
 ARG AGENT_SERVER_VERSION
 ARG AGENT_SERVER_SDK_GIT_REF=""
+ARG AGENT_SERVER_SDK_GIT_REPO="https://github.com/OpenHands/software-agent-sdk"
 ARG OPENHANDS_BUILD_GIT_SHA=unknown
 ARG OPENHANDS_BUILD_GIT_REF=unknown
 ARG VITE_BASE_PATH="/canvas"
@@ -153,11 +154,12 @@ RUN uv pip install --system "openhands-automation==${AUTOMATION_VERSION}" "openh
     || pip install --no-cache-dir "openhands-automation==${AUTOMATION_VERSION}" "openhands-tools==${AGENT_SERVER_VERSION}" "openhands-agent-server==${AGENT_SERVER_VERSION}"
 
 RUN if [ -n "${AGENT_SERVER_SDK_GIT_REF}" ]; then \
-      BASE_GIT_URL="git+https://github.com/OpenHands/software-agent-sdk@${AGENT_SERVER_SDK_GIT_REF}" && \
+      BASE_GIT_URL="git+${AGENT_SERVER_SDK_GIT_REPO}@${AGENT_SERVER_SDK_GIT_REF}" && \
       uv pip install --system --force-reinstall \
         "${BASE_GIT_URL}#subdirectory=openhands-sdk" \
         "${BASE_GIT_URL}#subdirectory=openhands-tools" \
-        "${BASE_GIT_URL}#subdirectory=openhands-workspace"; \
+        "${BASE_GIT_URL}#subdirectory=openhands-workspace" \
+        "${BASE_GIT_URL}#subdirectory=openhands-agent-server"; \
     fi
 
 # Bleenk patches:
