@@ -3,10 +3,7 @@ import {
   type AutomationTriggerKind,
   type RecommendedAutomation,
 } from "@openhands/extensions/automations";
-import {
-  SKILLS_CATALOG,
-  type SkillCatalogEntry,
-} from "@openhands/extensions/skills";
+import * as extensionSkills from "@openhands/extensions/skills";
 import type { LucideIcon } from "lucide-react";
 import { MANIFEST_ICON_BY_SLUG } from "#/components/features/manifest/manifest-icons";
 import { interpolateValues } from "#/manifests/manifest-template";
@@ -22,8 +19,31 @@ import type { Automation } from "#/types/automation";
  * is shaped.
  */
 
-const SKILL_BY_NAME = new Map<string, SkillCatalogEntry>(
-  SKILLS_CATALOG.map((skill) => [skill.name, skill]),
+/** What a launch-command lookup reads from a skill. */
+interface AutomationSkill {
+  name: string;
+  triggers: string[];
+}
+
+/**
+ * A plugin bundles skills that stay out of the skill catalog, so their metadata
+ * arrives in a separate generated export. That export is newer than the pinned
+ * package this host may build against, hence the optional read: an older
+ * package contributes none, and the launch prompt falls back to the entry's
+ * setup message.
+ */
+const PLUGIN_SKILLS: AutomationSkill[] =
+  (
+    extensionSkills as typeof extensionSkills & {
+      PLUGIN_SKILLS_CATALOG?: AutomationSkill[];
+    }
+  ).PLUGIN_SKILLS_CATALOG ?? [];
+
+const SKILL_BY_NAME = new Map<string, AutomationSkill>(
+  [...PLUGIN_SKILLS, ...extensionSkills.SKILLS_CATALOG].map((skill) => [
+    skill.name,
+    skill,
+  ]),
 );
 
 /**
@@ -443,8 +463,10 @@ export function splitBySuggestion<T extends { id: string }>(
  * The command that invokes this automation's skill, or null when that skill is
  * invoked by description instead.
  *
- * The command is declared once, in the owning skill's own `triggers`; the
- * catalog names that skill only where it differs from the entry id.
+ * The command is declared once, in the owning skill's own `triggers`. The skill
+ * ships either in the catalog or inside a plugin that bundles it; the catalog
+ * entry wins when both carry the same name. The catalog names that skill only
+ * where it differs from the entry id.
  */
 export function findAutomationCommand(
   automation: Pick<RecommendedAutomation, "id" | "skill">,
