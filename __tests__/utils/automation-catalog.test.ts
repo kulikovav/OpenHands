@@ -72,6 +72,31 @@ vi.mock("@openhands/extensions/automations", async (importOriginal) => {
   };
 });
 
+// A plugin-bundled skill, plus a plugin copy of a catalog skill so the
+// catalog-first precedence is covered. The pinned package may predate the
+// export, so the mock supplies it either way.
+vi.mock("@openhands/extensions/skills", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@openhands/extensions/skills")>();
+  return {
+    ...actual,
+    PLUGIN_SKILLS_CATALOG: [
+      {
+        name: "widget-setup",
+        description: "Set up the widget automation.",
+        triggers: ["/widget:setup"],
+        plugin: "widgets",
+      },
+      {
+        name: "news-digest",
+        description: "Plugin copy of a catalog skill.",
+        triggers: ["/plugin-news:setup"],
+        plugin: "widgets",
+      },
+    ],
+  };
+});
+
 const automationById = (id: string) =>
   AUTOMATION_CATALOG.find((automation) => automation.id === id)!;
 
@@ -113,6 +138,24 @@ describe("getAutomationLaunchPrompt", () => {
     // so there is no trigger to resolve.
     expect(getAutomationLaunchPrompt(automationById("jira-issue-to-pr"))).toBe(
       "Set up the Jira issue to GitHub PR automation",
+    );
+  });
+
+  it("resolves the command from a skill bundled in a plugin", () => {
+    // Arrange / Act / Assert — the skill is not in the skill catalog, so the
+    // lookup falls back to the plugin-bundled metadata.
+    expect(
+      getAutomationLaunchPrompt({
+        id: "widget-setup",
+        name: "Widget setup",
+      } as unknown as RecommendedAutomation),
+    ).toBe("/widget:setup");
+  });
+
+  it("prefers the catalog entry when a plugin bundles a skill of the same name", () => {
+    // Arrange / Act / Assert — `news-digest` is in both; the catalog wins.
+    expect(getAutomationLaunchPrompt(automationById("news-digest"))).toBe(
+      "/news-digest:setup",
     );
   });
 });
