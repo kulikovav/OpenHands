@@ -37,6 +37,8 @@ vi.mock("#/i18n", () => ({ default: { t: translate } }));
 // real, because pinning its derivation to the contract fixtures published
 // beside it is this file's point.
 vi.mock("@openhands/extensions/skills", () => ({
+  // A plugin-bundled skill's command is not part of this file's contract.
+  PLUGIN_SKILLS_CATALOG: [],
   SKILLS_CATALOG: [
     {
       name: "incident-retrospective",
