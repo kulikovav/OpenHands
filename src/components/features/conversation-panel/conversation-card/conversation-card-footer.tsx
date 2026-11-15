@@ -18,7 +18,10 @@ import {
   AgentBrandIcon,
   type AgentBrandIconKind,
 } from "#/components/shared/agent-brand-icon";
-import { getDisplayConversationTags } from "#/api/agent-server-adapter";
+import {
+  getDisplayConversationTags,
+  getMachineConversationTags,
+} from "#/api/agent-server-adapter";
 import { ConversationRepoLink } from "./conversation-repo-link";
 import { NoRepository } from "./no-repository";
 import { ConversationTagChips } from "./conversation-tag-chips";
@@ -146,18 +149,21 @@ export function ConversationCardFooter({
   // A ``project`` tag holds the project's id; show its name when known, and
   // nothing while the backend has Projects turned off.
   const displayTags: Array<[string, string]> = showTags
-    ? getDisplayConversationTags(tags).flatMap(
-        ([key, value]): Array<[string, string]> => {
-          const normalized = key.trim().toLowerCase();
-          // A project member's resolution is board state, hidden with
-          // Projects off like its project chip.
-          if (normalized === "resolved" && tags?.project && !projects.enabled)
-            return [];
-          if (normalized !== "project") return [[key, value]];
-          if (!projects.enabled) return [];
-          return [[key, projects.names.get(projectIdKey(value)) ?? value]];
-        },
-      )
+    ? [
+        ...getDisplayConversationTags(tags).flatMap(
+          ([key, value]): Array<[string, string]> => {
+            const normalized = key.trim().toLowerCase();
+            // A project member's resolution is board state, hidden with
+            // Projects off like its project chip.
+            if (normalized === "resolved" && tags?.project && !projects.enabled)
+              return [];
+            if (normalized !== "project") return [[key, value]];
+            if (!projects.enabled) return [];
+            return [[key, projects.names.get(projectIdKey(value)) ?? value]];
+          },
+        ),
+        ...getMachineConversationTags(tags),
+      ]
     : [];
 
   return (
