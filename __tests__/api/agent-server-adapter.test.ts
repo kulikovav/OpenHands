@@ -10,6 +10,14 @@ import { AUTOMATION_SETUP_SYSTEM_SUFFIX } from "#/api/automation-form-client-too
 import {
   ACP_SERVER_TAG_KEY,
   WORKSPACE_TAG_KEY,
+  BRIDGE_ARCHIVED_TAG_KEY,
+  BRIDGE_ARCHIVED_TAG_VALUE,
+  BRIDGE_BASE_TAG_KEY,
+  BRIDGE_MODE_TAG_KEY,
+  BRIDGE_MODE_TAG_VALUE,
+  BRIDGE_REPO_TAG_KEY,
+  RESERVED_CONVERSATION_TAG_KEYS,
+  buildBridgeTags,
   buildWorkspaceTags,
   buildRuntimeServicesSystemSuffix,
   buildStartConversationRequest,
@@ -32,7 +40,7 @@ import { HookType } from "@openhands/typescript-client";
 import { SKILLS_CATALOG } from "@openhands/extensions/skills";
 import type { HookConfig } from "@openhands/typescript-client";
 import { DEFAULT_SETTINGS } from "#/services/settings";
-import type { SettingsValue } from "#/types/settings";
+import type { Provider, SettingsValue } from "#/types/settings";
 
 const {
   mockGetAgentServerWorkingDir,
@@ -742,6 +750,110 @@ describe("buildWorkspaceTags (#17386)", () => {
 
   it("only ever emits keys the agent-server accepts (`^[a-z0-9]+$`)", () => {
     const tags = buildWorkspaceTags("/Users/jane/projects/openhands");
+    for (const key of Object.keys(tags)) {
+      expect(key).toMatch(/^[a-z0-9]+$/);
+    }
+  });
+});
+
+describe("buildBridgeTags", () => {
+  const metadata = (
+    overrides?: Partial<{
+      selected_repository: string | null;
+      selected_branch: string | null;
+      git_provider: Provider | null;
+    }>,
+  ) => ({
+    selected_repository: null,
+    selected_branch: null,
+    git_provider: null,
+    ...overrides,
+  });
+
+  it("stamps the bridge ownership and archive marks on every conversation", () => {
+    expect(buildBridgeTags(metadata())).toEqual({
+      [BRIDGE_MODE_TAG_KEY]: BRIDGE_MODE_TAG_VALUE,
+      [BRIDGE_ARCHIVED_TAG_KEY]: BRIDGE_ARCHIVED_TAG_VALUE,
+    });
+  });
+
+  it("names the repository in the host/owner/name shape cursor-assistant parses", () => {
+    const tags = buildBridgeTags(
+      metadata({
+        selected_repository: "octo-org/qa-repo",
+        git_provider: "github",
+      }),
+    );
+    expect(tags[BRIDGE_REPO_TAG_KEY]).toBe("github.com/octo-org/qa-repo");
+  });
+
+  it("keeps the host of a full-URL repository value", () => {
+    const tags = buildBridgeTags(
+      metadata({
+        selected_repository: "https://git.example.com/infr/tools/meet.git",
+      }),
+    );
+    expect(tags[BRIDGE_REPO_TAG_KEY]).toBe("git.example.com/infr/tools/meet");
+  });
+
+  it("drops a port and lowercases the host the bridge must parse", () => {
+    const tags = buildBridgeTags(
+      metadata({
+        selected_repository: "https://Git.Example.com:8443/Org/Repo",
+      }),
+    );
+    expect(tags[BRIDGE_REPO_TAG_KEY]).toBe("git.example.com/Org/Repo");
+  });
+
+  it("omits a host the bridge's parser would refuse", () => {
+    const tags = buildBridgeTags(
+      metadata({ selected_repository: "https://infr/org/repo" }),
+    );
+    expect(tags[BRIDGE_REPO_TAG_KEY]).toBeUndefined();
+  });
+
+  it("normalizes the branch to the ref the bridge accepts, or omits it", () => {
+    const cleaned = buildBridgeTags(
+      metadata({ selected_branch: "refs/heads/feature/one" }),
+    );
+    expect(cleaned[BRIDGE_BASE_TAG_KEY]).toBe("feature/one");
+    const refused = buildBridgeTags(
+      metadata({ selected_branch: "fix/issue#123" }),
+    );
+    expect(refused[BRIDGE_BASE_TAG_KEY]).toBeUndefined();
+  });
+
+  it("stays out of the editable chip surface (reserved keys)", () => {
+    for (const key of [
+      BRIDGE_MODE_TAG_KEY,
+      BRIDGE_ARCHIVED_TAG_KEY,
+      BRIDGE_REPO_TAG_KEY,
+      BRIDGE_BASE_TAG_KEY,
+    ]) {
+      expect(RESERVED_CONVERSATION_TAG_KEYS.has(key)).toBe(true);
+    }
+  });
+
+  it("omits bridgerepo when no host can be derived", () => {
+    const tags = buildBridgeTags(
+      metadata({ selected_repository: "octo-org/qa-repo" }),
+    );
+    expect(tags[BRIDGE_REPO_TAG_KEY]).toBeUndefined();
+  });
+
+  it("stamps bridgebase from the selected branch", () => {
+    const tags = buildBridgeTags(metadata({ selected_branch: "qa-branch" }));
+    expect(tags[BRIDGE_BASE_TAG_KEY]).toBe("qa-branch");
+  });
+
+  it("only ever emits keys the agent-server accepts (`^[a-z0-9]+$`)", () => {
+    const tags = buildBridgeTags(
+      metadata({
+        selected_repository: "octo-org/qa-repo",
+        selected_branch: "qa-branch",
+        git_provider: "github",
+      }),
+    );
     for (const key of Object.keys(tags)) {
       expect(key).toMatch(/^[a-z0-9]+$/);
     }

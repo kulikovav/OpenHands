@@ -1021,6 +1021,10 @@ describe("AgentServerConversationService", () => {
         repository: "OpenHands/OpenHands",
         selectedbranch: "main",
         gitprovider: "github",
+        bridgemode: "cloudagent",
+        bridgearchived: "false",
+        bridgerepo: "github.com/OpenHands/OpenHands",
+        bridgebase: "main",
       });
       for (const key of Object.keys(payload.tags ?? {})) {
         expect(key).toMatch(/^[a-z0-9]+$/);
@@ -1061,6 +1065,12 @@ describe("AgentServerConversationService", () => {
       expect(payload.tags).not.toHaveProperty("selectedbranch");
       expect(payload.tags).not.toHaveProperty(WORKSPACE_TAG_KEY);
       expect(payload.tags.gitprovider).toBe("github");
+      // The bridge family follows the same length guard; the two constant
+      // marks are short enough to survive any metadata size.
+      expect(payload.tags).not.toHaveProperty("bridgerepo");
+      expect(payload.tags).not.toHaveProperty("bridgebase");
+      expect(payload.tags.bridgemode).toBe("cloudagent");
+      expect(payload.tags.bridgearchived).toBe("false");
     });
 
     it("sends no workspace tag when no workspace was selected (#17386)", async () => {
@@ -1088,6 +1098,38 @@ describe("AgentServerConversationService", () => {
       const [payloadCall] = mockHttpPost.mock.calls;
       const payload = payloadCall[1] as { tags?: Record<string, string> };
       expect(payload.tags?.[WORKSPACE_TAG_KEY]).toBeUndefined();
+    });
+
+    it("stamps the bridge ownership marks without repository metadata", async () => {
+      mockGetSettings.mockResolvedValue({
+        agent_settings: { llm: { model: "gpt-4o" } },
+        conversation_settings: {},
+      });
+      mockGetSettingsForConversation.mockResolvedValue({
+        agentSettings: { llm: { model: "gpt-4o" } },
+        conversationSettings: {},
+        secretsEncrypted: true,
+      });
+      mockHttpPost.mockResolvedValue({
+        data: {
+          id: "ignored-server-id",
+          created_at: "2024-01-01",
+          updated_at: "2024-01-01",
+        },
+      });
+
+      await AgentServerConversationService.createConversation({
+        agentProfileId: "profile-1",
+      });
+
+      const [payloadCall] = mockHttpPost.mock.calls;
+      const payload = payloadCall[1] as { tags: Record<string, string> };
+      expect(payload.tags).toMatchObject({
+        bridgemode: "cloudagent",
+        bridgearchived: "false",
+      });
+      expect(payload.tags).not.toHaveProperty("bridgerepo");
+      expect(payload.tags).not.toHaveProperty("bridgebase");
     });
 
     it("honors an explicit new-worktree mode for a selected workspace", async () => {
