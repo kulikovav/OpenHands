@@ -10,7 +10,10 @@ import type { RepositorySelection } from "#/api/open-hands.types";
 import type { Provider } from "#/types/settings";
 import type { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import type { SandboxStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
-import { getDisplayConversationTags } from "#/api/agent-server-adapter";
+import {
+  getDisplayConversationTags,
+  getMachineConversationTags,
+} from "#/api/agent-server-adapter";
 import { resolveAcpProviderIcon } from "#/constants/acp-providers";
 import AzureDevOpsLogo from "#/assets/branding/azure-devops-logo.svg?react";
 import { AgentBrandIcon } from "#/components/shared/agent-brand-icon";
@@ -154,7 +157,10 @@ export function ConversationCardPreview({
       })
     : null;
 
-  const previewTags = getDisplayConversationTags(tags);
+  const previewTags = [
+    ...getDisplayConversationTags(tags),
+    ...getMachineConversationTags(tags),
+  ];
 
   return (
     <div

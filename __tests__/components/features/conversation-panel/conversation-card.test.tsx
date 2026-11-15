@@ -975,6 +975,34 @@ describe("ConversationCard", () => {
       ).not.toBeInTheDocument();
     });
 
+    it("renders the bridge machine stamps as read-only chips", () => {
+      // The bridge family is machine state, so the tag editor never offers
+      // it (reserved keys); the chips are its read-only view. The archive
+      // mark stays off even here — the archived presentation owns that
+      // state, like `pinned` / `archived`.
+      renderWithProviders(
+        <ConversationCard
+          title="Conversation 1"
+          selectedRepository={null}
+          lastUpdatedAt="2021-10-01T12:00:00Z"
+          showTags
+          tags={{
+            bridgemode: "cloudagent",
+            bridgearchived: "false",
+            bridgerepo: "octocat/hello",
+            bridgebase: "main",
+          }}
+        />,
+      );
+
+      const chips = screen.getAllByTestId("conversation-card-tag-chip");
+      expect(chips.map((chip) => chip.textContent)).toEqual([
+        "Bridgemode: cloudagent",
+        "Bridgerepo: octocat/hello",
+        "Bridgebase: main",
+      ]);
+    });
+
     it("hides the chips when showTags is omitted", () => {
       renderWithProviders(
         <ConversationCard
