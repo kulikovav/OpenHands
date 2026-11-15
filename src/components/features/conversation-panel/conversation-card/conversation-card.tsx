@@ -7,7 +7,10 @@ import { cn } from "#/utils/utils";
 import { I18nKey } from "#/i18n/declaration";
 import { transformVSCodeUrl } from "#/utils/vscode-url-helper";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
-import { getDisplayConversationTags } from "#/api/agent-server-adapter";
+import {
+  getDisplayConversationTags,
+  getMachineConversationTags,
+} from "#/api/agent-server-adapter";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { SandboxStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { RepositorySelection } from "#/api/open-hands.types";
@@ -134,7 +137,10 @@ export function ConversationCard({
   const { mutateAsync: downloadConversation } = useDownloadConversation();
 
   const displayTags = getDisplayConversationTags(tags);
-  const hasDisplayTags = displayTags.length > 0;
+  // Machine stamps render read-only beside the user tags, so a bridge-tagged
+  // conversation shows its provenance even without user tags of its own.
+  const hasMachineTags = getMachineConversationTags(tags).length > 0;
+  const hasDisplayTags = displayTags.length > 0 || hasMachineTags;
   const showTagChipRow = showTags && hasDisplayTags;
 
   // Effective archived state: an explicit prop (the panel passes the user's
@@ -290,7 +296,7 @@ export function ConversationCard({
     showRepositoryMetadata ||
     effectiveArchived ||
     (showLlmProfiles && (agentKind === "acp" || !!llmModel)) ||
-    (showTagChipRow && displayTags.length > 0);
+    (showTagChipRow && (displayTags.length > 0 || hasMachineTags));
 
   return (
     <div
