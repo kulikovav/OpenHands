@@ -1,6 +1,7 @@
 import i18n, { OPENHANDS_I18N_NAMESPACE } from "#/i18n";
 import { I18nKey } from "#/i18n/declaration";
 import { hasPluginParameters } from "#/utils/plugin-parameters";
+import { getGitProviderBaseUrl } from "#/utils/utils";
 import {
   HOOK_EVENT_FIELDS,
   HookType,
@@ -20,6 +21,7 @@ import {
   Settings,
   SettingsValue,
   isProvider,
+  type Provider,
 } from "#/types/settings";
 import {
   resolveEffectiveAcpModel,
@@ -610,11 +612,147 @@ export function buildWorkspaceTags(
   return workspace ? { [WORKSPACE_TAG_KEY]: workspace } : {};
 }
 
+/** Repository context a create knows, read from the stored conversation metadata. */
+interface BridgeRepositoryMetadata {
+  selected_repository?: string | null;
+  selected_branch?: string | null;
+  git_provider?: Provider | null;
+}
+
+// The value grammar cursor-assistant's `ParseRepository` accepts: a lower-case
+// multi-label host, safe path segments, and a git ref. A value outside it is
+// omitted rather than stamped, because the bridge refuses a record whose tags
+// it cannot parse and a wrong repository would be worse than an absent one.
+// Keep in sync with the SDK's `openhands.sdk.workspace.bridge_tags`.
+const BRIDGE_HOST_PATTERN =
+  /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
+const BRIDGE_SEGMENT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const BRIDGE_REF_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+
+function bridgeHost(hostname: string): string | undefined {
+  const host = hostname.trim().toLowerCase().replace(/\.$/, "");
+  return BRIDGE_HOST_PATTERN.test(host) ? host : undefined;
+}
+
+// Normalize one ref to the branch value the bridge reads, or undefined.
+function bridgeRef(ref: string): string | undefined {
+  const value = ref
+    .trim()
+    .replace(/^refs\/heads\//, "")
+    .trim();
+  if (!value || !BRIDGE_REF_PATTERN.test(value)) return undefined;
+  if (value.includes("..") || value.includes("@{") || value.includes("//")) {
+    return undefined;
+  }
+  if (value.endsWith("/") || value.endsWith(".lock")) return undefined;
+  if (
+    value
+      .split("/")
+      .some(
+        (segment) =>
+          segment === "" || segment.startsWith(".") || segment === "@",
+      )
+  ) {
+    return undefined;
+  }
+  return value;
+}
+
+// Render `host/owner/name`, the shape cursor-assistant's `repositoryOf` parses
+// from `https://` plus `bridgerepo`. A full URL keeps its own host; `owner/name`
+// takes the provider's default host, so no host means no tag.
+function bridgeRepositoryPath(
+  repository: string,
+  gitProvider?: Provider | null,
+): string | undefined {
+  if (repository.includes("://")) {
+    try {
+      const url = new URL(repository);
+      const host = bridgeHost(url.hostname);
+      const path = url.pathname
+        .replace(/^\/+|\/+$/g, "")
+        .replace(/\.git$/i, "");
+      const segments = path.split("/").filter(Boolean);
+      if (host && segments.length >= 2 && segments.every(isBridgeSegment)) {
+        return `${host}/${segments.join("/")}`;
+      }
+      return undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  const segments = repository
+    .split("/")
+    .map((segment) => segment.replace(/\.git$/i, ""))
+    .filter(Boolean);
+  if (segments.length >= 3) {
+    const [host, ...path] = segments;
+    const resolved = bridgeHost(host);
+    if (resolved && path.every(isBridgeSegment)) {
+      return `${resolved}/${path.join("/")}`;
+    }
+    return undefined;
+  }
+  if (segments.length === 2 && gitProvider && segments.every(isBridgeSegment)) {
+    const baseUrl = getGitProviderBaseUrl(gitProvider);
+    const host = baseUrl ? bridgeHost(new URL(baseUrl).hostname) : undefined;
+    if (host) {
+      return `${host}/${segments.join("/")}`;
+    }
+  }
+  return undefined;
+}
+
+function isBridgeSegment(segment: string): boolean {
+  return BRIDGE_SEGMENT_PATTERN.test(segment);
+}
+
+/**
+ * Build the Cursor bridge tags to stamp at conversation creation, so a
+ * Canvas-created conversation carries the marks the bridge reads (`bridgemode`
+ * ownership, `bridgearchived` archive state), plus `bridgerepo`/`bridgebase`
+ * when the create knows a repository. The caller merges them beside the
+ * `clientsource` origin stamp.
+ */
+export function buildBridgeTags(
+  metadata?: BridgeRepositoryMetadata | null,
+): Record<string, string> {
+  const tags: Record<string, string> = {
+    [BRIDGE_MODE_TAG_KEY]: BRIDGE_MODE_TAG_VALUE,
+    [BRIDGE_ARCHIVED_TAG_KEY]: BRIDGE_ARCHIVED_TAG_VALUE,
+  };
+  const repository = metadata?.selected_repository?.trim();
+  const repoPath = repository
+    ? bridgeRepositoryPath(repository, metadata?.git_provider)
+    : undefined;
+  if (repoPath) {
+    tags[BRIDGE_REPO_TAG_KEY] = repoPath;
+  }
+  const branch = metadata?.selected_branch?.trim();
+  const cleanedBranch = branch ? bridgeRef(branch) : undefined;
+  if (cleanedBranch) {
+    tags[BRIDGE_BASE_TAG_KEY] = cleanedBranch;
+  }
+  return tags;
+}
+
 // Repository tags, read back like the workspace tag (#15598). Keys must match
 // the agent-server's `^[a-z0-9]+$`.
 export const REPOSITORY_TAG_KEY = "repository";
 export const SELECTED_BRANCH_TAG_KEY = "selectedbranch";
 export const GIT_PROVIDER_TAG_KEY = "gitprovider";
+
+// The Cursor bridge tag family (see cursor-assistant's
+// `internal/backend/server/cloudagent/conversation.go`). The bridge stamps
+// `bridgemode` and `bridgearchived` at its own Start and re-stamps
+// `bridgemode` on every later patch, so Canvas-created conversations carry
+// the same creation-time marks and the bridge can adopt them.
+export const BRIDGE_MODE_TAG_KEY = "bridgemode";
+export const BRIDGE_MODE_TAG_VALUE = "cloudagent";
+export const BRIDGE_ARCHIVED_TAG_KEY = "bridgearchived";
+export const BRIDGE_ARCHIVED_TAG_VALUE = "false";
+export const BRIDGE_REPO_TAG_KEY = "bridgerepo";
+export const BRIDGE_BASE_TAG_KEY = "bridgebase";
 
 export const AUTOMATION_TRIGGER_TAG_KEY = "automationtrigger";
 export const AUTOMATION_ID_TAG_KEY = "automationid";
@@ -684,9 +822,12 @@ export const RESERVED_CONVERSATION_TAG_KEYS: ReadonlySet<string> = new Set([
   // presentation rather than as generic tag chips.
   "pinned",
   "archived",
-  // The Cursor bridge's own archive mark, written beside `archived` so a
-  // pre-shared-key record still reads as archived. It is not a user chip.
-  "bridgearchived",
+  // Machine-written creation stamps (bridge and Canvas), not user chips;
+  // see `buildBridgeTags`.
+  BRIDGE_ARCHIVED_TAG_KEY,
+  BRIDGE_MODE_TAG_KEY,
+  BRIDGE_REPO_TAG_KEY,
+  BRIDGE_BASE_TAG_KEY,
   LOCAL_PLANNER_PARENT_TAG_KEY,
   // The launched agent profile, which the app server stamps as tags; the
   // hovercard names the profile instead of echoing the raw id and revision.

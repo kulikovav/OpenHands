@@ -50,6 +50,7 @@ import {
   REPOSITORY_TAG_KEY,
   SELECTED_BRANCH_TAG_KEY,
   assertSubscriptionAuthReady,
+  buildBridgeTags,
   buildRouterAtStartSystemSuffix,
   buildStartConversationRequestWithEncryptedSettings,
   buildStartPlanningConversationRequestWithEncryptedSettings,
@@ -751,17 +752,21 @@ class AgentServerConversationService {
     if (metadata?.git_provider) {
       metadataTags[GIT_PROVIDER_TAG_KEY] = metadata.git_provider;
     }
+    const tags: Record<string, string> = {
+      ...metadataTags,
+      ...buildBridgeTags(metadata),
+    };
     // An over-long value (a deep workspace path, a long branch) stays in
     // localStorage only, so it cannot block the conversation from starting.
-    for (const [key, value] of Object.entries(metadataTags)) {
-      if (value.length > TAG_VALUE_MAX_LENGTH) delete metadataTags[key];
+    for (const [key, value] of Object.entries(tags)) {
+      if (value.length > TAG_VALUE_MAX_LENGTH) delete tags[key];
     }
-    if (Object.keys(metadataTags).length > 0) {
+    if (Object.keys(tags).length > 0) {
       const existingTags =
         payload.tags && typeof payload.tags === "object"
           ? (payload.tags as Record<string, string>)
           : {};
-      payload.tags = { ...existingTags, ...metadataTags };
+      payload.tags = { ...existingTags, ...tags };
     }
 
     const telemetryDistinctId = await getTelemetryDistinctId();
