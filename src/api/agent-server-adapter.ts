@@ -854,6 +854,29 @@ export const PRIORITY_CONVERSATION_TAG_KEYS: readonly string[] = [
 ];
 
 /**
+ * The machine-stamp tag keys that render as read-only chips beside the user
+ * tags. They stay in {@link RESERVED_CONVERSATION_TAG_KEYS}, so the tag editor
+ * never offers them and a save never drops them. `bridgearchived` stays off
+ * even here, because the archived presentation owns that state (like
+ * `pinned` / `archived`).
+ */
+export const MACHINE_CONVERSATION_TAG_KEYS: readonly string[] = [
+  BRIDGE_MODE_TAG_KEY,
+  BRIDGE_REPO_TAG_KEY,
+  BRIDGE_BASE_TAG_KEY,
+];
+
+/** The machine-stamp entries of a conversation's tags, in key order. */
+export function getMachineConversationTags(
+  tags: Record<string, string> | null | undefined,
+): Array<[string, string]> {
+  return MACHINE_CONVERSATION_TAG_KEYS.flatMap((key) => {
+    const value = tags?.[key];
+    return typeof value === "string" ? [[key, value] as [string, string]] : [];
+  });
+}
+
+/**
  * User-facing subset of a conversation's server-side tags: everything except
  * {@link RESERVED_CONVERSATION_TAG_KEYS}, as stable ``[key, value]`` entries.
  * Priority keys come first (in {@link PRIORITY_CONVERSATION_TAG_KEYS} order);

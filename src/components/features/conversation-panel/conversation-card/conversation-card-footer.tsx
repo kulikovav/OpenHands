@@ -18,7 +18,10 @@ import {
   AgentBrandIcon,
   type AgentBrandIconKind,
 } from "#/components/shared/agent-brand-icon";
-import { getDisplayConversationTags } from "#/api/agent-server-adapter";
+import {
+  getDisplayConversationTags,
+  getMachineConversationTags,
+} from "#/api/agent-server-adapter";
 import { ConversationRepoLink } from "./conversation-repo-link";
 import { NoRepository } from "./no-repository";
 import { ConversationTagChips } from "./conversation-tag-chips";
@@ -141,7 +144,9 @@ export function ConversationCardFooter({
   const metadataIndentClass =
     executionStatus !== undefined ? "pl-6.5" : undefined;
 
-  const displayTags = showTags ? getDisplayConversationTags(tags) : [];
+  const displayTags = showTags
+    ? [...getDisplayConversationTags(tags), ...getMachineConversationTags(tags)]
+    : [];
 
   return (
     <div
