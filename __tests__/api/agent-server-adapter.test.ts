@@ -18,6 +18,7 @@ import {
   BRIDGE_REPO_TAG_KEY,
   RESERVED_CONVERSATION_TAG_KEYS,
   buildBridgeTags,
+  getMachineConversationTags,
   buildWorkspaceTags,
   buildRuntimeServicesSystemSuffix,
   buildStartConversationRequest,
@@ -857,6 +858,34 @@ describe("buildBridgeTags", () => {
     for (const key of Object.keys(tags)) {
       expect(key).toMatch(/^[a-z0-9]+$/);
     }
+  });
+});
+
+describe("getMachineConversationTags", () => {
+  it("returns the visible machine stamps in key order", () => {
+    expect(
+      getMachineConversationTags({
+        bridgebase: "main",
+        bridgearchived: "false",
+        bridgemode: "cloudagent",
+        bridgerepo: "github.com/org/repo",
+        project: "qa",
+      }),
+    ).toEqual([
+      ["bridgemode", "cloudagent"],
+      ["bridgerepo", "github.com/org/repo"],
+      ["bridgebase", "main"],
+    ]);
+  });
+
+  it("skips missing keys, the archive mark, and non-string values", () => {
+    expect(getMachineConversationTags({ bridgearchived: "true" })).toEqual([]);
+    expect(
+      getMachineConversationTags({
+        bridgemode: undefined as unknown as string,
+      }),
+    ).toEqual([]);
+    expect(getMachineConversationTags(null)).toEqual([]);
   });
 });
 
