@@ -247,8 +247,8 @@ COPY docker/entrypoint.sh /opt/agent-canvas/entrypoint.sh
 RUN chmod +x /opt/agent-canvas/entrypoint.sh
 
 # Pre-create persistence directories with correct ownership so the
-# openhands user can write to them even when Docker creates anonymous
-# volumes (which default to root).
+# openhands user can write to them through a bind mount, which would
+# otherwise arrive owned by the mounting user.
 RUN mkdir -p /home/openhands/.openhands/agent-canvas/conversations \
              /home/openhands/.openhands/agent-canvas/bash_events \
              /home/openhands/.openhands/agent-canvas/workspaces \
@@ -264,7 +264,11 @@ USER openhands
 #   /projects                  — user code the agent can read/edit
 # Bind-mount these for data to survive container restarts:
 #   docker run -v ~/.openhands:/home/openhands/.openhands -v ~/projects:/projects ...
-VOLUME ["/home/openhands/.openhands", "/projects"]
+#
+# The image declares no VOLUME: OpenShell admission rejects anonymous image
+# volumes, and a governed sandbox mounts its workspace at /sandbox instead.
+# Compose and Quadlet deployments bind-mount both paths explicitly, so the
+# declaration only added an anonymous volume Docker would garbage-collect.
 
 # The entrypoint starts all services and the ingress proxy.
 # Port 8000 is the unified entry point.
