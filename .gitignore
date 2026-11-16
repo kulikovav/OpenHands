@@ -48,3 +48,6 @@ build-fresh/
 # Per-arch runtime downloads for macOS universal builds (ELECTRON_ARCH=universal)
 /resources/bin-*/
 /resources/node-*/
+
+# Local planning documents (agent plans of record stay out of the repo)
+/docs/plans/
