@@ -81,7 +81,6 @@ import type {
   AppConversation,
   SandboxStatus,
 } from "#/api/conversation-service/agent-server-conversation-service.types";
-import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 
 interface ConversationPanelProps {
   onClose?: () => void;
