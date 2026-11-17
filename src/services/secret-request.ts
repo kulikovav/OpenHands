@@ -69,7 +69,11 @@ export async function handleRequestSecretAction(
     reason: action.reason ?? null,
     conversationUrl,
   };
+  const savedSecret = await findSavedSecret(request.name);
   useSecretRequestStore.getState().enqueue(request);
+  if (savedSecret) {
+    await completeSecretRequest(request, savedSecret);
+  }
 }
 
 async function resolveResult(

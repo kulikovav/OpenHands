@@ -18,11 +18,17 @@ import type { RequestSecretAction } from "#/types/agent-server/core";
 const {
   mockSendMessage,
   mockUpdateConversationSecrets,
+  mockGetSecretsOrThrow,
   mockDisplayErrorToast,
 } = vi.hoisted(() => ({
   mockSendMessage: vi.fn(),
   mockUpdateConversationSecrets: vi.fn(),
+  mockGetSecretsOrThrow: vi.fn(),
   mockDisplayErrorToast: vi.fn(),
+}));
+
+vi.mock("#/api/secrets-service", () => ({
+  SecretsService: { getSecretsOrThrow: mockGetSecretsOrThrow },
 }));
 
 vi.mock("#/utils/custom-toast-handlers", () => ({
