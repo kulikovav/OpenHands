@@ -6,6 +6,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 
 import { I18nKey } from "#/i18n/declaration";
+import i18n from "#/i18n";
+import { clearCachedAgentServerInfo } from "#/api/agent-server-compatibility";
 import AutomationService from "#/api/automation-service/automation-service.api";
 import {
   __resetActiveStoreForTests,
@@ -95,6 +97,16 @@ vi.mock("#/api/automation-service/automation-service.api", () => ({
   },
 }));
 
+// The governed refusal reads the /server_info capability; the mock seam stays
+// the client. The default keeps every existing scenario ungoverned.
+const getServerInfoMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@openhands/typescript-client/clients", () => ({
+  ServerClient: vi.fn(function ServerClientMock() {
+    return { getServerInfo: getServerInfoMock };
+  }),
+}));
+
 const localBackend: Backend = {
   id: "local-1",
   name: "Local 1",
@@ -170,6 +182,14 @@ async function renderDashboardWithSettledInsights() {
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
+  clearCachedAgentServerInfo();
+  // Default to a host-local server so the existing scenarios stay ungoverned;
+  // the governed-refusal test overrides this reply with an ungoverned one
+  // never reached because the refusal renders first.
+  getServerInfoMock.mockResolvedValue({
+    version: "1.62.0",
+    conversation_runtime: "local",
+  });
   vi.mocked(fetchCloudIntegrationsConfig).mockReset();
   mockServiceAccountsEnabled(false);
   vi.mocked(AutomationService.checkHealth).mockReset();
@@ -223,6 +243,37 @@ afterEach(() => {
 });
 
 describe("AutomationsList — manifest-declared dashboard", () => {
+  it("refuses a governed backend permanently, naming it and offering no retry", async () => {
+    getServerInfoMock.mockResolvedValue({
+      version: "1.62.0",
+      conversation_runtime: "docker",
+      available_conversation_runtimes: [],
+      capabilities: ["governed_conversation_runtime_v1"],
+    });
+    renderAt("/automations", <AutomationsList />);
+
+    const notice = await screen.findByTestId("automations-governed-backend");
+    // R15: the surface names the backend it cannot serve. The message text is
+    // asserted via the translation catalogue so the copy stays sourced once.
+    expect(notice).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("automation-card-a-ok"),
+    ).not.toBeInTheDocument();
+    // Permanent refusal: no retry affordance (the transient health-failure
+    // component renders one).
+    expect(
+      within(notice).queryByRole("button"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(notice).queryByText(
+        i18n.t(I18nKey.AUTOMATIONS$GOVERNED_BACKEND_MESSAGE, {
+          backend: "Local 1",
+          interpolation: { escapeValue: false },
+        }),
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("shows zero automations while the initial list request is pending", async () => {
     vi.mocked(AutomationService.getAutomations).mockReturnValue(
       new Promise(() => {}),

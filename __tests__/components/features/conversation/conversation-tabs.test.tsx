@@ -1,6 +1,6 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import { ConversationTabs } from "#/components/features/conversation/conversation-tabs/conversation-tabs";
@@ -9,11 +9,33 @@ import { useConversationStore } from "#/stores/conversation-store";
 import { AgentState } from "#/types/agent-state";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
+import { clearCachedAgentServerInfo } from "#/api/agent-server-compatibility";
 import {
   ACTIVE_BACKEND_STORAGE_KEY,
   BACKENDS_STORAGE_KEY,
 } from "#/api/backend-registry/storage";
 import type { Backend } from "#/api/backend-registry/types";
+
+// The governed gating reads the same /server_info probe the workspace hooks
+// use, so the client below is the mock seam: the default answers a host-local
+// server (entry points unchanged) and governed cases override the reply.
+const getServerInfoMock = vi.hoisted(() => vi.fn());
+const ServerClientMock = vi.hoisted(() =>
+  vi.fn(function ServerClientMock() {
+    return { getServerInfo: getServerInfoMock };
+  }),
+);
+
+vi.mock("@openhands/typescript-client/clients", () => ({
+  ServerClient: ServerClientMock,
+}));
+
+const governedServerInfo = {
+  version: "1.62.0",
+  conversation_runtime: "docker",
+  available_conversation_runtimes: [],
+  capabilities: ["governed_conversation_runtime_v1"],
+};
 
 const TASK_CONVERSATION_ID = "task-ec03fb2ab8604517b24af632b058c2fd";
 const REAL_CONVERSATION_ID = "conv-abc123";
@@ -125,7 +147,17 @@ describe("ConversationTabs localStorage behavior", () => {
   beforeEach(() => {
     localStorage.clear();
     __resetActiveStoreForTests();
+    clearCachedAgentServerInfo();
     vi.resetAllMocks();
+    // Default to a host-local server so the ungoverned tests keep every
+    // entry point; governed cases override this reply.
+    ServerClientMock.mockImplementation(function ServerClientMockImpl() {
+      return { getServerInfo: getServerInfoMock };
+    });
+    getServerInfoMock.mockResolvedValue({
+      version: "1.62.0",
+      conversation_runtime: "local",
+    });
     mockRefetchGitChanges.mockReset();
     mockHandleBuildPlanClick.mockReset();
     mockConversationId = TASK_CONVERSATION_ID;
@@ -815,6 +847,86 @@ describe("ConversationTabs localStorage behavior", () => {
         "aria-label",
         "CONVERSATION$CUSTOMIZE_TABS",
       );
+    });
+  });
+
+  describe("governed backend entry points", () => {
+    beforeEach(() => {
+      mockConversationId = REAL_CONVERSATION_ID;
+      seedActiveBackend({
+        id: "governed-test",
+        name: "Governed Sandbox",
+        host: "http://localhost:8000",
+        apiKey: "",
+        kind: "local",
+      });
+    });
+
+    afterEach(() => {
+      clearCachedAgentServerInfo();
+    });
+
+    it("drops the browser tab from the strip on a governed backend", async () => {
+      getServerInfoMock.mockResolvedValue(governedServerInfo);
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      await screen.findByTestId("conversation-tab-files");
+      expect(
+        await screen.findByRole("status", { hidden: true }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("conversation-tab-browser"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByTestId("conversation-tab-files"),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps the browser tab on an ungoverned local backend", () => {
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      expect(
+        screen.getByTestId("conversation-tab-browser"),
+      ).toBeInTheDocument();
+    });
+
+    it("falls back to Files when the stored tab is browser on a governed backend", async () => {
+      getServerInfoMock.mockResolvedValue(governedServerInfo);
+      seedConversationState(REAL_CONVERSATION_ID, {
+        selectedTab: "browser",
+        rightPanelShown: true,
+      });
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      await waitFor(() =>
+        expect(useConversationStore.getState().selectedTab).toBe("files"),
+      );
+      // The stored browser choice is corrected in memory; localStorage keeps
+      // the old value until the user picks another tab themselves.
+      expect(
+        screen.queryByTestId("conversation-tab-browser"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("renders no editor entry point on a governed backend", async () => {
+      getServerInfoMock.mockResolvedValue(governedServerInfo);
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      await screen.findByRole("status", { hidden: true });
+      expect(
+        screen.queryByTestId("drawer-vscode-link"),
+      ).not.toBeInTheDocument();
     });
   });
 });

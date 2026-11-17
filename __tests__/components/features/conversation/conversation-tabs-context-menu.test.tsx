@@ -32,6 +32,12 @@ vi.mock("#/hooks/use-is-archived-conversation", () => ({
   useIsArchivedConversation: () => false,
 }));
 
+// This suite covers tab pinning and placement; the governed browser-tab
+// removal is covered in conversation-tabs.test.tsx.
+vi.mock("#/hooks/query/use-governed-backend", () => ({
+  useGovernedBackend: () => ({ governed: false, known: true }),
+}));
+
 function seedActiveBackend(backend: Backend): void {
   localStorage.setItem(BACKENDS_STORAGE_KEY, JSON.stringify([backend]));
   localStorage.setItem(

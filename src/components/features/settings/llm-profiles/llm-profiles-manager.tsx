@@ -22,15 +22,46 @@ import {
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
+import { cn } from "#/utils/utils";
+import { extensionModuleEmptyStateClassName } from "#/utils/extension-module-card-classes";
 
 interface LlmProfilesManagerProps {
   onAddProfile?: () => void;
   onEditProfile?: (profile: ProfileInfo) => void;
+  /**
+   * True on a governed backend: the profile list stays visible read-only
+   * while every write action is removed. The provider profile owns the model
+   * key there, so the settings screen must not offer a second authority.
+   */
+  readOnly?: boolean;
+}
+
+/**
+ * The read-only explanation shown instead of profile write actions on a
+ * governed backend. It names the provider profile as the key owner and keeps
+ * command text out of the user-facing screen: the operator runbook covers
+ * attaching the provider and approving rules.
+ */
+function GovernedKeyOwnerNotice() {
+  const { t } = useTranslation("openhands");
+
+  return (
+    <div
+      data-testid="llm-settings-governed-notice"
+      className={cn(extensionModuleEmptyStateClassName, "text-sm text-muted")}
+    >
+      <p>{t(I18nKey.SETTINGS$GOVERNED_KEY_OWNER)}</p>
+      <p className="mt-2">
+        {t(I18nKey.SETTINGS$GOVERNED_KEY_PLACEHOLDER_NOTE)}
+      </p>
+    </div>
+  );
 }
 
 export function LlmProfilesManager({
   onAddProfile,
   onEditProfile,
+  readOnly = false,
 }: LlmProfilesManagerProps) {
   const { t } = useTranslation("openhands");
   const { data, isLoading, error } = useLlmProfiles();
@@ -38,8 +69,9 @@ export function LlmProfilesManager({
   const activateProfile = useActivateLlmProfile();
   const saveProfile = useSaveLlmProfile();
   // Cloud members are view-only; only owners/admins (and all local users) may
-  // add, edit, rename, duplicate, delete, or activate profiles.
-  const canManage = useCanManageOrgProfiles();
+  // add, edit, rename, duplicate, delete, or activate profiles. A governed
+  // backend is read-only for everyone: the server rejects the writes anyway.
+  const canManage = useCanManageOrgProfiles() && !readOnly;
   // Provider connections exist on the local agent-server and on cloud when an
   // org is bound (the org-scoped CRUD routes). A cloud backend without an org
   // (legacy API keys) cannot address them, so the manager stays hidden there.
@@ -141,7 +173,7 @@ export function LlmProfilesManager({
               {t(I18nKey.SETTINGS$AVAILABLE_PROFILES)}
             </h2>
             <div className="ml-auto flex items-center gap-2">
-              {canManage && supportsConnections ? (
+              {!readOnly && canManage && supportsConnections ? (
                 <BrandButton
                   testId="add-models-from-provider"
                   type="button"
@@ -166,6 +198,8 @@ export function LlmProfilesManager({
               ) : null}
             </div>
           </div>
+
+          {readOnly && <GovernedKeyOwnerNotice />}
 
           <ProfilesBody
             isLoading={isLoading}

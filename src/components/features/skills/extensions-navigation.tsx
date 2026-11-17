@@ -15,6 +15,7 @@ import { I18nKey } from "#/i18n/declaration";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { isNoBackend } from "#/api/backend-registry/active-store";
 import { useCloudMcpSettingsUrl } from "#/hooks/use-cloud-mcp-settings-url";
+import { useGovernedBackend } from "#/hooks/query/use-governed-backend";
 
 /**
  * The Skills item points to a cloud-hosted page; so does the MCP Servers item
@@ -101,11 +102,14 @@ function ExtensionsNavigationLinks() {
   const { backend } = active;
   const isCloudBackend = !isNoBackend(backend) && backend.kind === "cloud";
   const { url: cloudMcpSettingsUrl } = useCloudMcpSettingsUrl();
+  // A governed sandbox loads no MCP tools, so its settings surface is hidden.
+  const { governed } = useGovernedBackend();
   return (
     <div className="flex flex-col gap-0.5 pt-0.5">
       {EXTENSIONS_NAV_ITEMS.filter(
         (item) =>
-          !(CLOUD_HIDDEN_EXTENSION_PATHS.has(item.to) && isCloudBackend),
+          !(CLOUD_HIDDEN_EXTENSION_PATHS.has(item.to) && isCloudBackend) &&
+          !(item.to === "/mcp" && governed),
       ).map((item) => {
         const isCloudSkillsLink =
           item.to === CLOUD_LINKED_EXTENSION_PATH && isCloudBackend;

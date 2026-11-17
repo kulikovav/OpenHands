@@ -37,6 +37,43 @@ export interface AgentServerInfo extends BaseServerInfo {
   runtime_services?: unknown;
   execution_runtime?: "local" | "docker";
   available_conversation_runtimes?: ("local" | "docker")[];
+  /** Feature flags the server advertises; see `GOVERNED_CONVERSATION_RUNTIME_CAPABILITY`. */
+  capabilities?: string[];
+}
+
+/**
+ * Capability a governed agent server advertises on `/server_info`
+ * (software-agent-sdk `server_details_router`). When present, the backend
+ * runs every conversation inside a governed OpenShell sandbox.
+ */
+export const GOVERNED_CONVERSATION_RUNTIME_CAPABILITY =
+  "governed_conversation_runtime_v1";
+
+/**
+ * Whether this backend runs conversations in a governed sandbox.
+ *
+ * A server that advertises the governed-runtime capability is governed. A
+ * server that reports `conversation_runtime: "docker"` with no selectable
+ * local runtime is also treated as governed: governed servers keep the
+ * `docker` wire value (KTD2), so a docker-only report without the capability
+ * flag is an older governed deployment rather than a host-local one. The
+ * server-side 422 on a host-local start stays the backstop either way.
+ *
+ * `null`/`undefined` info (probe pending or failed) is indeterminate: callers
+ * that must gate host workspaces while the probe is unresolved decide that at
+ * the call site (see `useConversationWorkspace`).
+ */
+export function isGovernedConversationRuntime(
+  info: AgentServerInfo | null | undefined,
+): boolean {
+  if (!info) return false;
+  if (info.capabilities?.includes(GOVERNED_CONVERSATION_RUNTIME_CAPABILITY)) {
+    return true;
+  }
+  return (
+    info.conversation_runtime === "docker" &&
+    !info.available_conversation_runtimes?.includes("local")
+  );
 }
 
 let cachedAgentServerInfo: AgentServerInfo | null = null;
