@@ -4,6 +4,7 @@ import VSCodeIcon from "#/icons/vscode.svg?react";
 import { I18nKey } from "#/i18n/declaration";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { useUnifiedVSCodeUrl } from "#/hooks/query/use-unified-vscode-url";
+import { useGovernedBackend } from "#/hooks/query/use-governed-backend";
 import { RUNTIME_STARTING_STATES } from "#/types/agent-state";
 import { cn } from "#/utils/utils";
 
@@ -12,6 +13,8 @@ export function DrawerVSCodeLink() {
   const { curAgentState } = useAgentState();
   const { data, refetch, isLoading, isUnavailable } = useUnifiedVSCodeUrl();
   const isRuntimeStarting = RUNTIME_STARTING_STATES.includes(curAgentState);
+  // A governed sandbox serves no editor, so the strip renders no entry point.
+  const { governed } = useGovernedBackend();
 
   const handleClick = async () => {
     let vscodeUrl = data?.url;
@@ -29,7 +32,7 @@ export function DrawerVSCodeLink() {
   // Backends that report no editor to open — `enable_vscode: false`, a
   // configured editor whose process is not running, or no URL reported — get
   // no button rather than one that does nothing when clicked.
-  if (isUnavailable) {
+  if (isUnavailable || governed) {
     return null;
   }
 

@@ -49,7 +49,11 @@ import { ActivityLogSection } from "#/components/features/automations/detail/act
 import { DetailSkeleton } from "#/components/features/automations/detail/detail-skeleton";
 import { NotFoundState } from "#/components/features/automations/detail/not-found-state";
 import { ErrorState } from "#/components/features/automations/error-state";
-import { BackendNotConfigured } from "#/components/features/automations/backend-not-configured";
+import {
+  BackendNotConfigured,
+  GovernedBackendNotice,
+} from "#/components/features/automations/backend-not-configured";
+import { useGovernedBackend } from "#/hooks/query/use-governed-backend";
 import { DeleteConfirmationModal } from "#/components/features/automations/delete-confirmation-modal";
 import { ChangeFactoryModal } from "#/components/features/automations/change-factory-modal";
 import { ChangeRunAsModal } from "#/components/features/automations/change-run-as-modal";
@@ -122,6 +126,7 @@ export default function AutomationDetail() {
   const backPath = factoryContext
     ? factoryPath(factoryContext)
     : automationListPath();
+  const { governed: isBackendGoverned } = useGovernedBackend();
 
   const {
     data: healthData,
@@ -191,6 +196,18 @@ export default function AutomationDetail() {
       <div className="min-h-full">
         <div className="p-6 max-w-4xl mx-auto">
           <DetailSkeleton />
+        </div>
+      </div>
+    );
+  }
+
+  // A governed backend can never serve automations, so its refusal is
+  // permanent: no retry, and it names the backend the user is on.
+  if (isBackendGoverned) {
+    return (
+      <div className="min-h-full">
+        <div className="p-6 max-w-4xl mx-auto">
+          <GovernedBackendNotice backendName={active.backend.name} />
         </div>
       </div>
     );

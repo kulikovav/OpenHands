@@ -7,5 +7,6 @@ export * from "./hook-execution-event";
 export * from "./message-event";
 export * from "./observation-event";
 export * from "./pause-event";
+export * from "./policy-event";
 export * from "./streaming-delta-event";
 export * from "./system-event";

@@ -33,6 +33,7 @@ const {
   mockListAgentProfiles,
   mockListLlmProfiles,
   mockSupportsLaunchLlmOverride,
+  mockGetCachedAgentServerInfo,
 } = vi.hoisted(() => ({
   mockCreateConversation: vi.fn(),
   mockResolveWorkingDir: vi.fn(),
@@ -42,6 +43,7 @@ const {
   mockGetCloudStartTask: vi.fn(),
   mockPickCloudBackend: vi.fn(),
   mockGetCachedAgentServerVersion: vi.fn(),
+  mockGetCachedAgentServerInfo: vi.fn(),
   mockGetSettings: vi.fn(),
   mockListMetaProfiles: vi.fn(),
   mockBatchGetAppConversations: vi.fn(),
@@ -98,8 +100,12 @@ vi.mock("#/api/cloud/conversation-service.api", () => ({
   pickCloudBackendForLaunch: mockPickCloudBackend,
 }));
 
-vi.mock("#/api/agent-server-compatibility", () => ({
+vi.mock("#/api/agent-server-compatibility", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("#/api/agent-server-compatibility")
+  >()),
   getCachedAgentServerVersion: mockGetCachedAgentServerVersion,
+  getCachedAgentServerInfo: mockGetCachedAgentServerInfo,
   compareAgentServerVersions: (actual: string, required: string) => {
     const parse = (v: string) => v.split(".").map(Number);
     const [a, b] = [parse(actual), parse(required)];
@@ -178,6 +184,8 @@ describe("handleLaunchChildConversationAction", () => {
     window.localStorage.clear();
     useGoalStore.setState({ statusByConversation: {} });
     vi.clearAllMocks();
+    // Ungoverned by default; the governed test overrides the probe reply.
+    mockGetCachedAgentServerInfo.mockReturnValue(null);
     mockResolveWorkingDir.mockResolvedValue("/Users/jane/projects/foo");
     mockCreateConversation.mockResolvedValue({
       id: "start-task-id",
@@ -270,6 +278,29 @@ describe("handleLaunchChildConversationAction", () => {
         expect(mockCreateCloudAppConversation).not.toHaveBeenCalled();
       },
     );
+  });
+
+  describe("governed backend", () => {
+    it("refuses to launch and guides toward an ungoverned backend or Cloud", async () => {
+      mockGetCachedAgentServerInfo.mockReturnValue({
+        version: "1.62.0",
+        conversation_runtime: "docker",
+        available_conversation_runtimes: [],
+        capabilities: ["governed_conversation_runtime_v1"],
+      });
+
+      await handleLaunchChildConversationAction(
+        action({ target: "local" }),
+        PARENT_ID,
+        nextToolCallId(),
+      );
+
+      const result = reportedResult();
+      expect(result.status).toBe("error");
+      expect(result.status === "error" && result.error).toContain("governed");
+      expect(mockCreateConversation).not.toHaveBeenCalled();
+      expect(mockCreateCloudAppConversation).not.toHaveBeenCalled();
+    });
   });
 
   describe("local target", () => {

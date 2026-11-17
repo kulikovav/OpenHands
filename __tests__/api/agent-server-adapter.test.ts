@@ -92,7 +92,10 @@ vi.mock("#/api/agent-server-config", () => ({
   syncBakedSessionApiKey: vi.fn(),
 }));
 
-vi.mock("#/api/agent-server-compatibility", () => ({
+vi.mock("#/api/agent-server-compatibility", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("#/api/agent-server-compatibility")
+  >()),
   getCachedAgentServerInfo: mockGetCachedAgentServerInfo,
 }));
 
@@ -546,6 +549,33 @@ describe("buildStartConversationRequest", () => {
         LAUNCH_CHILD_CONVERSATION_TOOL_NAME,
         REQUEST_SECRET_TOOL_NAME,
       ]);
+    });
+
+    it("omits the launch-child tool on a governed backend and keeps delegation cloud-only", () => {
+      const payload = buildStartConversationRequest({
+        settings: DEFAULT_SETTINGS,
+        agentProfileId: "profile-openhands",
+        agentProfileKind: "openhands",
+        governedBackend: true,
+      });
+
+      expect(payload.client_tools.map((tool) => tool.name)).toEqual([
+        CANVAS_UI_CLIENT_TOOL_NAME,
+        REQUEST_SECRET_TOOL_NAME,
+      ]);
+    });
+
+    it("keeps the launch-child tool when the backend can serve local children", () => {
+      const payload = buildStartConversationRequest({
+        settings: DEFAULT_SETTINGS,
+        agentProfileId: "profile-openhands",
+        agentProfileKind: "openhands",
+        governedBackend: false,
+      });
+
+      expect(payload.client_tools.map((tool) => tool.name)).toContain(
+        LAUNCH_CHILD_CONVERSATION_TOOL_NAME,
+      );
     });
 
     it.each(["openhands", "acp"] as const)(
@@ -1672,6 +1702,32 @@ describe("buildStartConversationRequestWithEncryptedSettings", () => {
     expect(mockLoadHooks).toHaveBeenCalledWith({
       project_dir: "/workspace/project/agent-canvas",
     });
+  });
+
+  it("marks a governed backend and omits the launch-child tool from client_tools", async () => {
+    mockLoadHooks.mockResolvedValue({ hook_config: null });
+    // The governed capability rides /server_info, which the builder probes.
+    mockGetServerInfo.mockResolvedValue({
+      version: "1.62.0",
+      conversation_runtime: "docker",
+      available_conversation_runtimes: [],
+      capabilities: ["governed_conversation_runtime_v1"],
+    });
+
+    const payload = (await buildStartConversationRequestWithEncryptedSettings(
+      {
+        ...PROFILE,
+        settings: DEFAULT_SETTINGS,
+        worktree: true,
+      },
+    )) as { client_tools: { name: string }[] };
+
+    expect(
+      payload.client_tools.map((tool) => tool.name),
+    ).not.toContain(LAUNCH_CHILD_CONVERSATION_TOOL_NAME);
+    expect(
+      payload.client_tools.map((tool) => tool.name),
+    ).toContain(CANVAS_UI_CLIENT_TOOL_NAME);
   });
 
   it("omits hook_config when the workspace has no hooks", async () => {

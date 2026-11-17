@@ -56,6 +56,7 @@ import {
 import { BackNavButton } from "#/components/shared/buttons/back-nav-button";
 import { Typography } from "#/ui/typography";
 import { useSettingsSectionHeader } from "#/contexts/settings-section-header-context";
+import { useGovernedBackend } from "#/hooks/query/use-governed-backend";
 
 type ViewMode = "list" | "create" | "edit";
 
@@ -152,6 +153,10 @@ export function LlmSettingsLocalView() {
   const { backend, orgId } = useActiveBackend();
   const supportsConnections =
     backend.kind === "local" || (backend.kind === "cloud" && !!orgId);
+  // A governed backend is read-only: the provider profile owns the model key,
+  // so the settings screen offers no profile write actions at all. The server
+  // rejects the writes; the UI must not offer them (R5, R14).
+  const { governed } = useGovernedBackend();
 
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [profileName, setProfileName] = useState("");
@@ -443,11 +448,12 @@ export function LlmSettingsLocalView() {
   ]);
 
   // List view: show profiles manager
-  if (viewMode === "list") {
+  if (viewMode === "list" || governed) {
     return (
       <LlmProfilesManager
-        onAddProfile={handleAddProfile}
-        onEditProfile={handleEditProfile}
+        readOnly={governed}
+        onAddProfile={governed ? undefined : handleAddProfile}
+        onEditProfile={governed ? undefined : handleEditProfile}
       />
     );
   }

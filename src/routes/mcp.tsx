@@ -10,6 +10,7 @@ import { BrandButton } from "#/components/features/settings/brand-button";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useUpdateMcpServer } from "#/hooks/mutation/use-update-mcp-server";
 import { useCloudMcpSettingsUrl } from "#/hooks/use-cloud-mcp-settings-url";
+import { useGovernedBackend } from "#/hooks/query/use-governed-backend";
 import { parseMcpConfig } from "#/utils/mcp-config";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
@@ -49,6 +50,9 @@ export default function MCPPage() {
   // are managed on its Settings > MCP page instead (OHE-3869).
   const { url: cloudMcpSettingsUrl, isLoading: isLoadingCloudMcpSettings } =
     useCloudMcpSettingsUrl();
+  // A governed sandbox loads no MCP tools, so a direct visit to /mcp refuses
+  // instead of offering a surface the conversation cannot use.
+  const { governed } = useGovernedBackend();
 
   const [installEntry, setInstallEntry] =
     React.useState<MarketplaceEntry | null>(null);
@@ -99,6 +103,30 @@ export default function MCPPage() {
       },
     );
   };
+
+  if (governed) {
+    return (
+      <div
+        data-testid="mcp-page"
+        className="flex h-full gap-4 lg:gap-10 lg:pl-10"
+      >
+        <ExtensionsNavigation />
+        <main className={settingsLikeMainScrollClassName}>
+          <div className="mx-auto flex w-full min-w-0 max-w-200 flex-col gap-6">
+            <ExtensionsCompactNavigation />
+            <div
+              data-testid="mcp-page-governed"
+              className="flex flex-col items-center justify-center py-20 px-4 text-center"
+            >
+              <p className="text-sm text-muted max-w-md">
+                {t(I18nKey.MCP$GOVERNED_BACKEND_UNAVAILABLE)}
+              </p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   if (isLoading || !settings || isLoadingCloudMcpSettings) {
     return (

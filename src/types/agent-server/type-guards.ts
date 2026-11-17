@@ -41,6 +41,7 @@ import {
 } from "./core/events/conversation-state-event";
 import { HookExecutionEvent } from "./core/events/hook-execution-event";
 import { ACPToolCallEvent } from "./core/events/acp-tool-call-event";
+import { PolicyEvent } from "./core/events/policy-event";
 import { StreamingDeltaEvent } from "./core/events/streaming-delta-event";
 import { SystemPromptEvent } from "./core/events/system-event";
 import { CondensationEvent } from "./core/events/condensation-event";
@@ -319,6 +320,13 @@ export const isStreamingDeltaEvent = (
   event: OpenHandsEvent,
 ): event is StreamingDeltaEvent =>
   "kind" in event && event.kind === "StreamingDeltaEvent";
+
+/**
+ * Type guard for governed-runtime policy decisions (denied, approved,
+ * rejected, expired). The SDK emits one `PolicyEvent` per recorded decision.
+ */
+export const isPolicyEvent = (event: OpenHandsEvent): event is PolicyEvent =>
+  "kind" in event && event.kind === "PolicyEvent";
 
 /**
  * Type guard for condensation completion events (history was compacted).
