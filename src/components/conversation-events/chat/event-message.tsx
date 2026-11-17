@@ -16,6 +16,7 @@ import {
   isUserMessageEvent,
   isPlanningFileEditorObservationEvent,
   isHookExecutionEvent,
+  isPolicyEvent,
   isACPToolCallEvent,
   isStreamingDeltaEvent,
   isConversationStateUpdateEvent,
@@ -36,6 +37,7 @@ import { GenericEventMessageWrapper } from "./event-message-components/generic-e
 import { ThoughtEventMessage } from "./event-message-components/thought-event-message";
 import { CollapsibleThinking } from "./event-message-components/collapsible-thinking";
 import { HookExecutionEventMessage } from "./event-message-components/hook-execution-event-message";
+import { PolicyEventMessage } from "./event-message-components/policy-event-message";
 import { CorrectiveNudgeMessage } from "./event-message-components/corrective-nudge-message";
 import { createSkillReadyEvent } from "./event-content-helpers/create-skill-ready-event";
 import { parseMessageFromEvent } from "./event-content-helpers/parse-message-from-event";
@@ -235,6 +237,13 @@ function EventMessageComponent({
   // Hook execution events
   if (isHookExecutionEvent(event)) {
     return <HookExecutionEventMessage event={event} />;
+  }
+
+  // Governed-runtime policy and approval decisions render their own card:
+  // the status names the decision, the details carry reason, rule and
+  // provenance.
+  if (isPolicyEvent(event)) {
+    return <PolicyEventMessage event={event} />;
   }
 
   // ACP sub-agent tool call events (Claude Code, Codex, Gemini CLI, …)

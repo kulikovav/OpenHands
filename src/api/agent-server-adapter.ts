@@ -32,6 +32,7 @@ import {
 import { getAgentServerClientOptions } from "./agent-server-client-options";
 import {
   getCachedAgentServerInfo,
+  isGovernedConversationRuntime,
   type AgentServerInfo,
 } from "./agent-server-compatibility";
 import { getAgentServerWorkingDir } from "./agent-server-config";
@@ -1314,6 +1315,12 @@ export interface StartConversationOptions {
   titleLlmProfile?: string;
   runtimeServicesInfo?: RuntimeServicesInfo | null;
   executionRuntime?: AgentServerInfo["execution_runtime"];
+  /**
+   * The backend runs conversations in a governed sandbox, so the launch tool
+   * stays unregistered: a governed conversation must not delegate a local
+   * child (R14 keeps delegation cloud-only).
+   */
+  governedBackend?: boolean;
   workspaceHookConfig?: HookConfig | null;
   skillEnablement?: SkillEnablement | null;
 }
@@ -1425,7 +1432,9 @@ export function buildStartConversationRequest(
       options.agentProfileKind === "openhands"
         ? [
             CANVAS_UI_CLIENT_TOOL,
-            LAUNCH_CHILD_CONVERSATION_CLIENT_TOOL,
+            ...(options.governedBackend
+              ? []
+              : [LAUNCH_CHILD_CONVERSATION_CLIENT_TOOL]),
             REQUEST_SECRET_CLIENT_TOOL,
             ...(options.automationSetup
               ? [
@@ -1877,6 +1886,7 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
       (serverInfo as { runtime_services?: unknown } | null)?.runtime_services,
     ),
     executionRuntime: serverInfo?.execution_runtime,
+    governedBackend: isGovernedConversationRuntime(serverInfo),
     workspaceHookConfig,
   });
 }

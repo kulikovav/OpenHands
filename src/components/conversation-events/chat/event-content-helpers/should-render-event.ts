@@ -10,6 +10,7 @@ import {
   isGoalConversationStateUpdateEvent,
   isHookExecutionEvent,
   isACPToolCallEvent,
+  isPolicyEvent,
   isStreamingDeltaEvent,
   isUserRejectObservation,
 } from "#/types/agent-server/type-guards";
@@ -168,6 +169,13 @@ export const shouldRenderEvent = (event: OpenHandsEvent) => {
 
   // Render hook execution events
   if (isHookExecutionEvent(event)) {
+    return true;
+  }
+
+  // Render governed-runtime policy and approval decisions. The SDK persists
+  // them as PolicyEvent rows; unknown kinds in this family would otherwise
+  // be dropped silently, leaving a denial or approval with no trace.
+  if (isPolicyEvent(event)) {
     return true;
   }
 

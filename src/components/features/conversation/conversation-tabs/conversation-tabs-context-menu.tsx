@@ -20,6 +20,7 @@ import DoubleCheckIcon from "#/icons/double-check.svg?react";
 import { useTaskList } from "#/hooks/use-task-list";
 import { useSelectConversationTab } from "#/hooks/use-select-conversation-tab";
 import { useIsArchivedConversation } from "#/hooks/use-is-archived-conversation";
+import { useGovernedBackend } from "#/hooks/query/use-governed-backend";
 import { ArchivedDisabledTooltip } from "../../context-menu/archived-disabled-tooltip";
 import { cn } from "#/utils/utils";
 import {
@@ -108,6 +109,9 @@ export function ConversationTabsContextMenu({
 
   const { hasTaskList } = useTaskList();
   const isArchivedConversation = useIsArchivedConversation();
+  // The browser tab is not offered on a governed backend, so its context-menu
+  // row disappears with the drawer tab it would open.
+  const { governed } = useGovernedBackend();
 
   const tabConfig = [
     {
@@ -137,6 +141,10 @@ export function ConversationTabsContextMenu({
       i18nKey: I18nKey.COMMON$TASK_LIST,
     });
   }
+
+  const offeredTabConfig = governed
+    ? tabConfig.filter((entry) => entry.tab !== "browser")
+    : tabConfig;
 
   const handleOpenTab = (tab: string) => {
     if (isArchivedConversation) {
@@ -187,7 +195,7 @@ export function ConversationTabsContextMenu({
       spacing={isPortaled ? "none" : "default"}
       className={cn("z-9999 w-fit", isPortaled ? "mt-0" : "mt-2")}
     >
-      {tabConfig.map(({ tab, icon: Icon, i18nKey }) => {
+      {offeredTabConfig.map(({ tab, icon: Icon, i18nKey }) => {
         const pinned = !state.unpinnedTabs.includes(tab);
         return (
           <li key={tab} className="list-none">

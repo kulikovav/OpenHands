@@ -10,9 +10,14 @@ import {
 } from "#/hooks/query/use-git-sync";
 import { useAutomationHealth } from "#/hooks/query/use-automation-health";
 import { useAutomationPermissions } from "#/hooks/use-automation-permissions";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { BackLink } from "#/components/features/automations/detail/back-link";
 import { ErrorState } from "#/components/features/automations/error-state";
-import { BackendNotConfigured } from "#/components/features/automations/backend-not-configured";
+import {
+  BackendNotConfigured,
+  GovernedBackendNotice,
+} from "#/components/features/automations/backend-not-configured";
+import { useGovernedBackend } from "#/hooks/query/use-governed-backend";
 import { GitSyncSkeleton } from "#/components/features/automations/git-sync/git-sync-skeleton";
 import { GitSyncNoAccessState } from "#/components/features/automations/git-sync/git-sync-no-access-state";
 import { GitSyncUnsupportedState } from "#/components/features/automations/git-sync/git-sync-unsupported-state";
@@ -57,6 +62,8 @@ export default function AutomationGitSync() {
   // always grant it; on cloud it comes from the org's /me permissions.
   const { canManage, isLoading: isPermissionsLoading } =
     useAutomationPermissions();
+  const { governed: isBackendGoverned } = useGovernedBackend();
+  const { backend } = useActiveBackend();
   const [activity, setActivity] = useState<SyncActivity>({ state: "idle" });
   const isRunning = activity.state === "running";
 
@@ -130,6 +137,18 @@ export default function AutomationGitSync() {
       <div className="min-h-full">
         <div className="p-6 max-w-4xl mx-auto">
           <GitSyncNoAccessState />
+        </div>
+      </div>
+    );
+  }
+
+  // A governed backend can never serve automations, so its refusal is
+  // permanent: no retry, and it names the backend the user is on.
+  if (isBackendGoverned) {
+    return (
+      <div className="min-h-full">
+        <div className="p-6 max-w-4xl mx-auto">
+          <GovernedBackendNotice backendName={backend.name} />
         </div>
       </div>
     );

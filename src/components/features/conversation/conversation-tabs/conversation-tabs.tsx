@@ -23,6 +23,7 @@ import { useConversationStore } from "#/stores/conversation-store";
 import { ConversationTabsContextMenu } from "./conversation-tabs-context-menu";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { useSelectConversationTab } from "#/hooks/use-select-conversation-tab";
+import { useGovernedBackend } from "#/hooks/query/use-governed-backend";
 import { useTaskList } from "#/hooks/use-task-list";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useHandleBuildPlanClick } from "#/hooks/use-handle-build-plan-click";
@@ -49,6 +50,9 @@ export function ConversationTabs({
 
   const { hasTaskList } = useTaskList();
   const { backend } = useActiveBackend();
+  // A governed sandbox cannot serve the browser tool, so its drawer entry
+  // point disappears and a stored browser tab falls back to Files.
+  const { governed } = useGovernedBackend();
 
   const { handleBuildPlanClick } = useHandleBuildPlanClick();
   const { curAgentState } = useAgentState();
@@ -70,8 +74,14 @@ export function ConversationTabs({
   // the comment in `useConversationStore` and the schema note in
   // `conversation-local-storage.ts` for the rationale.
   useEffect(() => {
-    setSelectedTab(persistedState.selectedTab);
-  }, [setSelectedTab, persistedState.selectedTab]);
+    // A governed backend serves no browser tool, so a stored browser tab
+    // falls back to Files instead of a panel that cannot load.
+    const restoredTab =
+      governed && persistedState.selectedTab === "browser"
+        ? ("files" as const)
+        : persistedState.selectedTab;
+    setSelectedTab(restoredTab);
+  }, [setSelectedTab, persistedState.selectedTab, governed]);
 
   useEffect(() => {
     const handlePanelVisibilityChange = () => {
@@ -161,10 +171,16 @@ export function ConversationTabs({
     });
   }
 
+  // The browser tab is a governed sandbox's disabled entry point: it leaves
+  // the strip (and the accessibility tree) instead of rendering unfocusable.
+  const availableTabs = governed
+    ? tabs.filter((tab) => tab.tabValue !== "browser")
+    : tabs;
+
   // Pinned tabs always show in the bar. Unpinned tabs stay hidden unless the
   // user has that tab selected — then it appears while active so the bar
   // matches the open panel.
-  const visibleTabs = tabs.filter((tab) => {
+  const visibleTabs = availableTabs.filter((tab) => {
     if (!persistedState.unpinnedTabs.includes(tab.tabValue)) return true;
     return selectedTab === tab.tabValue;
   });
@@ -355,6 +371,11 @@ export function ConversationTabs({
           ref={tabsRowInnerRef}
           className="flex w-full min-w-0 flex-nowrap items-center justify-start"
         >
+          {governed && (
+            <span role="status" className="sr-only">
+              {t(I18nKey.CONVERSATION$GOVERNED_ENTRY_POINTS_HIDDEN)}
+            </span>
+          )}
           <div className="flex min-w-0 flex-1 items-center justify-start overflow-hidden">
             <div className="flex w-fit max-w-full min-w-0 items-center gap-1.5">
               <LayoutGroup id="conversation-drawer-tabs">

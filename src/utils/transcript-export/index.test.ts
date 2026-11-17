@@ -17,6 +17,7 @@ import type {
   TaskObservation,
 } from "#/types/agent-server/core/base/observation";
 import type { StreamingDeltaEvent } from "#/types/agent-server/core/events/streaming-delta-event";
+import type { PolicyEvent } from "#/types/agent-server/core/events/policy-event";
 import { SecurityRisk } from "#/types/agent-server/core/base/common";
 import { eventsToHtml, eventsToMarkdown } from ".";
 
@@ -215,6 +216,40 @@ describe("conversation transcript export", () => {
     expect(markdown).toContain("Run the unit tests (Rejected)");
     expect(markdown).toContain("User rejected the action");
   });
+
+  it.each([true, false])(
+    "exports a governed policy decision (ungoverned transcript unchanged, includeToolDetails=%s)",
+    (includeToolDetails) => {
+      const policyEvent: PolicyEvent = {
+        id: "policy-1",
+        timestamp,
+        source: "environment",
+        kind: "PolicyEvent",
+        status: "denied",
+        destination: "registry.example.test:5000",
+        reason: "destination not allowed by boundary policy",
+        rule: "deny-egress",
+        provenance: { proposal: "prop-42", prover: "within_boundary" },
+      };
+
+      const markdown = eventsToMarkdown([policyEvent], {
+        ...defaultOptions,
+        includeToolDetails,
+      });
+
+      expect(markdown).toContain("registry.example.test:5000");
+      expect(markdown).toContain("destination not allowed by boundary policy");
+      expect(markdown).toContain("deny-egress");
+      expect(markdown).toContain("proposal: prop-42");
+      // The governed conversation's export adds exactly the policy note; an
+      // ungoverned conversation (no policy events) exports exactly as before.
+      const ungovernedMarkdown = eventsToMarkdown(
+        [userMessage, terminalAction],
+        { ...defaultOptions, includeToolDetails },
+      );
+      expect(ungovernedMarkdown).not.toContain("Policy");
+    },
+  );
 
   it("exports assistant narration once when an observation replaces its action", () => {
     const narratedAction: ActionEvent<ExecuteBashAction> = {

@@ -2,7 +2,9 @@ import i18n from "#/i18n";
 import { I18nKey } from "#/i18n/declaration";
 import {
   compareAgentServerVersions,
+  getCachedAgentServerInfo,
   getCachedAgentServerVersion,
+  isGovernedConversationRuntime,
 } from "#/api/agent-server-compatibility";
 import {
   createCloudAppConversation,
@@ -521,6 +523,21 @@ export async function handleLaunchChildConversationAction(
       toolCallId,
     )
   ) {
+    return;
+  }
+
+  // Governed conversations register no launch tool, so this executes only
+  // when the agent replays a stale schema or invents the call. Delegation
+  // stays cloud-only there (R14), so the refusal names the boundary instead
+  // of launching a local child the governed server would refuse anyway.
+  if (isGovernedConversationRuntime(getCachedAgentServerInfo())) {
+    await reportLaunchResult(
+      parentConversationId,
+      failure(
+        "This conversation runs on a governed backend.",
+        "launch_child_conversation is unavailable on a governed backend. Nothing was launched; ask the user to delegate from an ungoverned backend or from OpenHands Cloud.",
+      ),
+    );
     return;
   }
 

@@ -14,11 +14,13 @@ import {
   isHookExecutionEvent,
   isMessageEvent,
   isObservationEvent,
+  isPolicyEvent,
   isStreamingDeltaEvent,
   isSwitchLLMObservationEvent,
   isClassifyAndSwitchLLMObservationEvent,
   isUserRejectObservation,
 } from "#/types/agent-server/type-guards";
+import { getPolicyEventStatusKey } from "#/components/conversation-events/chat/event-message-components/policy-event-message";
 import { handleEventForUI } from "#/utils/handle-event-for-ui";
 import { markdownFence } from "#/utils/markdown-fence";
 import { shouldRenderEvent } from "#/components/conversation-events/chat/event-content-helpers/should-render-event";
@@ -508,6 +510,26 @@ const buildTranscriptEntries = (
             command: truncate(cleanInlineText(event.hook_command), 100),
           }),
           details: includeToolDetails ? getHookDetails(event) : "",
+          timestamp: event.timestamp ?? "",
+        });
+        continue;
+      }
+
+      if (isPolicyEvent(event)) {
+        entries.push({
+          kind: "note",
+          summary: `${i18n.t(I18nKey.POLICY$EVENT_LABEL)} ${i18n.t(
+            getPolicyEventStatusKey(event.status),
+          )}: ${cleanInlineText(event.destination)}`,
+          content: [
+            `${i18n.t(I18nKey.POLICY$REASON)}: ${event.reason}`,
+            event.rule ? `${i18n.t(I18nKey.POLICY$RULE)}: ${event.rule}` : "",
+            ...Object.entries(event.provenance).map(
+              ([name, value]) => `${name}: ${value}`,
+            ),
+          ]
+            .filter(Boolean)
+            .join("\n"),
           timestamp: event.timestamp ?? "",
         });
         continue;

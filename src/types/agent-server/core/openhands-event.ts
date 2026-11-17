@@ -14,6 +14,7 @@ import {
   ConversationErrorEvent,
   HookExecutionEvent,
   PauseEvent,
+  PolicyEvent,
   ServerErrorEvent,
   StreamingDeltaEvent,
 } from "./events/index";
@@ -34,6 +35,8 @@ export type OpenHandsEvent =
   | ACPToolCallEvent
   // Hook events
   | HookExecutionEvent
+  // Governed-runtime policy and approval decisions
+  | PolicyEvent
   // Conversation management events
   | CondensationEvent
   | CondensationRequestEvent
