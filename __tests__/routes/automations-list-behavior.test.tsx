@@ -104,6 +104,12 @@ vi.mock("#/hooks/query/use-automation-health", () => ({
   useAutomationHealth: () => mocks.healthState,
 }));
 
+// These scenarios cover the plain automations list; the governed refusal has
+// its own test in automations-dashboard.test.tsx.
+vi.mock("#/hooks/query/use-governed-backend", () => ({
+  useGovernedBackend: () => ({ governed: false, known: true }),
+}));
+
 vi.mock("#/hooks/mutation/use-create-conversation", () => ({
   useCreateConversation: () => ({
     mutate: mocks.createConversation,

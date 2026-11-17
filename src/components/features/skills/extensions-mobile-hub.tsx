@@ -7,6 +7,7 @@ import { BackendSyncedSettingsBadge } from "#/components/features/settings/backe
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { isNoBackend } from "#/api/backend-registry/active-store";
 import { useCloudMcpSettingsUrl } from "#/hooks/use-cloud-mcp-settings-url";
+import { useGovernedBackend } from "#/hooks/query/use-governed-backend";
 import { cn } from "#/utils/utils";
 import {
   SIDEBAR_ICON_SLOT_CLASS,
@@ -30,6 +31,8 @@ export function ExtensionsMobileHub() {
   const { backend } = active;
   const isCloudBackend = !isNoBackend(backend) && backend.kind === "cloud";
   const { url: cloudMcpSettingsUrl } = useCloudMcpSettingsUrl();
+  // A governed sandbox loads no MCP tools, so its settings surface is hidden.
+  const { governed } = useGovernedBackend();
 
   return (
     <div
@@ -40,7 +43,8 @@ export function ExtensionsMobileHub() {
       <nav className="flex flex-col gap-0.5">
         {EXTENSIONS_NAV_ITEMS.filter(
           (item) =>
-            !(CLOUD_HIDDEN_EXTENSION_PATHS.has(item.to) && isCloudBackend),
+            !(CLOUD_HIDDEN_EXTENSION_PATHS.has(item.to) && isCloudBackend) &&
+            !(item.to === "/mcp" && governed),
         ).map((item) => {
           const isCloudSkillsLink =
             item.to === CLOUD_LINKED_EXTENSION_PATH && isCloudBackend;

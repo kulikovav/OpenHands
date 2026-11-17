@@ -103,9 +103,13 @@ function renderForm({
 }
 
 async function openWorkspaceDropdown(user: ReturnType<typeof userEvent.setup>) {
-  const dropdown = await screen.findByTestId("workspace-dropdown");
-  await waitFor(() => expect(dropdown).not.toBeDisabled());
-  await user.click(dropdown);
+  await screen.findByTestId("workspace-dropdown");
+  // The dropdown swaps its tooltip wrapper once the runtime probe resolves,
+  // so re-query instead of holding the first node.
+  await waitFor(() =>
+    expect(screen.getByTestId("workspace-dropdown")).not.toBeDisabled(),
+  );
+  await user.click(screen.getByTestId("workspace-dropdown"));
   return screen.findByTestId("workspace-dropdown-menu");
 }
 
@@ -145,7 +149,7 @@ describe("WorkspaceDropdown", () => {
         </div>,
       );
 
-      await user.click(await screen.findByTestId("workspace-dropdown"));
+      await openWorkspaceDropdown(user);
       const action = await screen.findByTestId(testId);
 
       fireEvent.touchStart(action);
@@ -177,6 +181,17 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
       items: [],
       next_page_id: null,
     });
+    // The workspace gate reads /server_info before enabling host workspaces.
+    // A host-local answer keeps the form ungoverned and its controls enabled;
+    // the isolated test overrides this handler for its own response.
+    server.use(
+      http.get("*/server_info", () =>
+        HttpResponse.json({
+          version: "1.62.0",
+          conversation_runtime: "local",
+        }),
+      ),
+    );
   });
 
   it("renders the default empty selection when no workspace path is persisted", async () => {
@@ -190,10 +205,14 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
       ],
     });
 
-    const dropdown = await screen.findByTestId("workspace-dropdown");
-    await waitFor(() => expect(dropdown).not.toBeDisabled());
+    await screen.findByTestId("workspace-dropdown");
+    // The dropdown swaps its tooltip wrapper once the runtime probe resolves,
+    // so re-query instead of holding the first node.
+    await waitFor(() =>
+      expect(screen.getByTestId("workspace-dropdown")).not.toBeDisabled(),
+    );
 
-    expect(dropdown).toHaveValue("");
+    expect(screen.getByTestId("workspace-dropdown")).toHaveValue("");
     expect(screen.getByTestId("workspace-launch-button")).toBeDisabled();
     expect(
       window.sessionStorage.getItem(HOME_SELECTED_WORKSPACE_PATH_KEY),
@@ -372,7 +391,7 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     const user = userEvent.setup();
 
     // Act
-    await user.click(await screen.findByTestId("workspace-dropdown"));
+    await openWorkspaceDropdown(user);
     await user.click(await screen.findByTestId("add-workspaces-button"));
     await screen.findByTestId("folder-browser-modal");
     await user.click(await screen.findByTestId("folder-browser-entry-dev"));
@@ -409,7 +428,7 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     renderForm();
     const user = userEvent.setup();
 
-    await user.click(await screen.findByTestId("workspace-dropdown"));
+    await openWorkspaceDropdown(user);
     await user.click(await screen.findByTestId("add-workspaces-button"));
     await screen.findByTestId("folder-browser-modal");
 
@@ -445,7 +464,7 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     const user = userEvent.setup();
 
     // Act
-    await user.click(await screen.findByTestId("workspace-dropdown"));
+    await openWorkspaceDropdown(user);
     await user.click(await screen.findByTestId("add-workspaces-button"));
     const entry = await screen.findByTestId("folder-browser-entry-dev");
 
@@ -509,7 +528,7 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     renderForm();
     const user = userEvent.setup();
 
-    await user.click(await screen.findByTestId("workspace-dropdown"));
+    await openWorkspaceDropdown(user);
     await user.click(await screen.findByTestId("add-workspaces-button"));
     await screen.findByTestId("folder-browser-modal");
     await expect(
@@ -705,7 +724,7 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     const user = userEvent.setup();
 
     // Act
-    await user.click(await screen.findByTestId("workspace-dropdown"));
+    await openWorkspaceDropdown(user);
     await user.click(await screen.findByTestId("add-workspaces-button"));
     await screen.findByTestId("folder-browser-modal");
     await user.click(await screen.findByTestId("folder-browser-entry-dev"));

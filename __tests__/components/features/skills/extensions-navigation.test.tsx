@@ -14,6 +14,7 @@ import {
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
+import { clearCachedAgentServerInfo } from "#/api/agent-server-compatibility";
 
 import {
   ExtensionsNavigation,
@@ -222,6 +223,88 @@ describe("ExtensionsNavigation", () => {
       expect(
         within(nav).getByTestId("sidebar-extensions-/mcp"),
       ).toHaveAttribute("target", "_blank");
+    });
+  });
+
+  describe("governed backend", () => {
+    const localBackend: Backend = {
+      id: "local-governed",
+      name: "Governed Sandbox",
+      host: "http://localhost:18932",
+      apiKey: "",
+      kind: "local",
+    };
+
+    const serverInfoHandler = (body: Record<string, unknown>) =>
+      http.get("*/server_info", () => HttpResponse.json(body));
+
+    beforeEach(() => {
+      clearCachedAgentServerInfo();
+      setRegisteredBackends([localBackend]);
+      setActiveSelection({ backendId: localBackend.id });
+    });
+
+    afterEach(() => {
+      clearCachedAgentServerInfo();
+    });
+
+    it("hides the MCP Servers item when the server advertises the governed capability", async () => {
+      server.use(
+        serverInfoHandler({
+          version: "1.62.0",
+          conversation_runtime: "docker",
+          available_conversation_runtimes: [],
+          capabilities: ["governed_conversation_runtime_v1"],
+        }),
+      );
+
+      renderExtensionsNavigation(<ExtensionsNavigation />);
+
+      const nav = screen.getByTestId("extensions-navbar-desktop");
+      await waitFor(() => {
+        expect(
+          within(nav).queryByTestId("sidebar-extensions-/mcp"),
+        ).not.toBeInTheDocument();
+      });
+      // The rest of the Extensions surface stays.
+      expect(within(nav).getByTestId("sidebar-extensions-/skills")).toBeTruthy();
+    });
+
+    it("hides the MCP Servers item on a docker-only server without the capability", async () => {
+      server.use(
+        serverInfoHandler({
+          version: "1.62.0",
+          conversation_runtime: "docker",
+          available_conversation_runtimes: [],
+        }),
+      );
+
+      renderExtensionsNavigation(<ExtensionsNavigation />);
+
+      const nav = screen.getByTestId("extensions-navbar-desktop");
+      await waitFor(() => {
+        expect(
+          within(nav).queryByTestId("sidebar-extensions-/mcp"),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    it("keeps the MCP Servers item on a host-local backend", async () => {
+      server.use(
+        serverInfoHandler({
+          version: "1.62.0",
+          conversation_runtime: "local",
+        }),
+      );
+
+      renderExtensionsNavigation(<ExtensionsNavigation />);
+
+      const nav = screen.getByTestId("extensions-navbar-desktop");
+      await waitFor(() => {
+        expect(
+          within(nav).getByTestId("sidebar-extensions-/mcp"),
+        ).toBeInTheDocument();
+      });
     });
   });
 

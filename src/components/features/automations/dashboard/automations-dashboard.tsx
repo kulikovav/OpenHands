@@ -52,7 +52,11 @@ import { AutomationCardSkeleton } from "#/components/features/automations/automa
 import { EmptyState } from "#/components/features/automations/empty-state";
 import { FactoryAutomationsEmptyState } from "#/components/features/factories/factory-automations-empty-state";
 import { ErrorState } from "#/components/features/automations/error-state";
-import { BackendNotConfigured } from "#/components/features/automations/backend-not-configured";
+import {
+  BackendNotConfigured,
+  GovernedBackendNotice,
+} from "#/components/features/automations/backend-not-configured";
+import { useGovernedBackend } from "#/hooks/query/use-governed-backend";
 import { DeleteConfirmationModal } from "#/components/features/automations/delete-confirmation-modal";
 import { useOpenAutomationEditor } from "#/hooks/use-open-automation-editor";
 import { useStartAutomationSetup } from "#/hooks/use-start-automation-setup";
@@ -358,6 +362,7 @@ export function AutomationsDashboard({
   const [isImportOpen, setIsImportOpen] = useState(false);
 
   const active = useActiveBackend();
+  const { governed: isBackendGoverned } = useGovernedBackend();
   const { navigate } = useNavigation();
   // Git Sync is org-level config, so its entry point requires
   // manage_automations (admins/owners) on every backend kind.
@@ -791,6 +796,20 @@ export function AutomationsDashboard({
             <AutomationCardSkeleton key={`skeleton-${String(i)}`} />
           ))}
         </div>
+      </div>,
+    );
+  }
+
+  // A governed backend can never serve automations, so its refusal is
+  // permanent: no retry, and it names the backend the user is on.
+  if (isBackendGoverned) {
+    return renderShell(
+      <div>
+        <h1 className="text-xl font-medium text-content">
+          {interfaceCopy.listTitle}
+        </h1>
+        <p className="mt-1 text-sm text-muted">{interfaceCopy.listSubtitle}</p>
+        <GovernedBackendNotice backendName={active.backend.name} />
       </div>,
     );
   }
