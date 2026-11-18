@@ -31,6 +31,7 @@ export default [
       route("agent-context", "routes/agent-context-settings.tsx"),
       route("verification", "routes/verification-settings.tsx"),
       route("runtime", "routes/runtime-settings.tsx"),
+      route("backends", "routes/backends-settings.tsx"),
       route("app", "routes/app-settings.tsx"),
       route("secrets", "routes/secrets-settings.tsx"),
       route("git-providers", "routes/git-providers-settings.tsx"),

@@ -11,6 +11,7 @@ import {
   Plug,
   Route,
   Search,
+  Server,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -43,6 +44,7 @@ export const COMMAND_MENU_ROUTE = {
   agentContextSettings: "/settings/agent-context",
   verificationSettings: "/settings/verification",
   runtimeSettings: "/settings/runtime",
+  backendsSettings: "/settings/backends",
   appSettings: "/settings/app",
   secretsSettings: "/settings/secrets",
   gitProvidersSettings: "/settings/git-providers",
@@ -62,6 +64,7 @@ export type CommandMenuItemId =
   | "agent-context-settings"
   | "verification-settings"
   | "runtime-settings"
+  | "backends-settings"
   | "app-settings"
   | "secrets-settings"
   | "git-providers-settings"
@@ -237,6 +240,14 @@ export const createCommandMenuItems = ({
       keywordsKey: I18nKey.COMMAND_MENU$RUNTIME_SETTINGS_KEYWORDS,
       icon: <Container size={ICON_SIZE} />,
       to: COMMAND_MENU_ROUTE.runtimeSettings,
+    },
+    {
+      id: "backends-settings",
+      group: "settings",
+      titleKey: I18nKey.SETTINGS$NAV_BACKENDS,
+      descriptionKey: I18nKey.SETTINGS$PAGE_BACKENDS_SUBLINE,
+      icon: <Server size={ICON_SIZE} />,
+      to: COMMAND_MENU_ROUTE.backendsSettings,
     },
     {
       id: "app-settings",
