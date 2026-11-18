@@ -73,12 +73,15 @@ async function start({ wakeMs = 20 } = {}) {
   return { base, call, calls };
 }
 
-const until = async (check) => {
-  for (let i = 0; i < 100; i += 1) {
+// Polls until the condition holds. The ceiling is far above any honest wait
+// on a loaded machine, while a real hang still fails the test.
+const until = async (check, what = "condition") => {
+  const deadline = Date.now() + 60_000;
+  while (Date.now() < deadline) {
     if (await check()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  throw new Error("timed out");
+  throw new Error(`timed out after 60000ms waiting for ${what}`);
 };
 
 test("accepts only the placeholder token, so a real one is refused like a wrong one", async () => {
@@ -389,11 +392,13 @@ test("stops a guest that is still starting when cancelled", async () => {
   );
   // A guest that never answers /server_info, like uvx still resolving.
   const pidFile = join(run, "guest.pid");
+  const pidTemp = `${pidFile}.tmp`;
   const guest = join(run, "repo", "slow-guest.mjs");
   writeFileSync(
     guest,
-    `import { writeFileSync } from "node:fs";
-writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));
+    `import { renameSync, writeFileSync } from "node:fs";
+writeFileSync(${JSON.stringify(pidTemp)}, String(process.pid));
+renameSync(${JSON.stringify(pidTemp)}, ${JSON.stringify(pidFile)});
 setInterval(() => {}, 1000);
 `,
   );

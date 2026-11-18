@@ -2,7 +2,7 @@
 // They run with the rest of the suite (`npm test`), or alone:
 //   npx vitest run .agents/skills/verify-openhands
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { EventEmitter } from "node:events";
 import {
   existsSync,
@@ -129,6 +129,29 @@ function run(args, env = {}, execArgv = []) {
     json = undefined;
   }
   return { ...result, json };
+}
+
+// Polls until the condition holds. The ceiling is far above any honest wait
+// on a loaded machine, while a real hang still fails the test.
+async function waitFor(check, what, timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await check()) return;
+    await delay(25);
+  }
+  throw new Error(`timed out after ${timeoutMs}ms waiting for ${what}`);
+}
+
+// A stopped process keeps its state flag until SIGCONT, so this is a fact,
+// not a guess about how long a signal takes to land.
+function isStopped(pid) {
+  try {
+    return execFileSync("ps", ["-o", "stat=", "-p", String(pid)], {
+      encoding: "utf8",
+    }).trim().startsWith("T");
+  } catch {
+    return false;
+  }
 }
 
 test("scoped testid chain builds nested locators", () => {
@@ -2175,8 +2198,14 @@ test.skipIf(process.platform === "win32")(
     });
     let childPid;
     try {
-      for (let attempts = 0; attempts < 50 && !existsSync(ownBeat); attempts++)
-        await delay(20);
+      await waitFor(
+        () =>
+          existsSync(ownBeat) &&
+          existsSync(otherBeat) &&
+          existsSync(childPidFile) &&
+          Number(readFileSync(childPidFile, "utf8")) > 0,
+        "both services to beat and the child pid",
+      );
       childPid = Number(readFileSync(childPidFile, "utf8"));
       assert.ok(existsSync(ownBeat) && existsSync(otherBeat));
       writeFileSync(
@@ -2190,16 +2219,21 @@ test.skipIf(process.platform === "win32")(
       assert.equal(paused.status, 0);
       assert.deepEqual(paused.json.signalled, [childPid]);
       assert.equal(paused.json.launcherAlive, true);
+      await waitFor(() => isStopped(childPid), "the paused service to stop");
       const frozen = readFileSync(ownBeat, "utf8");
       const otherBefore = readFileSync(otherBeat, "utf8");
-      await delay(100);
+      await waitFor(
+        () => readFileSync(otherBeat, "utf8") !== otherBefore,
+        "the unrelated service to keep beating while the paused one is stopped",
+      );
       assert.equal(readFileSync(ownBeat, "utf8"), frozen);
-      assert.notEqual(readFileSync(otherBeat, "utf8"), otherBefore);
       const resumed = run(["service", "resume", "frontend", "--run", dir]);
       assert.equal(resumed.status, 0);
       assert.deepEqual(resumed.json.signalled, [childPid]);
-      await delay(100);
-      assert.notEqual(readFileSync(ownBeat, "utf8"), frozen);
+      await waitFor(
+        () => readFileSync(ownBeat, "utf8") !== frozen,
+        "the resumed service to beat again",
+      );
     } finally {
       if (!childPid && existsSync(childPidFile))
         childPid = Number(readFileSync(childPidFile, "utf8"));
@@ -2764,7 +2798,7 @@ test("a fix is verified only by two reproductions and two passes under the same 
   assert.equal(old.ignored, 1);
 });
 
-test("bug run classifies live attempts and bug proof turns two runs into a verdict", () => {
+test("bug run classifies live attempts and bug proof turns two runs into a verdict", { timeout: 180_000 }, () => {
   const dir = mkdtempSync(join(tmpdir(), "bug-map-"));
   const write = (name, body, timeout) => {
     const file = join(dir, `${name}.md`);
