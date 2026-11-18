@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DiscoveryBackend } from "#/api/discovery/discovery-backends.api";
 import {
+  __resetActiveStoreForTests,
+  setActiveSelection,
+  setRegisteredBackends,
+} from "#/api/backend-registry/active-store";
+import {
   discoveryBackendId,
   isDiscoveryBackend,
   seedDiscoveryBackends,
@@ -29,12 +34,22 @@ const manualBackend: Backend = {
   kind: "local",
 };
 
+const activate = (backend: Backend): void => {
+  setRegisteredBackends([backend]);
+  setActiveSelection({ backendId: backend.id });
+};
+
 beforeEach(() => {
   vi.stubEnv("VITE_SESSION_API_KEY", SESSION_KEY);
+  window.localStorage.clear();
+  __resetActiveStoreForTests();
+  activate(manualBackend);
 });
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  window.localStorage.clear();
+  __resetActiveStoreForTests();
 });
 
 describe("seedDiscoveryBackends", () => {
@@ -82,6 +97,7 @@ describe("seedDiscoveryBackends", () => {
   });
 
   it("keeps a registered backend at the same address and its manual record", () => {
+    // Arrange — the active key differs from the one the entry keeps.
     const handAdded: Backend = {
       id: "my-slot",
       name: "Slot one",
@@ -89,10 +105,66 @@ describe("seedDiscoveryBackends", () => {
       apiKey: "edited-key",
       kind: "local",
     };
+    activate(handAdded);
 
+    // Act
     const seeded = seedDiscoveryBackends([discoveryEntry()], [handAdded]);
 
+    // Assert
     expect(seeded).toEqual([handAdded]);
+  });
+
+  it("seeds the key that fetched the discovery document", () => {
+    // Arrange — the page carries no baked key; only the active backend has one.
+    const deploymentBackend: Backend = {
+      ...manualBackend,
+      apiKey: "shared-deployment-key",
+    };
+    activate(deploymentBackend);
+
+    // Act
+    const seeded = seedDiscoveryBackends(
+      [discoveryEntry()],
+      [deploymentBackend],
+    );
+
+    // Assert
+    expect(seeded).toHaveLength(2);
+    expect(seeded[1]).toMatchObject({
+      id: discoveryBackendId("backend-1"),
+      apiKey: "shared-deployment-key",
+    });
+  });
+
+  it("falls back to the baked key when the registry has no local backend", () => {
+    // Arrange
+    setRegisteredBackends([]);
+    setActiveSelection(null);
+
+    // Act
+    const seeded = seedDiscoveryBackends([discoveryEntry()], []);
+
+    // Assert
+    expect(seeded).toHaveLength(1);
+    expect(seeded[0].apiKey).toBe(SESSION_KEY);
+  });
+
+  it("lists a backend with an empty key when no key is available", () => {
+    // Arrange — a deployment that supplied neither the active nor the baked key.
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    setRegisteredBackends([]);
+    setActiveSelection(null);
+
+    // Act
+    const seeded = seedDiscoveryBackends([discoveryEntry()], []);
+
+    // Assert
+    expect(seeded).toHaveLength(1);
+    expect(seeded[0]).toMatchObject({
+      id: discoveryBackendId("backend-1"),
+      host: "https://backend-1.oh.example.com",
+      apiKey: "",
+    });
   });
 
   it("adds nothing on a second read of the same document", () => {
