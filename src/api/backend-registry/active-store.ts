@@ -2,6 +2,8 @@ import { getBackendHealthEntry } from "./health-store";
 import {
   readStoredActiveBackend,
   readStoredBackends,
+  readStoredDefaultBackendId,
+  readStoredSessionBackend,
   writeStoredActiveBackend,
   writeStoredBackends,
 } from "./storage";
@@ -63,6 +65,17 @@ function pickFallbackBackend(backends: Backend[]): Backend {
   return localBackend ?? backends[0] ?? NO_BACKEND;
 }
 
+/**
+ * The backend the Runtime settings page names as the default for new runs,
+ * when it is still registered. `null` keeps the last-used / Local fallback for
+ * a user who never chose a default.
+ */
+function pickConfiguredDefaultBackend(backends: Backend[]): Backend | null {
+  const defaultBackendId = readStoredDefaultBackendId();
+  if (!defaultBackendId) return null;
+  return backends.find((backend) => backend.id === defaultBackendId) ?? null;
+}
+
 function computeSnapshot(
   backends: Backend[],
   selection: BackendSelection | null,
@@ -83,7 +96,8 @@ function computeSnapshot(
 
   // @spec BM-003 — Fallback on active backend removal
   if (!activeBackend) {
-    activeBackend = pickFallbackBackend(backends);
+    activeBackend =
+      pickConfiguredDefaultBackend(backends) ?? pickFallbackBackend(backends);
     activeOrgId = null;
   }
 
@@ -118,6 +132,10 @@ function readInitialSelection(backends: Backend[]): BackendSelection | null {
     removeOrgFromCurrentUrl();
     return handedBack;
   }
+  // A configured default backend applies to every new run. Only this tab's
+  // explicit choice overrides it; the cross-tab last-used value is the
+  // fallback for a user who never chose a default.
+  if (readStoredDefaultBackendId()) return readStoredSessionBackend();
   return readStoredActiveBackend();
 }
 
