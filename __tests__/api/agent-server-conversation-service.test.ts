@@ -9,6 +9,7 @@ import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { server } from "#/mocks/node";
 import { WORKSPACE_TAG_KEY } from "#/api/agent-server-adapter";
+import type { WorkspaceMode } from "#/api/conversation-metadata-store";
 import {
   __resetActiveStoreForTests,
   setActiveSelection,
@@ -19,7 +20,10 @@ import {
   setStoredConversationMetadata,
 } from "#/api/conversation-metadata-store";
 import type { Backend } from "#/api/backend-registry/types";
-import { clearCachedAgentServerInfo } from "#/api/agent-server-compatibility";
+import {
+  clearCachedAgentServerInfo,
+  GOVERNED_CONVERSATION_RUNTIME_CAPABILITY,
+} from "#/api/agent-server-compatibility";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { getOrganizationSuspension } from "#/api/cloud/organization-suspension-store";
 import { AUTOMATION_SETUP_SYSTEM_SUFFIX } from "#/api/automation-form-client-tool";
@@ -902,6 +906,78 @@ describe("AgentServerConversationService", () => {
       );
       expect(firstPayload.worktree).toBe(true);
       expect(secondPayload.worktree).toBe(true);
+    });
+
+    // R15: a governed conversation runs only in its sandbox workspace, so the
+    // server refuses any worktree request. The thread-folder default must not
+    // mark a plain chat as a worktree there. The live g1 request carried the
+    // default working_dir with `worktree: true` and got a 422.
+    describe("governed sandbox workspace", () => {
+      const governedServerInfo = {
+        version: "1.41.0",
+        uptime: 0,
+        idle_time: 0,
+        conversation_runtime: "local",
+        available_conversation_runtimes: [],
+        capabilities: [GOVERNED_CONVERSATION_RUNTIME_CAPABILITY],
+      };
+
+      const startConversation = async (workspaceMode?: WorkspaceMode) => {
+        server.use(
+          http.get("*/server_info", () =>
+            HttpResponse.json(governedServerInfo),
+          ),
+        );
+        mockGetSettings.mockResolvedValue({
+          agent_settings: { llm: { model: "gpt-4o" } },
+          conversation_settings: {},
+        });
+        mockGetSettingsForConversation.mockResolvedValue({
+          agentSettings: { llm: { model: "gpt-4o" } },
+          conversationSettings: {},
+          secretsEncrypted: true,
+        });
+        mockHttpPost.mockResolvedValue({
+          data: {
+            id: "ignored-server-id",
+            created_at: "2024-01-01",
+            updated_at: "2024-01-01",
+          },
+        });
+
+        await AgentServerConversationService.createConversation({
+          agentProfileId: "profile-1",
+          ...(workspaceMode ? { workspaceMode } : {}),
+        });
+
+        const [payloadCall] = mockHttpPost.mock.calls;
+        return payloadCall[1] as {
+          workspace: { kind: string; working_dir: string };
+          worktree: boolean;
+        };
+      };
+
+      afterEach(() => {
+        clearCachedAgentServerInfo();
+      });
+
+      it("starts a plain chat without a worktree and keeps the workspace shape", async () => {
+        const payload = await startConversation();
+
+        expect(payload.worktree).toBe(false);
+        expect(payload.workspace).toEqual({
+          kind: "LocalWorkspace",
+          working_dir: expect.stringMatching(
+            /^\/state\/workspaces\/[0-9a-f]{32}$/,
+          ),
+        });
+      });
+
+      it("coerces a stored new-worktree mode instead of marking the start", async () => {
+        const payload = await startConversation("new_worktree");
+
+        expect(payload.worktree).toBe(false);
+      });
     });
 
     // @spec WUP-001 — When the default working_dir is relative, the

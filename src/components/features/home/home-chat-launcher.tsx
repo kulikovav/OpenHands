@@ -147,13 +147,18 @@ export function HomeChatLauncher() {
   const { error: workspacesError } = useLocalWorkspaces({ enabled: isLocal });
   const {
     isolated,
+    governed,
     dockerSelectable,
     serverInfoLoading,
     unsupportedMessage: runtimeWorkspaceMessage,
   } = useConversationWorkspace();
+  // A governed sandbox owns its workspace, so a host folder attached before
+  // the probe answered is not usable: the server refuses the host path (R15),
+  // and the launcher offers no worktree mode there. Mirrors `isolated`.
+  const usableWorkspace = governed ? null : pendingWorkspace;
   const workspaceModes = getWorkspaceModeOptions(
     dockerSelectable,
-    !isLocal || !!pendingWorkspace,
+    !isLocal || !!usableWorkspace,
   );
   // A remembered mode the server no longer offers falls back, but only once
   // server_info has answered: a pending probe must not silently turn a Docker
@@ -171,7 +176,7 @@ export function HomeChatLauncher() {
     if (isLocal) writeStoredLocalWorkspaceMode(mode);
   };
 
-  const hasSelection = isLocal ? !!pendingWorkspace : !!repositorySelection;
+  const hasSelection = isLocal ? !!usableWorkspace : !!repositorySelection;
 
   const handleSubmit = (message: string) => {
     const trimmed = message.trim();
@@ -229,10 +234,10 @@ export function HomeChatLauncher() {
     // (`HOME$ISOLATED_WORKSPACE_NOTICE`) and the user sees an error toast for a
     // selection they may not have noticed. Creation proceeds isolated instead;
     // the launcher still offers an explicit "clear" affordance for the UI.
-    if (isLocal && pendingWorkspace && !isolated) {
+    if (isLocal && usableWorkspace && !isolated) {
       variables = {
         ...variables,
-        workingDir: pendingWorkspace.path,
+        workingDir: usableWorkspace.path,
         workspaceMode: effectiveWorkspaceMode,
       };
     } else if (isLocal && effectiveWorkspaceMode === "docker_container") {
@@ -549,7 +554,7 @@ export function HomeChatLauncher() {
         >
           {hasSelection ? (
             <HomeGitControlBarPreview
-              workspace={pendingWorkspace}
+              workspace={usableWorkspace}
               repository={repositorySelection?.repository}
               branch={repositorySelection?.branch}
               provider={repositorySelection?.provider}

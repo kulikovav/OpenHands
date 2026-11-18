@@ -742,17 +742,29 @@ class AgentServerConversationService {
       agentLlmProfileRef,
     );
     const conversationId = randomUUID();
-    const resolvedWorkspaceMode =
+    const requestedWorkspaceMode =
       workspaceMode ?? (workingDirOverride ? "local_repo" : "new_worktree");
-    const inContainer = resolvedWorkspaceMode === "docker_container";
-    const { workingDir, hooksProjectDir, isolated, runtimeSelectable } =
-      await resolveNewConversationWorkspace({
-        conversationId,
-        workingDir: workingDirOverride,
-        selectedRepository: metadata?.selected_repository,
-        parentConversationId,
-        inContainer,
-      });
+    const inContainer = requestedWorkspaceMode === "docker_container";
+    const {
+      workingDir,
+      hooksProjectDir,
+      isolated,
+      governed,
+      runtimeSelectable,
+    } = await resolveNewConversationWorkspace({
+      conversationId,
+      workingDir: workingDirOverride,
+      selectedRepository: metadata?.selected_repository,
+      parentConversationId,
+      inContainer,
+    });
+    // R15: a governed sandbox serves no git worktree, so the thread-folder
+    // default becomes a plain workspace and an explicit request is coerced.
+    // The server refuses a worktree start with a 422.
+    const resolvedWorkspaceMode =
+      governed && requestedWorkspaceMode === "new_worktree"
+        ? "local_repo"
+        : requestedWorkspaceMode;
     // A server offering both runtimes is told which one; whatever its default
     // is, a host mode then runs on the host. Other servers keep their own.
     const conversationRuntime = inContainer
