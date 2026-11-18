@@ -1,8 +1,16 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsService from "#/api/settings-service/settings-service.api";
+import {
+  __resetActiveStoreForTests,
+  setActiveSelection,
+  setRegisteredBackends,
+} from "#/api/backend-registry/active-store";
+import { __resetHealthStoreForTests } from "#/api/backend-registry/health-store";
+import type { Backend } from "#/api/backend-registry/types";
+import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import RuntimeSettingsScreen from "#/routes/runtime-settings";
 import type { SettingsValue } from "#/types/settings";
@@ -10,6 +18,14 @@ import type { SettingsValue } from "#/types/settings";
 const mockUseConversationWorkspace = vi.hoisted(() => vi.fn());
 vi.mock("#/hooks/query/use-conversation-workspace", () => ({
   useConversationWorkspace: () => mockUseConversationWorkspace(),
+}));
+
+vi.mock("#/hooks/query/use-discovered-backends", () => ({
+  useDiscoveredBackends: () => ({
+    data: [],
+    isLoading: false,
+    isError: false,
+  }),
 }));
 
 const RUNTIME_OPTION_IDS = [
@@ -33,19 +49,70 @@ async function renderRuntimeOptions(
   });
   render(<RuntimeSettingsScreen />, {
     wrapper: ({ children }) => (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <ActiveBackendProvider>{children}</ActiveBackendProvider>
+      </QueryClientProvider>
     ),
   });
   await screen.findByTestId("sdk-settings-default_runtime");
   return RUNTIME_OPTION_IDS.filter((id) => screen.queryByTestId(id));
 }
 
+const localBackend: Backend = {
+  id: "local-1",
+  name: "Local 1",
+  host: "http://localhost:9000",
+  apiKey: "k",
+  kind: "local",
+};
+
+const cloudBackend: Backend = {
+  id: "cloud-1",
+  name: "Production",
+  host: "https://app.all-hands.dev",
+  apiKey: "k",
+  kind: "cloud",
+};
+
 describe("RuntimeSettingsScreen", () => {
   beforeEach(() => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    __resetHealthStoreForTests();
+    __resetActiveStoreForTests();
     mockUseConversationWorkspace.mockReturnValue({
       dockerSelectable: true,
       serverInfoLoading: false,
     });
+  });
+
+  afterEach(() => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    __resetHealthStoreForTests();
+    __resetActiveStoreForTests();
+  });
+
+  it("shows the backends configuration on a local backend", async () => {
+    setRegisteredBackends([localBackend]);
+    setActiveSelection({ backendId: localBackend.id });
+
+    await renderRuntimeOptions({ default_runtime: "local" });
+
+    expect(
+      screen.getByTestId("backends-settings-section"),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the backends configuration on a cloud backend", async () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+
+    await renderRuntimeOptions({ default_runtime: "local" });
+
+    expect(
+      screen.queryByTestId("backends-settings-section"),
+    ).not.toBeInTheDocument();
   });
 
   it.each<[string, Record<string, SettingsValue>, string[]]>([
