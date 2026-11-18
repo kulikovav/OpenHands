@@ -77,6 +77,20 @@ export function isDiscoveredPeerHost(
 }
 
 /**
+ * The session key the deployment's discovery document is read and seeded with.
+ *
+ * Every unit in one deployment shares the key the deployment issued, and the
+ * active backend holds it. That is the only source a web build can rely on:
+ * its page may carry no baked key. The baked key covers local dev, where the
+ * registry has no local entry yet. An empty or null result means the deployment
+ * supplied no key: the document cannot be fetched, and a seeded entry stays
+ * keyless.
+ */
+export function getDiscoverySessionApiKey(): string | null {
+  return getEffectiveLocalBackend()?.apiKey ?? getAgentServerSessionApiKey();
+}
+
+/**
  * Fetch the deployment's backend discovery document. The document is the only
  * source of the deployment's peer backends, so no address is kept by hand.
  */
@@ -84,8 +98,7 @@ export async function fetchDiscoveryBackends(
   signal?: AbortSignal,
 ): Promise<DiscoveryBackend[]> {
   const host = normalizeRoot(getAgentServerBaseUrl());
-  const apiKey =
-    getEffectiveLocalBackend()?.apiKey ?? getAgentServerSessionApiKey();
+  const apiKey = getDiscoverySessionApiKey();
   if (!host || !apiKey) return [];
   const response = await fetch(`${host}${DISCOVERY_BACKENDS_PATH}`, {
     headers: { "X-Session-API-Key": apiKey },

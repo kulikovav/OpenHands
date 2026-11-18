@@ -1,5 +1,7 @@
-import { getAgentServerSessionApiKey } from "../agent-server-config";
-import type { DiscoveryBackend } from "../discovery/discovery-backends.api";
+import {
+  getDiscoverySessionApiKey,
+  type DiscoveryBackend,
+} from "../discovery/discovery-backends.api";
 import { getRegisteredBackends, setRegisteredBackends } from "./active-store";
 import type { Backend } from "./types";
 
@@ -25,14 +27,15 @@ function normalizeHost(url: string): string {
  * manual entry for the slots, the run server, or the governed backend. A
  * backend already registered at the same address keeps its record and its
  * name: `default-local` is the ingress, and a user who edited an entry keeps
- * the edit. The document shares one session key across every unit, so the
- * seeded entry carries the key the page already uses.
+ * the edit. The document shares one session key across every unit, so a seeded
+ * entry takes its key from the same source the discovery fetch authenticated
+ * with, never from the baked key alone.
  */
 export function seedDiscoveryBackends(
   entries: readonly DiscoveryBackend[],
   backends: readonly Backend[],
 ): Backend[] {
-  const sessionApiKey = getAgentServerSessionApiKey() ?? "";
+  const sessionApiKey = getDiscoverySessionApiKey() ?? "";
   const knownHosts = new Set(
     backends.map((backend) => normalizeHost(backend.host)),
   );
