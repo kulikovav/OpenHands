@@ -12,6 +12,12 @@ import type {
 
 export const BACKENDS_STORAGE_KEY = "openhands-backends";
 export const ACTIVE_BACKEND_STORAGE_KEY = "openhands-active-backend";
+/**
+ * The backend every new run starts on, chosen in Settings → Runtime. Absent
+ * means the user never chose one, so the registry keeps its last-used / Local
+ * fallback.
+ */
+export const DEFAULT_BACKEND_STORAGE_KEY = "openhands-default-backend";
 
 function isValidKind(value: unknown): value is BackendKind {
   return value === "local" || value === "cloud";
@@ -208,14 +214,45 @@ export function readStoredActiveBackend(): BackendSelection | null {
   // Active backend is tab-scoped so reloading tab A does not adopt tab B's
   // backend. localStorage remains a last-used fallback for fresh tabs and old
   // persisted state.
-  const sessionSelection = parseBackendSelection(
-    readStorageItem(window.sessionStorage, ACTIVE_BACKEND_STORAGE_KEY),
-  );
+  const sessionSelection = readStoredSessionBackend();
   if (sessionSelection) return sessionSelection;
 
   return parseBackendSelection(
     readStorageItem(window.localStorage, ACTIVE_BACKEND_STORAGE_KEY),
   );
+}
+
+/**
+ * The backend this tab picked explicitly, with no cross-tab fallback. A
+ * configured default backend outranks the last-used value, so the registry
+ * reads this when deciding between them.
+ */
+export function readStoredSessionBackend(): BackendSelection | null {
+  if (typeof window === "undefined") return null;
+
+  return parseBackendSelection(
+    readStorageItem(window.sessionStorage, ACTIVE_BACKEND_STORAGE_KEY),
+  );
+}
+
+export function readStoredDefaultBackendId(): string | null {
+  if (typeof window === "undefined") return null;
+
+  const value = readStorageItem(
+    window.localStorage,
+    DEFAULT_BACKEND_STORAGE_KEY,
+  );
+  return value && value.length > 0 ? value : null;
+}
+
+export function writeStoredDefaultBackendId(backendId: string | null): void {
+  if (typeof window === "undefined") return;
+
+  if (!backendId) {
+    removeStorageItem(window.localStorage, DEFAULT_BACKEND_STORAGE_KEY);
+    return;
+  }
+  writeStorageItem(window.localStorage, DEFAULT_BACKEND_STORAGE_KEY, backendId);
 }
 
 export function writeStoredActiveBackend(

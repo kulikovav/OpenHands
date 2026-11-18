@@ -3,6 +3,8 @@ import {
   SdkSectionPage,
   type SettingsSourceConfig,
 } from "#/components/features/settings/sdk-settings/sdk-section-page";
+import { BackendsSettingsSection } from "#/components/features/settings/backends-settings/backends-settings-section";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useConversationWorkspace } from "#/hooks/query/use-conversation-workspace";
 import { useSettings } from "#/hooks/query/use-settings";
 import { I18nKey } from "#/i18n/declaration";
@@ -16,6 +18,7 @@ const CONTAINER_FIELD_KEYS = new Set([
 function RuntimeSettingsScreen() {
   const { t } = useTranslation();
   const { data: settings } = useSettings();
+  const { backend } = useActiveBackend();
   const { dockerSelectable, serverInfoLoading } = useConversationWorkspace();
   const dockerUnavailable = !serverInfoLoading && !dockerSelectable;
   const savedDocker =
@@ -32,22 +35,27 @@ function RuntimeSettingsScreen() {
   }
 
   return (
-    <SdkSectionPage
-      settingsSources={[source]}
-      header={
-        dockerUnavailable && savedDocker
-          ? () => (
-              <p
-                data-testid="runtime-docker-unavailable"
-                className="text-sm text-muted"
-              >
-                {t(I18nKey.SETTINGS$RUNTIME_DOCKER_UNAVAILABLE)}
-              </p>
-            )
-          : undefined
-      }
-      testId="runtime-settings-screen"
-    />
+    <div className="flex flex-col gap-8">
+      <SdkSectionPage
+        settingsSources={[source]}
+        header={
+          dockerUnavailable && savedDocker
+            ? () => (
+                <p
+                  data-testid="runtime-docker-unavailable"
+                  className="text-sm text-muted"
+                >
+                  {t(I18nKey.SETTINGS$RUNTIME_DOCKER_UNAVAILABLE)}
+                </p>
+              )
+            : undefined
+        }
+        testId="runtime-settings-screen"
+      />
+      {/* The backend list seeds from a deployment discovery document, which
+          only a local deployment publishes. */}
+      {backend.kind === "local" && <BackendsSettingsSection />}
+    </div>
   );
 }
 
