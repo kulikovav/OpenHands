@@ -4,6 +4,7 @@ import {
   Container,
   Plug,
   Route as RouteIcon,
+  Server,
   Shield,
 } from "lucide-react";
 import KeyIcon from "#/icons/key.svg?react";
@@ -69,6 +70,15 @@ export const OSS_NAV_ITEMS: SettingsNavItem[] = [
     to: "/settings/runtime",
     text: "SETTINGS$NAV_RUNTIME",
     subtitle: "SETTINGS$PAGE_RUNTIME_SUBLINE",
+  },
+  {
+    // The agent servers this deployment reports, plus the ones the user added
+    // by hand, and the default backend new chats start on. The page reuses the
+    // section the Runtime page hosted, and it renders on a local backend only.
+    icon: <Server className="size-4" strokeWidth={2} aria-hidden />,
+    to: "/settings/backends",
+    text: "SETTINGS$NAV_BACKENDS",
+    subtitle: "SETTINGS$PAGE_BACKENDS_SUBLINE",
   },
   {
     icon: <AppWindow className="size-4" strokeWidth={2} aria-hidden />,

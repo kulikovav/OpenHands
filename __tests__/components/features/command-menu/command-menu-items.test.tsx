@@ -51,6 +51,7 @@ describe("the command menu settings group", () => {
       "agent-context-settings",
       "verification-settings",
       "runtime-settings",
+      "backends-settings",
       "app-settings",
       "secrets-settings",
       "git-providers-settings",

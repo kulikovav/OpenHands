@@ -44458,5 +44458,41 @@
     "uk": "Розмови, розпочаті без профілю агента, використовують власний список інструментів: {{names}}.",
     "ca": "Les converses iniciades sense un perfil d'agent fan servir una llista d'eines personalitzada: {{names}}.",
     "id": "Percakapan yang dimulai tanpa profil agen menggunakan daftar alat khusus: {{names}}."
+  },
+  "SETTINGS$NAV_BACKENDS": {
+    "en": "Backends",
+    "ja": "バックエンド",
+    "zh-CN": "后端",
+    "zh-TW": "後端",
+    "ko-KR": "백엔드",
+    "no": "Backender",
+    "ar": "الواجهات الخلفية",
+    "de": "Backends",
+    "fr": "Backends",
+    "it": "Backend",
+    "pt": "Backends",
+    "es": "Backends",
+    "ca": "Backends",
+    "tr": "Arka uçlar",
+    "uk": "Бекенди",
+    "id": "Backend"
+  },
+  "SETTINGS$PAGE_BACKENDS_SUBLINE": {
+    "en": "The agent servers this Canvas can reach, and the backend new conversations start on.",
+    "ja": "この Canvas が接続できるエージェントサーバーと、新しい会話を開始するバックエンドです。",
+    "zh-CN": "此 Canvas 可以连接的代理服务器，以及新会话启动时使用的后端。",
+    "zh-TW": "此 Canvas 可以連線的代理伺服器，以及新對話啟動時使用的後端。",
+    "ko-KR": "이 Canvas가 연결할 수 있는 에이전트 서버와 새 대화가 시작되는 백엔드입니다.",
+    "no": "Agent-serverne dette Canvas-et kan nå, og backenden nye samtaler starter på.",
+    "ar": "خوادم الوكلاء التي يمكن لهذا الـ Canvas الوصول إليها، والواجهة الخلفية التي تبدأ عليها المحادثات الجديدة.",
+    "de": "Die Agentenserver, die dieses Canvas erreicht, und das Backend, auf dem neue Unterhaltungen starten.",
+    "fr": "Les serveurs d'agents que ce Canvas peut joindre et le backend sur lequel démarrent les nouvelles conversations.",
+    "it": "I server agente raggiungibili da questo Canvas e il backend su cui iniziano le nuove conversazioni.",
+    "pt": "Os servidores de agentes que este Canvas alcança e o backend onde as novas conversas começam.",
+    "es": "Los servidores de agentes a los que este Canvas puede llegar y el backend en el que empiezan las conversaciones nuevas.",
+    "ca": "Els servidors d'agents que aquest Canvas pot assolir i el backend on comencen les converses noves.",
+    "tr": "Bu Canvas'ın erişebildiği ajan sunucuları ve yeni konuşmaların başladığı arka uç.",
+    "uk": "Сервери агентів, до яких може підключитися цей Canvas, і бекенд, на якому починаються нові розмови.",
+    "id": "Server agen yang dapat dijangkau Canvas ini, dan backend tempat percakapan baru dimulai."
   }
 }
