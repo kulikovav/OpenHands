@@ -127,6 +127,17 @@ describe("useSettingsNavItems", () => {
     }
   });
 
+  it("lists the backends page in the settings navigation", () => {
+    useConfigMock.mockReturnValue({ data: createConfig() });
+
+    const { result } = renderHook(() => useSettingsNavItems());
+    const paths = result.current
+      .filter((item) => item.type === "item")
+      .map((item) => (item.type === "item" ? item.item.to : null));
+
+    expect(paths).toContain("/settings/backends");
+  });
+
   it("filters hidden routes from the OSS settings items", () => {
     useConfigMock.mockReturnValue({
       data: createConfig({ hide_llm_settings: true }),
