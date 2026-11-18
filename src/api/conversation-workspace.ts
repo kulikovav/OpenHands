@@ -7,6 +7,7 @@ import {
 } from "./agent-server-client-options";
 import {
   getCachedAgentServerInfo,
+  isGovernedConversationRuntime,
   type AgentServerInfo,
 } from "./agent-server-compatibility";
 import {
@@ -76,6 +77,7 @@ export async function resolveNewConversationWorkspace(options: {
       workingDir: ISOLATED_WORKSPACE_DIR,
       hooksProjectDir: null,
       isolated: true,
+      governed: isGovernedConversationRuntime(info),
       runtimeSelectable: false,
     };
   }
@@ -95,6 +97,7 @@ export async function resolveNewConversationWorkspace(options: {
     workingDir,
     hooksProjectDir,
     isolated: false,
+    governed: isGovernedConversationRuntime(info),
     runtimeSelectable: supportsDockerConversations(info),
   };
 }

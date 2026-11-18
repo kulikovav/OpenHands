@@ -687,6 +687,49 @@ describe("HomeChatLauncher", () => {
     });
   });
 
+  it("omits a stale host workspace override and its worktree mode on a governed backend", async () => {
+    // R15: a governed sandbox serves no git worktree. A host folder attached
+    // while the probe was pending must not survive the backend turning
+    // governed, and no worktree affordance may remain: the server answers a
+    // worktree start with the governed-workspace 422.
+    let governed = false;
+    mockUseConversationWorkspace.mockImplementation(() => ({
+      isolated: false,
+      governed,
+      unsupportedMessage: governed ? "governed-unsupported" : null,
+    }));
+    const createSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue(
+        makeConversationResponse({ app_conversation_id: "conv-gov" }),
+      );
+
+    const { rerender } = renderLauncher();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("open-workspace-button"));
+    await user.click(
+      await screen.findByTestId("stub-workspace-dialog-confirm"),
+    );
+    await user.click(screen.getByTestId("stub-workspace-mode-new-worktree"));
+
+    governed = true;
+    rerender(<HomeChatLauncher />);
+    expect(
+      screen.queryByTestId("stub-workspace-mode-new-worktree"),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("stub-chat-submit"));
+
+    await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+    expect(createSpy.mock.calls[0]?.[0]).toMatchObject({
+      initialUserMsg: "hello world",
+      metadata: null,
+      workingDirOverride: undefined,
+      workspaceMode: undefined,
+    });
+  });
+
   it("passes the picked workspace path with new-worktree mode when selected", async () => {
     const createSpy = vi
       .spyOn(AgentServerConversationService, "createConversation")
