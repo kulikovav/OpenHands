@@ -1243,7 +1243,12 @@ describe("setServiceLogListener", () => {
 
 describe("superviseService", () => {
   const exitWith = (code: number) => ["-e", `process.exit(${code})`];
-  const stayUp = ["-e", "setInterval(() => {}, 1_000)"];
+  // Exiting 0 on SIGTERM keeps the test's own teardown from looking like a
+  // crash, which would make superviseService start another replacement.
+  const stayUp = [
+    "-e",
+    "process.on('SIGTERM', () => process.exit(0)); setInterval(() => {}, 1_000)",
+  ];
 
   it("restarts a service that exits on its own", async () => {
     // Arrange: the first run crashes, the replacement stays up.
@@ -1267,13 +1272,24 @@ describe("superviseService", () => {
       { onFailure, restartDelayMs: 0 },
     );
 
-    // Assert
-    await vi.waitFor(() => expect(procs).toHaveLength(2));
-    await delay(200);
-    expect(procs).toHaveLength(2);
-    expect(procs[1].exitCode).toBeNull();
+    // Assert: wait for the restart itself. Under parallel CPU load the first
+    // child's exit plus the replacement's spawn can exceed vi.waitFor's 1 s
+    // default, so poll to a ceiling that still fails on a real hang.
+    await vi.waitFor(() => expect(procs).toHaveLength(2), { timeout: 15_000 });
+    const replacement = procs[1];
+    const replacementExited = new Promise<void>((resolve) =>
+      replacement.once("exit", () => resolve()),
+    );
+    // A pid is assigned only when the spawn succeeded; the handle exists
+    // before then, so this is the readiness check, not a sleep.
+    expect(replacement.pid).toBeTypeOf("number");
+    expect(replacement.exitCode).toBeNull();
     expect(onFailure).not.toHaveBeenCalled();
-    procs[1].kill();
+
+    // The supervisor must not restart the replacement on a clean teardown.
+    replacement.kill();
+    await replacementExited;
+    expect(procs).toHaveLength(2);
   });
 
   it("stops the stack and reports once the service keeps exiting", async () => {
