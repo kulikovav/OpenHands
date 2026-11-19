@@ -36,9 +36,9 @@ const config = JSON.parse(read("config/defaults.json")) as {
 const pinnedImage = `${config.images.agentServer}:${config.versions.agentServer}-python`;
 
 // Numeric-semver comparison. Throws (rather than silently comparing NaN) if a
-// pin carries a non-numeric segment — these defaults.json fields are dotted
-// numeric version pins, so a sha or pre-release tag landing here is a config
-// error the floor check should surface loudly.
+// pin carries a non-numeric segment — versions.agentServer is a stable dotted
+// pin, so a sha or pre-release tag there is a config error the floor check
+// should surface loudly.
 function parseSemver(v: string): number[] {
   if (!/^\d+(\.\d+)*$/.test(v)) {
     throw new Error(`expected a dotted numeric version, got "${v}"`);
@@ -67,9 +67,11 @@ describe("examples/acp-docker stays in sync with config/defaults.json", () => {
   });
 
   it("the pinned SoT version satisfies the Canvas compatibility floor", () => {
-    expect(
-      gte(config.versions.agentServer, config.compatibility.minimumAgentServer),
-    ).toBe(true);
+    // The floor can pin a fork prerelease (for example 1.62.0-bleenk.2).
+    // versions.agentServer is a stable pin, and semver orders a stable release
+    // above every prerelease of the same core, so compare its core.
+    const floorRelease = config.compatibility.minimumAgentServer.split("-")[0];
+    expect(gte(config.versions.agentServer, floorRelease)).toBe(true);
   });
 
   it("the no-config compose fallback uses the SoT registry with the latest-python tag", () => {
