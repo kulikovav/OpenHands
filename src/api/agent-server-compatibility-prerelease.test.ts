@@ -45,3 +45,56 @@ describe("agent-server prerelease minimum compatibility", () => {
     ).not.toThrow();
   });
 });
+
+describe("semver prerelease ordering", () => {
+  it("orders multi-digit prerelease numbers numerically", () => {
+    expect(
+      compareAgentServerVersions("1.62.0-bleenk.2", "1.62.0-bleenk.10"),
+    ).toBe(-1);
+    expect(
+      compareAgentServerVersions("1.62.0-bleenk.10", "1.62.0-bleenk.2"),
+    ).toBe(1);
+    expect(
+      compareAgentServerVersions("1.62.0-bleenk.9", "1.62.0-bleenk.10"),
+    ).toBe(-1);
+    expect(
+      compareAgentServerVersions("1.62.0-bleenk.10", "1.62.0-bleenk.9"),
+    ).toBe(1);
+    expect(
+      compareAgentServerVersions("1.62.0-bleenk.10", "1.62.0-bleenk.10"),
+    ).toBe(0);
+  });
+
+  it("keeps a stable release above every prerelease of the same core", () => {
+    for (const prerelease of [
+      "bleenk.2",
+      "bleenk.9",
+      "bleenk.10",
+      "rc.1",
+      "1",
+    ]) {
+      expect(compareAgentServerVersions("1.62.0", `1.62.0-${prerelease}`)).toBe(
+        1,
+      );
+      expect(compareAgentServerVersions(`1.62.0-${prerelease}`, "1.62.0")).toBe(
+        -1,
+      );
+    }
+  });
+
+  it("applies numeric, alphanumeric, and prefix-length rules", () => {
+    // Numeric identifiers sort below alphanumeric ones.
+    expect(compareAgentServerVersions("1.62.0-1", "1.62.0-alpha")).toBe(-1);
+    expect(compareAgentServerVersions("1.62.0-alpha", "1.62.0-1")).toBe(1);
+    // A shorter equal prefix sorts lower.
+    expect(compareAgentServerVersions("1.62.0-alpha", "1.62.0-alpha.1")).toBe(
+      -1,
+    );
+    expect(compareAgentServerVersions("1.62.0-alpha.1", "1.62.0-alpha")).toBe(
+      1,
+    );
+    // Alphanumeric identifiers compare in ASCII order.
+    expect(compareAgentServerVersions("1.62.0-alpha", "1.62.0-beta")).toBe(-1);
+    expect(compareAgentServerVersions("1.62.0-beta", "1.62.0-alpha")).toBe(1);
+  });
+});

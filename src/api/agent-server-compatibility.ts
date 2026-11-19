@@ -261,7 +261,56 @@ export function compareAgentServerVersions(actual: string, required: string) {
     return 1;
   }
   if (parsedActual.prerelease && parsedRequired.prerelease) {
-    return parsedActual.prerelease.localeCompare(parsedRequired.prerelease);
+    return comparePrereleaseIdentifiers(
+      parsedActual.prerelease,
+      parsedRequired.prerelease,
+    );
+  }
+
+  return 0;
+}
+
+/**
+ * Semver prerelease precedence. Identifiers are dot-separated: numeric ones
+ * compare numerically and sort below alphanumeric ones, alphanumeric ones
+ * compare in ASCII order, and a shorter equal prefix sorts lower. This is
+ * what orders `bleenk.9` below `bleenk.10`; a locale-aware string compare
+ * would put `bleenk.10` first.
+ */
+function comparePrereleaseIdentifiers(actual: string, required: string) {
+  const actualIdentifiers = actual.split(".");
+  const requiredIdentifiers = required.split(".");
+  const length = Math.max(actualIdentifiers.length, requiredIdentifiers.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const actualIdentifier = actualIdentifiers[index];
+    const requiredIdentifier = requiredIdentifiers[index];
+
+    if (actualIdentifier === undefined) {
+      return -1;
+    }
+    if (requiredIdentifier === undefined) {
+      return 1;
+    }
+
+    const actualIsNumeric = /^\d+$/.test(actualIdentifier);
+    const requiredIsNumeric = /^\d+$/.test(requiredIdentifier);
+
+    if (actualIsNumeric && requiredIsNumeric) {
+      const difference = Number(actualIdentifier) - Number(requiredIdentifier);
+      if (difference !== 0) {
+        return difference > 0 ? 1 : -1;
+      }
+      continue;
+    }
+
+    if (actualIsNumeric !== requiredIsNumeric) {
+      return actualIsNumeric ? -1 : 1;
+    }
+
+    if (actualIdentifier !== requiredIdentifier) {
+      return actualIdentifier > requiredIdentifier ? 1 : -1;
+    }
   }
 
   return 0;
