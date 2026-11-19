@@ -99,6 +99,7 @@ describe("agent-server version compatibility", () => {
 
   it.each([
     MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
+    "1.62.0-bleenk.10",
     "1.62.0",
     "1.62.1",
     "2.0.0",

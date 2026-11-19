@@ -1244,22 +1244,39 @@ describe("setServiceLogListener", () => {
 describe("superviseService", () => {
   const exitWith = (code: number) => ["-e", `process.exit(${code})`];
   // Exiting 0 on SIGTERM keeps the test's own teardown from looking like a
-  // crash, which would make superviseService start another replacement.
+  // crash, which would make superviseService start another replacement. The
+  // readiness line proves the handler is installed before the test kills it.
   const stayUp = [
     "-e",
-    "process.on('SIGTERM', () => process.exit(0)); setInterval(() => {}, 1_000)",
+    "process.on('SIGTERM', () => process.exit(0)); console.log('ready'); setInterval(() => {}, 1_000)",
   ];
+  const spawned: ReturnType<typeof spawnService>[] = [];
+
+  afterEach(async () => {
+    const live = spawned.splice(0);
+    await Promise.all(
+      live.map(async (proc) => {
+        if (proc.exitCode !== null || proc.signalCode !== null) return;
+        await new Promise<void>((resolve) => {
+          proc.once("exit", () => resolve());
+          proc.kill("SIGKILL");
+        });
+      }),
+    );
+  });
 
   it("restarts a service that exits on its own", async () => {
     // Arrange: the first run crashes, the replacement stays up.
-    const procs: ReturnType<typeof spawnService>[] = [];
+    const procs = spawned;
     const onFailure = vi.fn();
+    let replacementReady = Promise.resolve();
 
     // Act
     superviseService(
       "supervise-restart-test",
       (hooks: object) => {
-        const args = procs.length === 0 ? exitWith(7) : stayUp;
+        const isReplacement = procs.length > 0;
+        const args = isReplacement ? stayUp : exitWith(7);
         const proc = spawnService(
           "supervise-restart-test",
           process.execPath,
@@ -1267,6 +1284,14 @@ describe("superviseService", () => {
           hooks,
         );
         procs.push(proc);
+        if (isReplacement) {
+          const stdout = proc.stdout;
+          if (stdout) {
+            replacementReady = new Promise<void>((resolve) =>
+              stdout.once("data", () => resolve()),
+            );
+          }
+        }
         return proc;
       },
       { onFailure, restartDelayMs: 0 },
@@ -1280,15 +1305,19 @@ describe("superviseService", () => {
     const replacementExited = new Promise<void>((resolve) =>
       replacement.once("exit", () => resolve()),
     );
-    // A pid is assigned only when the spawn succeeded; the handle exists
-    // before then, so this is the readiness check, not a sleep.
+    // A pid is set only when the spawn itself succeeded; this guards that
+    // failure mode, not process readiness.
     expect(replacement.pid).toBeTypeOf("number");
     expect(replacement.exitCode).toBeNull();
     expect(onFailure).not.toHaveBeenCalled();
 
-    // The supervisor must not restart the replacement on a clean teardown.
+    // Clean SIGTERM exit (see stayUp) schedules no restart. Wait for the
+    // handler to be installed, then settle past the supervisor's
+    // setTimeout(launch, 0) so a spurious one would show up.
+    await replacementReady;
     replacement.kill();
     await replacementExited;
+    await delay(25);
     expect(procs).toHaveLength(2);
   });
 
@@ -1301,12 +1330,14 @@ describe("superviseService", () => {
         "supervise-give-up-test",
         (hooks: object) => {
           starts += 1;
-          return spawnService(
+          const proc = spawnService(
             "supervise-give-up-test",
             process.execPath,
             exitWith(3),
             hooks,
           );
+          spawned.push(proc);
+          return proc;
         },
         { onFailure: resolve, maxRestarts: 2, restartDelayMs: 0 },
       );
