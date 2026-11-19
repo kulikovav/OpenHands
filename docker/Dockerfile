@@ -100,11 +100,13 @@ ENV AGENT_CANVAS_BASE_PATH=${VITE_BASE_PATH}
 ENV VITE_POSTHOG_API_KEY=${VITE_POSTHOG_API_KEY}
 
 # OpenShell policy DNS answers a policy host with a synthetic address whose
-# mapping lives for 30 seconds. A client that caches that address longer
-# reconnects to an expired mapping and is denied with
-# transparent_tcp_mapping_denied. Litellm's aiohttp transport defaults its DNS
-# cache to 300 seconds, so keep it below the OpenShell mapping TTL.
-ENV AIOHTTP_TTL_DNS_CACHE=15
+# mapping lives only as long as the trusted resolver's answer TTL, clamped to
+# 1..30 seconds. A client that caches that address longer reconnects to an
+# expired mapping and is denied with transparent_tcp_mapping_denied. Litellm's
+# aiohttp transport defaults its DNS cache to 300 seconds, and the answer TTL
+# can be as low as one second, so disable the cache: every new connection
+# resolves the name again and publishes a fresh mapping.
+ENV AIOHTTP_TTL_DNS_CACHE=0
 
 USER root
 
