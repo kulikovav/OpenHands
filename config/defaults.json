@@ -6,6 +6,7 @@
     "automation": "1.34.1"
   },
   "compatibility": {
+    "_comment": "Fork prerelease on purpose: only the 1.62.0-bleenk.2+ SDK line advertises governed_conversation_runtime_v1 on /server_info; upstream 1.62.0 does not. Both report version 1.62.0, so the version comparator cannot tell them apart; runtime governed detection (isGovernedConversationRuntime) stays the discriminator.",
     "minimumAgentServer": "1.62.0-bleenk.2"
   },
   "python": {
