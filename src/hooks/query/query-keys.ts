@@ -49,6 +49,13 @@ export const PROVIDER_CONNECTIONS_QUERY_KEYS = {
   all: ["provider-connections"] as const,
 } as const;
 
+export const GIT_INTEGRATIONS_QUERY_KEYS = {
+  all: ["git-integrations"] as const,
+  /** Per backend, so a switching user does not mix deployment connections. */
+  connections: (backendId: string, orgId: string | null | undefined) =>
+    ["git-integrations", backendId, orgId, "connections"] as const,
+} as const;
+
 /** Fail fast when older backends lack the profile endpoint. */
 export const AGENT_PROFILES_RETRY_OPTIONS = {
   retry: false,

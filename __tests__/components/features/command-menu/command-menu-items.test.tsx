@@ -60,6 +60,7 @@ describe("the command menu settings group", () => {
       "app-settings",
       "secrets-settings",
       "experimental-settings",
+      "git-providers-settings",
     ]);
   });
 
