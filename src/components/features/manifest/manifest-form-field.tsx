@@ -3,7 +3,7 @@ import { SettingsInput } from "#/components/features/settings/settings-input";
 import { SettingsDropdownInput } from "#/components/features/settings/settings-dropdown-input";
 import { GitRepoDropdown } from "#/components/features/home/git-repo-dropdown";
 import { useActiveBackend } from "#/contexts/active-backend-context";
-import { useSettings } from "#/hooks/query/use-settings";
+import { useGitProviderHosts } from "#/hooks/query/use-git-provider-connections";
 import { useUserProviders } from "#/hooks/use-user-providers";
 import { I18nKey } from "#/i18n/declaration";
 import {
@@ -84,7 +84,7 @@ export function SetupFormField({
   const { t } = useTranslation("openhands");
   const { backend } = useActiveBackend();
   const { providers: connectedProviders } = useUserProviders();
-  const providerHosts = useSettings().data?.provider_tokens_set;
+  const providerHosts = useGitProviderHosts().hosts;
   const testId = `setup-field-${name}`;
   const help = <p className="text-xs text-muted">{field.help}</p>;
 

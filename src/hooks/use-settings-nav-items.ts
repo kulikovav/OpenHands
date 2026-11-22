@@ -22,6 +22,10 @@ const PROFILE_OWNED_SETTINGS_PATHS = new Set(["/settings/condenser"]);
 // Experimental features live on a local agent server; Cloud has none yet.
 const LOCAL_ONLY_SETTINGS_PATHS = new Set(["/settings/experimental"]);
 
+// A cloud backend manages its git providers on the instance, whose own
+// Settings → Integrations page reports the connections and hosts.
+const CLOUD_OWNED_SETTINGS_PATHS = new Set(["/settings/git-providers"]);
+
 export function useSettingsNavItems(): SettingsNavRenderedItem[] {
   const { data: config } = useConfig();
   const { backend } = useActiveBackend();
@@ -36,7 +40,8 @@ export function useSettingsNavItems(): SettingsNavRenderedItem[] {
       (!isLockedToCloud || item.to === LOCKED_CLOUD_SETTINGS_NAV_PATH) &&
       (backend.kind === "cloud" ||
         !PROFILE_OWNED_SETTINGS_PATHS.has(item.to)) &&
-      (backend.kind === "local" || !LOCAL_ONLY_SETTINGS_PATHS.has(item.to)),
+      (backend.kind === "local" || !LOCAL_ONLY_SETTINGS_PATHS.has(item.to)) &&
+      (backend.kind !== "cloud" || !CLOUD_OWNED_SETTINGS_PATHS.has(item.to)),
   ).map((item) => {
     const renamedItem =
       item.to === "/settings"

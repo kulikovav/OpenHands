@@ -1,0 +1,63 @@
+--- a/openhands/sdk/workspace/remote/base.py
++++ b/openhands/sdk/workspace/remote/base.py
+@@ -597,6 +597,17 @@
+             logger.warning(f"Invalid secret name: {name}")
+             return None
+ 
++        # The store compares names verbatim, and its entries carry either the
++        # environment-variable spelling the settings save (`GITLAB_TOKEN`) or
++        # the provider-name spelling the SDK looks up (`gitlab_token`). Try
++        # the requested spelling first, then the other all-case spellings, so
++        # a provider token stored under either convention still
++        # authenticates the clone.
++        candidate_names = [name]
++        for variant in (name.lower(), name.upper()):
++            if variant not in candidate_names:
++                candidate_names.append(variant)
++
+         # Use retry logic for transient failures
+         @tenacity.retry(
+             stop=tenacity.stop_after_attempt(_MAX_RETRIES),
+@@ -604,26 +615,28 @@
+             retry=tenacity.retry_if_exception(_is_retryable_error),
+             reraise=True,
+         )
+-        def _fetch_secret() -> httpx.Response:
++        def _fetch_secret(secret_name: str) -> httpx.Response:
+             resp = self.client.get(
+-                f"/api/settings/secrets/{name}",
++                f"/api/settings/secrets/{secret_name}",
+                 headers=self._headers,
+             )
+             resp.raise_for_status()
+             return resp
+ 
+-        try:
+-            resp = _fetch_secret()
+-            return resp.text
+-        except httpx.HTTPStatusError as e:
+-            if e.response.status_code == 404:
+-                logger.debug(f"Secret '{name}' not found")
+-            else:
+-                logger.warning(f"Failed to fetch secret '{name}': {e}")
+-            return None
+-        except Exception as e:
+-            logger.warning(f"Error fetching secret '{name}': {e}")
+-            return None
++        for candidate in candidate_names:
++            try:
++                resp = _fetch_secret(candidate)
++                return resp.text
++            except httpx.HTTPStatusError as e:
++                if e.response.status_code == 404:
++                    logger.debug(f"Secret '{candidate}' not found")
++                    continue
++                logger.warning(f"Failed to fetch secret '{candidate}': {e}")
++                return None
++            except Exception as e:
++                logger.warning(f"Error fetching secret '{candidate}': {e}")
++                return None
++        return None
+ 
+     def clone_repos(
+         self,

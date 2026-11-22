@@ -92,11 +92,16 @@ describe("useSettingsNavItems", () => {
     const { result } = renderHook(() => useSettingsNavItems());
 
     // Agent profiles are available on cloud too (OpenHands #15060), so every
-    // OSS item is present except Experimental (experimental features live on a local
-    // agent server); the `/settings` LLM-Profiles rename stays local-only, so
-    // on cloud every other item is passed through unchanged.
+    // OSS item is present; Experimental lives on a local agent server and a
+    // cloud backend manages its git provider connections on the instance, so
+    // both are hidden there. The `/settings` LLM-Profiles rename stays
+    // local-only, so every other item is passed through unchanged.
     expect(result.current).toEqual(
-      OSS_NAV_ITEMS.filter((item) => item.to !== "/settings/experimental").map(
+      OSS_NAV_ITEMS.filter(
+        (item) =>
+          item.to !== "/settings/experimental" &&
+          item.to !== "/settings/git-providers",
+      ).map(
         (item) => ({ type: "item", item }),
       ),
     );

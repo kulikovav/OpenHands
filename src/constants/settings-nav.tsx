@@ -3,6 +3,7 @@ import {
   Brain,
   Container,
   FlaskConical,
+  Plug,
   Route as RouteIcon,
   Shield,
 } from "lucide-react";
@@ -88,6 +89,17 @@ export const OSS_NAV_ITEMS: SettingsNavItem[] = [
     to: "/settings/experimental",
     text: "SETTINGS$NAV_EXPERIMENTAL",
     subtitle: "SETTINGS$PAGE_EXPERIMENTAL_SUBLINE",
+  },
+  {
+    // The git provider connections the automations clone with, adapted from
+    // the OpenHands Enterprise git settings page. The path stays clear of
+    // `/settings/integrations`, the removed page the nav test guards. A cloud
+    // backend manages its providers on the instance (the page links there),
+    // so the nav hides the entry there.
+    icon: <Plug className="size-4" strokeWidth={2} aria-hidden />,
+    to: "/settings/git-providers",
+    text: "SETTINGS$NAV_INTEGRATIONS",
+    subtitle: "SETTINGS$PAGE_INTEGRATIONS_SUBLINE",
   },
 ];
 
