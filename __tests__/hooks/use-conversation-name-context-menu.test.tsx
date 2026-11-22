@@ -40,6 +40,13 @@ const harness = vi.hoisted(() => ({
   navigateToTab: vi.fn(),
 }));
 
+vi.mock("#/hooks/use-owner-conversation-url", () => ({
+  useOwnerConversationUrl: (conversationId?: string | null) =>
+    harness.conversation?.id === conversationId
+      ? (harness.conversation?.conversation_url ?? null)
+      : null,
+}));
+
 vi.mock("#/hooks/use-select-conversation-tab", () => ({
   useSelectConversationTab: () => ({ navigateToTab: harness.navigateToTab }),
 }));
@@ -343,6 +350,7 @@ describe("useConversationNameContextMenu", () => {
     );
     expect(harness.downloadConversation).toHaveBeenCalledWith({
       conversationId: "conv-active",
+      conversationUrl: null,
     });
     expect(onContextMenuToggle).toHaveBeenCalledOnce();
     expect(onContextMenuToggle).toHaveBeenCalledWith(false);
@@ -383,6 +391,7 @@ describe("useConversationNameContextMenu", () => {
     act(() => result.current.handleConfirmStop());
     expect(harness.stopConversation).toHaveBeenCalledWith({
       conversationId: "conv-active",
+      conversationUrl: null,
     });
 
     const deleteClick = clickEvent();
@@ -392,7 +401,7 @@ describe("useConversationNameContextMenu", () => {
     expect(onContextMenuToggle).toHaveBeenCalledWith(false);
     act(() => result.current.handleConfirmDelete());
     expect(harness.deleteConversation).toHaveBeenCalledWith(
-      { conversationId: "conv-active" },
+      { conversationId: "conv-active", conversationUrl: null },
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     );
     const options = harness.deleteConversation.mock.calls[0][1] as {
