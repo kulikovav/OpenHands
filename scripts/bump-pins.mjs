@@ -148,6 +148,10 @@ export async function fetchManifest(name, version) {
 export async function applyPins(root, pins, getManifest = fetchManifest) {
   const read = (rel) => readFileSync(join(root, rel), "utf-8");
   const next = new Map();
+  // This fork pins @openhands/extensions to a tarball URL on its own tag, not
+  // to an X.Y.Z version, so there is no pin for the script to rewrite. The CLI
+  // rejects such an input; only the repository self-check passes one.
+  const extensionsPinned = VERSION.test(pins.extensions ?? "");
 
   const defaults = read("config/defaults.json");
   const current = JSON.parse(defaults).versions.agentServer;
@@ -159,13 +163,12 @@ export async function applyPins(root, pins, getManifest = fetchManifest) {
       pins.automation,
     ),
   );
+  const pinnedClient = setPin(read("package.json"), CLIENT_PACKAGE, pins.sdk);
   next.set(
     "package.json",
-    setPin(
-      setPin(read("package.json"), CLIENT_PACKAGE, pins.sdk),
-      EXTENSIONS_PACKAGE,
-      pins.extensions,
-    ),
+    extensionsPinned
+      ? setPin(pinnedClient, EXTENSIONS_PACKAGE, pins.extensions)
+      : pinnedClient,
   );
   if (current !== pins.sdk) {
     for (const rel of EXAMPLE_FILES) {
@@ -174,10 +177,9 @@ export async function applyPins(root, pins, getManifest = fetchManifest) {
   }
 
   let lock = read("package-lock.json");
-  for (const [name, version] of [
-    [CLIENT_PACKAGE, pins.sdk],
-    [EXTENSIONS_PACKAGE, pins.extensions],
-  ]) {
+  const lockedPins = [[CLIENT_PACKAGE, pins.sdk]];
+  if (extensionsPinned) lockedPins.push([EXTENSIONS_PACKAGE, pins.extensions]);
+  for (const [name, version] of lockedPins) {
     const locked = JSON.parse(lock).packages?.[`node_modules/${name}`];
     if (locked?.version !== version) {
       lock = setLockedPackage(lock, name, await getManifest(name, version));

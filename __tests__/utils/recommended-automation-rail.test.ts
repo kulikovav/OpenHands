@@ -49,6 +49,7 @@ describe("recommended automation rail", () => {
     ]);
 
     expect(groups.suggested.map((entry) => entry.id)).toEqual([
+      "cve-remediation-factory",
       "custom-automation",
       "github-issue-to-pr",
       "slack-channel-monitor",
@@ -91,6 +92,7 @@ describe("recommended automation rail", () => {
     const conversationIds = groups.conversation.map((entry) => entry.id);
 
     expect(groups.suggested.map((entry) => entry.id)).toEqual([
+      "cve-remediation-factory",
       "github-pr-reviewer",
       "custom-automation",
       "github-issue-to-pr",
