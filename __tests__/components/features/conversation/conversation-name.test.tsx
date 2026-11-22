@@ -58,6 +58,10 @@ const {
   useActiveBackendMock: vi.fn(),
 }));
 
+vi.mock("#/hooks/use-owner-conversation-url", () => ({
+  useOwnerConversationUrl: () => undefined,
+}));
+
 vi.mock("#/hooks/query/use-active-conversation", () => ({
   useActiveConversation: () => useActiveConversationMock(),
 }));

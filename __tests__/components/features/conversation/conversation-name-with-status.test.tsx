@@ -29,6 +29,10 @@ const mocks = vi.hoisted(() => ({
   providers: [{ name: "provider-1" }],
 }));
 
+vi.mock("#/hooks/use-owner-conversation-url", () => ({
+  useOwnerConversationUrl: () => null,
+}));
+
 vi.mock("#/hooks/use-conversation-id", () => ({
   useConversationId: () => ({ conversationId: mocks.conversationId }),
   useOptionalConversationId: () => ({ conversationId: mocks.conversationId }),
@@ -221,6 +225,7 @@ describe("conversation name status controls", () => {
 
     expect(mocks.pauseConversation).toHaveBeenCalledWith({
       conversationId: "conversation-1",
+      conversationUrl: null,
     });
     expect(mocks.resumeConversation).not.toHaveBeenCalled();
     expect(onParentClick).not.toHaveBeenCalled();
@@ -241,6 +246,7 @@ describe("conversation name status controls", () => {
     expect(mocks.resumeConversation).toHaveBeenCalledWith({
       conversationId: "conversation-1",
       providers: mocks.providers,
+      conversationUrl: null,
     });
     expect(mocks.pauseConversation).not.toHaveBeenCalled();
     expect(onParentClick).not.toHaveBeenCalled();
@@ -260,6 +266,7 @@ describe("conversation name status controls", () => {
 
     expect(mocks.pauseConversation).toHaveBeenCalledWith({
       conversationId: "conversation-1",
+      conversationUrl: null,
     });
   });
 

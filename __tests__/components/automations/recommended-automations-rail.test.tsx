@@ -65,6 +65,7 @@ describe("RecommendedAutomationsRail", () => {
       );
 
     expect(cardIds).toEqual([
+      "cve-remediation-factory",
       "custom-automation",
       "github-issue-to-pr",
       "slack-channel-monitor",
