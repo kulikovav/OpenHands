@@ -99,9 +99,11 @@ async function requestSecret() {
 describe("secret request user flow", () => {
   it("does not overwrite another saved name when the user renames the request", async () => {
     const user = userEvent.setup();
+    // The requested name is not saved, so the card queues; the user then
+    // renames the request onto the other saved name.
     server.use(
       http.get("*/api/settings/secrets", () =>
-        HttpResponse.json({ secrets: [{ name }, { name: "OTHER_KEY" }] }),
+        HttpResponse.json({ secrets: [{ name: "OTHER_KEY" }] }),
       ),
     );
     await requestSecret();
@@ -118,55 +120,90 @@ describe("secret request user flow", () => {
     expect(messages).toEqual([]);
   });
 
-  it.each([true, false])(
-    "saves only after user entry (existing secret: %s)",
-    async (existing) => {
-      if (!existing) storedValue = undefined;
-      const user = userEvent.setup();
-      const input = await requestSecret();
-      await user.type(input, "new-test-value");
-      await user.click(screen.getByTestId("submit-button"));
+  it("attaches an already saved secret straight away, once", async () => {
+    // A secret saved before the request never queues a card: the request
+    // attaches it like every saved secret at conversation start, and a
+    // replayed call with the same tool call id cannot attach it twice.
+    const action = {
+      kind: REQUEST_SECRET_ACTION_KIND,
+      name,
+      reason: "Rotate the credential",
+    } as const;
+    const first = handleRequestSecretAction(
+      action,
+      conversationId,
+      "rotation-call",
+    );
+    const second = handleRequestSecretAction(
+      action,
+      conversationId,
+      "rotation-call",
+    );
+    await Promise.all([first, second]);
 
-      await waitFor(() => expect(messages).toHaveLength(1));
-      expect(storedValue).toBe("new-test-value");
-      expect(writes).toEqual([{ name, value: "new-test-value" }]);
-      expect(attachments).toEqual([
-        {
-          secrets: {
-            [name]: expect.objectContaining({
-              kind: "LookupSecret",
-              url: `/api/settings/secrets/${name}`,
-            }),
-          },
+    await waitFor(() => expect(messages).toHaveLength(1));
+    expect(useSecretRequestStore.getState().requests).toEqual([]);
+    expect(storedValue).toBe(oldValue);
+    expect(writes).toEqual([]);
+    expect(attachments).toEqual([
+      {
+        secrets: {
+          [name]: expect.objectContaining({
+            kind: "LookupSecret",
+            url: `/api/settings/secrets/${name}`,
+          }),
         },
-      ]);
-      expect(messages).toEqual([
-        `${SECRET_REQUEST_RESULT_PREFIX}${JSON.stringify({ status: "saved", name })}`,
-      ]);
-      expect(valueReads).toBe(0);
-      expect(JSON.stringify(attachments)).not.toContain("new-test-value");
-      expect(
-        screen.queryByTestId("secret-request-card"),
-      ).not.toBeInTheDocument();
-    },
-  );
+      },
+    ]);
+    expect(messages).toEqual([
+      `${SECRET_REQUEST_RESULT_PREFIX}${JSON.stringify({ status: "saved", name })}`,
+    ]);
+    expect(screen.queryByTestId("secret-request-card")).not.toBeInTheDocument();
+  });
 
-  it.each([true, false])(
-    "cancels without changing storage (existing secret: %s)",
-    async (existing) => {
-      if (!existing) storedValue = undefined;
-      const user = userEvent.setup();
-      await requestSecret();
-      await user.click(screen.getByTestId("cancel-button"));
+  it("saves only after user entry when the secret is not saved", async () => {
+    storedValue = undefined;
+    const user = userEvent.setup();
+    const input = await requestSecret();
+    await user.type(input, "new-test-value");
+    await user.click(screen.getByTestId("submit-button"));
 
-      await waitFor(() => expect(messages).toHaveLength(1));
-      expect(
-        JSON.parse(messages[0].slice(SECRET_REQUEST_RESULT_PREFIX.length)),
-      ).toMatchObject({ status: "not_saved", name });
-      expect(storedValue).toBe(existing ? oldValue : undefined);
-      expect(writes).toEqual([]);
-      expect(attachments).toEqual([]);
-      expect(valueReads).toBe(0);
-    },
-  );
+    await waitFor(() => expect(messages).toHaveLength(1));
+    expect(storedValue).toBe("new-test-value");
+    expect(writes).toEqual([{ name, value: "new-test-value" }]);
+    expect(attachments).toEqual([
+      {
+        secrets: {
+          [name]: expect.objectContaining({
+            kind: "LookupSecret",
+            url: `/api/settings/secrets/${name}`,
+          }),
+        },
+      },
+    ]);
+    expect(messages).toEqual([
+      `${SECRET_REQUEST_RESULT_PREFIX}${JSON.stringify({ status: "saved", name })}`,
+    ]);
+    expect(valueReads).toBe(0);
+    expect(JSON.stringify(attachments)).not.toContain("new-test-value");
+    expect(
+      screen.queryByTestId("secret-request-card"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("cancels without changing storage", async () => {
+    storedValue = undefined;
+    const user = userEvent.setup();
+    await requestSecret();
+    await user.click(screen.getByTestId("cancel-button"));
+
+    await waitFor(() => expect(messages).toHaveLength(1));
+    expect(
+      JSON.parse(messages[0].slice(SECRET_REQUEST_RESULT_PREFIX.length)),
+    ).toMatchObject({ status: "not_saved", name });
+    expect(storedValue).toBeUndefined();
+    expect(writes).toEqual([]);
+    expect(attachments).toEqual([]);
+    expect(valueReads).toBe(0);
+  });
 });

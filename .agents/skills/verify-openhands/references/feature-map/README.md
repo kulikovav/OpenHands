@@ -263,7 +263,7 @@ How to write and prove new entries: [../mapping.md](../mapping.md).
 | F31 | [Factories](F31-factories.md) | Factories list and factory pages, create and rename, the dashboard limited to one factory, moving an automation out of a factory, the experimental switch | sidebar **Factories**, `/factories`, `/factories/<id>`, an automation's actions menu | local backend with Agent Server 1.63.1 or newer and an automation service with factories; Cloud and Enterprise flag and member view: blocked | 11 |
 | F32 | [Projects (default view)](F32-projects.md) | flag gate, New project with a server-started coordinator, board grouped by what needs you, Resolve/Reopen, membership, files (preview, download, delete), attach to a message, badge and compact headers | rail Projects and its +, `/projects`, `/projects/<id>`, project badge | `projects` experimental flag; Agent Server with #6602 (73513fdee+); real LLM for coordinator branches | 12 |
 
-32 families, 907 sub-features. `control-openhands map ids` lists every ID with its file.
+32 families, 908 sub-features. `control-openhands map ids` lists every ID with its file.
 
 ### Neighbouring families
 
