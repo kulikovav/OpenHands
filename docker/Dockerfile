@@ -164,9 +164,9 @@ RUN uv pip install --system "openhands-automation==${AUTOMATION_VERSION}" "openh
 
 # A fork ref is only as good as its contents: a ref that predates a server-side
 # fix installs cleanly and silently ignores the setting the deployment passes.
-# Assert the governed-sandbox memory field, because that setting did nothing
-# (the gateway kept the podman driver's 4 GiB default) while every layer above
-# looked correct.
+# Assert the governed-sandbox limit fields, because those settings did nothing
+# (the gateway kept the podman driver's 4 GiB memory and 2-core defaults) while
+# every layer above looked correct.
 RUN if [ -n "${AGENT_SERVER_SDK_GIT_REF}" ]; then \
       BASE_GIT_URL="git+${AGENT_SERVER_SDK_GIT_REPO}@${AGENT_SERVER_SDK_GIT_REF}" && \
       uv pip install --system --force-reinstall \
@@ -174,7 +174,7 @@ RUN if [ -n "${AGENT_SERVER_SDK_GIT_REF}" ]; then \
         "${BASE_GIT_URL}#subdirectory=openhands-tools" \
         "${BASE_GIT_URL}#subdirectory=openhands-workspace" \
         "${BASE_GIT_URL}#subdirectory=openhands-agent-server" && \
-      python -c "from openhands.agent_server.config import Config; assert hasattr(Config(), 'openshell_sandbox_memory'), '${AGENT_SERVER_SDK_GIT_REF} lacks openshell_sandbox_memory'; print('agent-server memory limit present')"; \
+      python -c "from openhands.agent_server.config import Config; missing = [name for name in ('openshell_sandbox_memory', 'openshell_sandbox_cpu') if not hasattr(Config(), name)]; assert not missing, f'${AGENT_SERVER_SDK_GIT_REF} lacks {missing}'; print('agent-server sandbox limits present')"; \
     fi
 
 # Bleenk patches:
