@@ -9,6 +9,7 @@ import {
   ListTodo,
   FlaskConical,
   PanelsTopLeft,
+  Plug,
   Route,
   Search,
   Settings,
@@ -46,6 +47,7 @@ export const COMMAND_MENU_ROUTE = {
   appSettings: "/settings/app",
   secretsSettings: "/settings/secrets",
   experimentalSettings: "/settings/experimental",
+  gitProvidersSettings: "/settings/git-providers",
 } as const;
 
 export type CommandMenuGroupId = "navigation" | "settings" | "actions";
@@ -65,6 +67,7 @@ export type CommandMenuItemId =
   | "app-settings"
   | "secrets-settings"
   | "experimental-settings"
+  | "git-providers-settings"
   | "toggle-sidebar";
 
 export interface CommandMenuItemDefinition {
@@ -279,6 +282,14 @@ export const createCommandMenuItems = ({
       icon: <FlaskConical size={ICON_SIZE} />,
       to: COMMAND_MENU_ROUTE.experimentalSettings,
     },
+    {
+      id: "git-providers-settings",
+      group: "settings",
+      titleKey: I18nKey.SETTINGS$NAV_INTEGRATIONS,
+      descriptionKey: I18nKey.SETTINGS$PAGE_INTEGRATIONS_SUBLINE,
+      icon: <Plug size={ICON_SIZE} />,
+      to: COMMAND_MENU_ROUTE.gitProvidersSettings,
+    },
     ...(includeDesktopSidebarToggle ? [desktopSidebarToggleItem] : []),
   ];
 
@@ -293,6 +304,9 @@ export const createCommandMenuItems = ({
       (isCloud || item.to !== COMMAND_MENU_ROUTE.condenserSettings) &&
       // Experimental features live on a local agent server.
       (!isCloud || item.to !== COMMAND_MENU_ROUTE.experimentalSettings) &&
+      // A cloud backend manages its git providers on the instance; only the
+      // local page's token secrets live in Canvas.
+      (!isCloud || item.to !== COMMAND_MENU_ROUTE.gitProvidersSettings) &&
       (!isLockedToCloud ||
         item.group !== "settings" ||
         item.to === COMMAND_MENU_ROUTE.settings ||

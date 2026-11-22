@@ -3,6 +3,7 @@ import {
   REQUEST_SECRET_TOOL_NAME,
   SECRET_REQUEST_RESULT_PREFIX,
 } from "#/constants/secret-request";
+import { SecretsService } from "#/api/secrets-service";
 import { updateConversationSecrets } from "#/hooks/mutation/conversation-mutation-utils";
 import {
   type SecretRequest,
@@ -11,6 +12,7 @@ import {
 import type { RequestSecretAction } from "#/types/agent-server/core";
 import { claimClientToolCall } from "#/utils/claim-client-tool-call";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
+import { findSecretNameIgnoringCase } from "#/utils/secret-name";
 import { postClientToolResult } from "./client-tool-result";
 
 const LEDGER_STORAGE_KEY_PREFIX = "openhands-secret-requests:";
@@ -20,7 +22,27 @@ type SecretRequestResult =
   | { status: "not_saved"; name: string; guidance: string }
   | { status: "error"; name: string; error: string; guidance: string };
 
-/** Queue a secure form; only an explicit user save can report success. */
+async function findSavedSecret(
+  name: string,
+): Promise<CustomSecretInput | null> {
+  try {
+    const secrets = await SecretsService.getSecretsOrThrow();
+    // The store compares names verbatim, while the requester and the user may
+    // spell the same secret in the two live conventions (`gitlab_token` from
+    // the SDK's provider tokens, `GITLAB_TOKEN` from settings and templates).
+    return findSecretNameIgnoringCase(secrets, name) ?? null;
+  } catch {
+    // Unknown — let the user answer; the form reports a duplicate name.
+    return null;
+  }
+}
+
+/**
+ * Execute a `request_secret` tool call. A secret the user already saved (for
+ * example in Settings after this conversation started) is attached straight
+ * away, as every saved secret is at conversation start; otherwise the request
+ * is queued for its chat card, which reports through {@link completeSecretRequest}.
+ */
 export async function handleRequestSecretAction(
   action: RequestSecretAction,
   conversationId: string,
@@ -44,7 +66,11 @@ export async function handleRequestSecretAction(
     reason: action.reason ?? null,
     conversationUrl,
   };
+  const savedSecret = await findSavedSecret(request.name);
   useSecretRequestStore.getState().enqueue(request);
+  if (savedSecret) {
+    await completeSecretRequest(request, savedSecret);
+  }
 }
 
 async function resolveResult(
