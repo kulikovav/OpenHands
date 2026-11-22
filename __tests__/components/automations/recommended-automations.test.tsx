@@ -259,7 +259,6 @@ describe("recommended automations", () => {
     // Pins the packed catalog: a card that arrives with an extensions re-pin
     // must fail here, so the new card is reviewed with the bump.
     expect(cardIds).toEqual([
-      "cve-remediation-factory",
       "github-pr-reviewer",
       "custom-automation",
       "github-issue-to-pr",
@@ -303,7 +302,7 @@ describe("recommended automations", () => {
     const suggestedHeading = screen.getByText(
       I18nKey.RECOMMENDED_AUTOMATIONS$SUGGESTED_TITLE,
     ).parentElement!;
-    expect(within(suggestedHeading).getByText("7")).toBeInTheDocument();
+    expect(within(suggestedHeading).getByText("6")).toBeInTheDocument();
     expect(
       screen.getByText(I18nKey.RECOMMENDED_AUTOMATIONS$SECTION_DESCRIPTION),
     ).toBeInTheDocument();
