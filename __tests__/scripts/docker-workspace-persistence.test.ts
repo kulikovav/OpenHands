@@ -23,15 +23,14 @@ const bakedWorkingDir =
   buildStage?.match(/^ARG VITE_WORKING_DIR="?([^"\n]+)"?$/m)?.[1] ?? "";
 
 describe("Docker workspace persistence", () => {
-  it("bakes an absolute working dir inside a persisted volume", () => {
-    const volumes = JSON.parse(
-      dockerfile.match(/^VOLUME (\[.+\])$/m)?.[1] ?? "[]",
-    ) as string[];
+  it("bakes an absolute working dir and declares no image volume", () => {
+    // A `VOLUME` declaration makes OpenShell admission reject the image (the
+    // governed sandbox mounts its workspace at /sandbox), so the image never
+    // declares one; persistence comes from explicit bind mounts.
+    const volumes = dockerfile.match(/^VOLUME /m);
 
     expect(path.posix.isAbsolute(bakedWorkingDir)).toBe(true);
-    expect(
-      volumes.some((volume) => bakedWorkingDir.startsWith(`${volume}/`)),
-    ).toBe(true);
+    expect(volumes).toBeNull();
   });
 
   it("pre-creates the baked working dir in the final image", () => {

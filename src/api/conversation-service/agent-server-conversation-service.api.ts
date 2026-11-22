@@ -1054,8 +1054,13 @@ class AgentServerConversationService {
   ): Promise<(AppConversation | null)[]> {
     if (ids.length === 0) return [];
 
+    // Discriminate by shape, not by class: a scope-bound client is an object,
+    // and an owning-backend URL is a string. The tests replace the client
+    // class, so an instanceof check would misread a mocked client.
     const client =
-      clientOrUrl instanceof ConversationClient ? clientOrUrl : undefined;
+      clientOrUrl !== null && typeof clientOrUrl === "object"
+        ? clientOrUrl
+        : undefined;
     const conversationUrl =
       typeof clientOrUrl === "string" ? clientOrUrl : null;
 

@@ -261,7 +261,7 @@ How to write and prove new entries: [../mapping.md](../mapping.md).
 | F29 | [ACP agent sessions](F29-acp-sessions.md) | an ACP (Codex) conversation: narration order, tool cards, edits and Changes, follow-up, model switch, Stop, reload and restart, usage | Home composer with an ACP profile active (F13) | approved Codex login (`CODEX_AUTH_JSON`); fixture repo | 12 |
 | F30 | [Experimental features and reactions](F30-experimental-features.md) | Experimental settings page, flag switches, notice; agent and user emoji reactions, picker placement | `/settings/experimental`, settings navigation, command menu; reactions under messages | LLM; local backend (Cloud hides it) | 6 |
 
-30 families, 877 sub-features. `control-openhands map ids` lists every ID with its file.
+30 families, 878 sub-features. `control-openhands map ids` lists every ID with its file.
 
 ### Neighbouring families
 
