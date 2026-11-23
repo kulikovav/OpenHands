@@ -86,6 +86,15 @@ export function SettingsSection({
           </ConfigField>
         ) : null}
 
+        {automation.target_name ? (
+          <ConfigField
+            icon={<CogIcon className="size-3.5" />}
+            label={t(I18nKey.AUTOMATIONS$DETAIL$RUNS_ON)}
+          >
+            <span className="break-all">{automation.target_name}</span>
+          </ConfigField>
+        ) : null}
+
         {automation.timeout ? (
           <ConfigField
             icon={<ClockIcon className="size-3.5" />}

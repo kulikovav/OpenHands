@@ -176,3 +176,61 @@ export function getAutomationRunBadgeLabelKey(
       return I18nKey.FEATURED_AUTOMATIONS$STATUS_UNKNOWN;
   }
 }
+
+/**
+ * A governed run's target-related outcome, read from the existing
+ * `status_detail.code`. The transcript link follows the service's retention:
+ * a pending or removed transcript has nothing to open.
+ */
+export type AutomationRunGovernanceState =
+  | "transcript_pending"
+  | "policy_denied"
+  | "runtime_missing"
+  | "transcript_retained"
+  | "transcript_unavailable"
+  | "target_unavailable";
+
+export interface AutomationRunGovernance {
+  state: AutomationRunGovernanceState;
+  /** Whether the run's conversation may still be opened. */
+  transcriptLink: boolean;
+}
+
+const GOVERNANCE_BY_CODE: Record<string, AutomationRunGovernance> = {
+  transcript_pending: { state: "transcript_pending", transcriptLink: false },
+  policy_denied: { state: "policy_denied", transcriptLink: true },
+  runtime_missing: { state: "runtime_missing", transcriptLink: true },
+  transcript_retained: { state: "transcript_retained", transcriptLink: true },
+  transcript_unavailable: {
+    state: "transcript_unavailable",
+    transcriptLink: false,
+  },
+  target_unavailable: { state: "target_unavailable", transcriptLink: false },
+};
+
+export function getAutomationRunGovernance(
+  run: AutomationRun,
+): AutomationRunGovernance | null {
+  const code = run.status_detail?.code;
+  if (typeof code !== "string" || !code) return null;
+  return GOVERNANCE_BY_CODE[code] ?? null;
+}
+
+export function getAutomationRunGovernanceLabelKey(
+  state: AutomationRunGovernanceState,
+): I18nKey {
+  switch (state) {
+    case "transcript_pending":
+      return I18nKey.AUTOMATIONS$DETAIL$TRANSCRIPT_PENDING;
+    case "policy_denied":
+      return I18nKey.AUTOMATIONS$DETAIL$POLICY_DENIED;
+    case "runtime_missing":
+      return I18nKey.AUTOMATIONS$DETAIL$RUNTIME_MISSING;
+    case "transcript_retained":
+      return I18nKey.AUTOMATIONS$DETAIL$TRANSCRIPT_RETAINED;
+    case "transcript_unavailable":
+      return I18nKey.AUTOMATIONS$DETAIL$TRANSCRIPT_UNAVAILABLE;
+    case "target_unavailable":
+      return I18nKey.AUTOMATIONS$DETAIL$TARGET_UNAVAILABLE;
+  }
+}

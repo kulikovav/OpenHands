@@ -53,7 +53,7 @@ import {
   BackendNotConfigured,
   GovernedBackendNotice,
 } from "#/components/features/automations/backend-not-configured";
-import { useGovernedBackend } from "#/hooks/query/use-governed-backend";
+import { useAutomationSurface } from "#/hooks/query/use-automation-surface";
 import { DeleteConfirmationModal } from "#/components/features/automations/delete-confirmation-modal";
 import { ChangeFactoryModal } from "#/components/features/automations/change-factory-modal";
 import { ChangeRunAsModal } from "#/components/features/automations/change-run-as-modal";
@@ -127,6 +127,7 @@ export default function AutomationDetail() {
     ? factoryPath(factoryContext)
     : automationListPath();
   const { governed: isBackendGoverned } = useGovernedBackend();
+  const surface = useAutomationSurface();
 
   const {
     data: healthData,
@@ -190,8 +191,8 @@ export default function AutomationDetail() {
 
   const is404 = isError && getErrorStatus(error) === 404;
 
-  // Show loading state while checking health
-  if (isHealthLoading) {
+  // Show loading state while checking health or the governed capability gate
+  if (isHealthLoading || surface.state === "pending") {
     return (
       <div className="min-h-full">
         <div className="p-6 max-w-4xl mx-auto">
@@ -201,9 +202,19 @@ export default function AutomationDetail() {
     );
   }
 
-  // A governed backend can never serve automations, so its refusal is
-  // permanent: no retry, and it names the backend the user is on.
-  if (isBackendGoverned) {
+  // A failed capability request is transient: Retry asks again. A successful
+  // response without a target for this backend is permanent.
+  if (surface.state === "error") {
+    return (
+      <div className="min-h-full">
+        <div className="p-6 max-w-4xl mx-auto">
+          <BackendNotConfigured onRetry={surface.retry} />
+        </div>
+      </div>
+    );
+  }
+
+  if (surface.state === "refused") {
     return (
       <div className="min-h-full">
         <div className="p-6 max-w-4xl mx-auto">

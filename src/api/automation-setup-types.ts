@@ -17,6 +17,8 @@ export interface AutomationSetupFormValues {
   runAsUserId: string;
   /** Who can see the automation; absent means the whole organization. */
   visibility?: AutomationVisibility;
+  /** Execution target id; empty means the deployment default. */
+  targetId: string;
   prompt: string;
   repository: string;
   pluginSource: string;
@@ -64,6 +66,8 @@ export interface AutomationSetupDraft {
   plugins?: string[];
   editingAutomationId?: string;
   serverDraftId?: string;
+  /** Execution target of the edited automation; empty is the default. */
+  targetId?: string;
   /** Request last saved to `serverDraftId`, to tell unsaved edits apart. */
   savedDraftRequestKey?: string;
   materializedAutomationId?: string | null;

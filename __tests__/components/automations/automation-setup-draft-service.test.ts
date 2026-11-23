@@ -114,6 +114,7 @@ describe("getDraftExecutionStatusText", () => {
 const baseForm: AutomationSetupFormValues = {
   name: "",
   runAsUserId: "",
+  targetId: "",
   prompt: "",
   repository: "",
   pluginSource: "",
