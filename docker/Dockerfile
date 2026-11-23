@@ -24,6 +24,8 @@
 ARG AGENT_SERVER_IMAGE
 ARG AGENT_SERVER_VERSION
 ARG AUTOMATION_VERSION
+ARG AUTOMATION_GIT_REF=""
+ARG AUTOMATION_GIT_REPO="https://github.com/kulikovav/openhands-automation"
 
 # ── Stage 1: Build frontend ──────────────────────────────────────────────────
 FROM node:24.22.1-slim AS frontend-build
@@ -79,6 +81,8 @@ RUN node -e " \
 FROM ${AGENT_SERVER_IMAGE} AS final
 
 ARG AUTOMATION_VERSION
+ARG AUTOMATION_GIT_REF=""
+ARG AUTOMATION_GIT_REPO="https://github.com/kulikovav/openhands-automation"
 ARG AGENT_SERVER_VERSION
 ARG AGENT_SERVER_SDK_GIT_REF=""
 ARG AGENT_SERVER_SDK_GIT_REPO="https://github.com/OpenHands/software-agent-sdk"
@@ -162,6 +166,16 @@ RUN set -eu; \
 RUN uv pip install --system "openhands-automation==${AUTOMATION_VERSION}" "openhands-tools==${AGENT_SERVER_VERSION}" "openhands-agent-server==${AGENT_SERVER_VERSION}" 2>/dev/null \
     || pip install --no-cache-dir "openhands-automation==${AUTOMATION_VERSION}" "openhands-tools==${AGENT_SERVER_VERSION}" "openhands-agent-server==${AGENT_SERVER_VERSION}"
 
+# Install the fork's automation service when a ref is given, after the PyPI
+# install so its dependencies resolve against the pinned SDK packages. The
+# fork tag carries the two bleenk automation behaviors, so their patches are
+# skipped below; their self-checks still prove the installed fork has them.
+RUN if [ -n "${AUTOMATION_GIT_REF}" ]; then \
+      AUTOMATION_GIT_URL="git+${AUTOMATION_GIT_REPO}@${AUTOMATION_GIT_REF}" && \
+      uv pip install --system --force-reinstall "${AUTOMATION_GIT_URL}" 2>/dev/null \
+        || pip install --no-cache-dir --force-reinstall "${AUTOMATION_GIT_URL}"; \
+    fi
+
 # A fork ref is only as good as its contents: a ref that predates a server-side
 # fix installs cleanly and silently ignores the setting the deployment passes.
 # Assert the governed-sandbox limit fields, because those settings did nothing
@@ -192,6 +206,9 @@ RUN if [ -n "${AGENT_SERVER_SDK_GIT_REF}" ]; then \
 #    through the settings carry the environment-variable spelling
 #    (`GITLAB_TOKEN`); the exact-name lookup missed the other convention and
 #    the automation clone went unauthenticated.
+# Patches 1 and 2 are the fork's own commits, so a fork ref skips applying
+# them; the self-checks always run, so the installed package still proves the
+# behavior whether it came from PyPI or the fork.
 # --fuzz=0 makes a version bump fail the build when the patched context
 # changed, so the fixes cannot be dropped silently.
 COPY docker/patches/automation-1.34.1-dispatch-retry.patch /tmp/bleenk-patches/automation-dispatch-retry.patch
@@ -202,8 +219,10 @@ COPY docker/patches/automation-sigterm-selfcheck.py /tmp/bleenk-patches/automati
 COPY docker/patches/agent-server-token-case-selfcheck.py /tmp/bleenk-patches/agent-server-token-case-selfcheck.py
 RUN python -c "import openhands.automation as m; assert m.__version__ == '${AUTOMATION_VERSION}', m.__version__" \
     && SITE_PACKAGES="$(python -c 'import openhands.automation as m, pathlib; print(pathlib.Path(m.__file__).resolve().parents[2])')" \
-    && patch -p1 -d "${SITE_PACKAGES}" --forward --fuzz=0 < /tmp/bleenk-patches/automation-dispatch-retry.patch \
-    && patch -p1 -d "${SITE_PACKAGES}" --forward --fuzz=0 < /tmp/bleenk-patches/automation-interrupt-on-sigterm.patch \
+    && if [ -z "${AUTOMATION_GIT_REF}" ]; then \
+         patch -p1 -d "${SITE_PACKAGES}" --forward --fuzz=0 < /tmp/bleenk-patches/automation-dispatch-retry.patch \
+         && patch -p1 -d "${SITE_PACKAGES}" --forward --fuzz=0 < /tmp/bleenk-patches/automation-interrupt-on-sigterm.patch; \
+       fi \
     && patch -p1 -d "${SITE_PACKAGES}" --forward --fuzz=0 < /tmp/bleenk-patches/agent-server-token-case-insensitive.patch \
     && python /tmp/bleenk-patches/automation-dispatch-retry-selfcheck.py "${SITE_PACKAGES}" \
     && python /tmp/bleenk-patches/automation-sigterm-selfcheck.py "${SITE_PACKAGES}" \
