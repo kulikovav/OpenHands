@@ -629,3 +629,56 @@ describe("ActivityLogItem — script runs (a command but no conversation)", () =
     );
   });
 });
+
+describe("ActivityLogItem — governed run", () => {
+  beforeEach(() => {
+    __resetActiveStoreForTests();
+    setRegisteredBackends([localBackend]);
+    setActiveSelection({ backendId: localBackend.id });
+  });
+
+  afterEach(() => {
+    __resetActiveStoreForTests();
+  });
+
+  it("shows a removed target's snapshot name", () => {
+    renderItem(
+      makeRun({ target_id: "removed", target_name: "Retired pilot" }),
+    );
+
+    expect(screen.getByTestId("run-target-name")).toHaveTextContent(
+      "Retired pilot",
+    );
+  });
+
+  it("renders a pending transcript as text without a conversation link", () => {
+    renderItem(makeRun({ status_detail: { code: "transcript_pending" } }));
+
+    expect(screen.getByTestId("run-governance-state")).toHaveTextContent(
+      I18nKey.AUTOMATIONS$DETAIL$TRANSCRIPT_PENDING,
+    );
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("drops the link once the transcript is no longer retained", () => {
+    renderItem(makeRun({ status_detail: { code: "transcript_unavailable" } }));
+
+    expect(screen.getByTestId("run-governance-state")).toHaveTextContent(
+      I18nKey.AUTOMATIONS$DETAIL$TRANSCRIPT_UNAVAILABLE,
+    );
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("keeps the conversation link while a transcript is retained", () => {
+    renderItem(makeRun({ status_detail: { code: "transcript_retained" } }));
+
+    const link = screen.getByRole("link");
+    expect(link).toHaveAttribute(
+      "href",
+      expect.stringContaining("/conversations/conv-1"),
+    );
+    expect(screen.getByTestId("run-governance-state")).toHaveTextContent(
+      I18nKey.AUTOMATIONS$DETAIL$TRANSCRIPT_RETAINED,
+    );
+  });
+});

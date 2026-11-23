@@ -54,7 +54,7 @@ import {
   BackendNotConfigured,
   GovernedBackendNotice,
 } from "#/components/features/automations/backend-not-configured";
-import { useGovernedBackend } from "#/hooks/query/use-governed-backend";
+import { useAutomationSurface } from "#/hooks/query/use-automation-surface";
 import { DeleteConfirmationModal } from "#/components/features/automations/delete-confirmation-modal";
 import { useOpenAutomationEditor } from "#/hooks/use-open-automation-editor";
 import { useStartAutomationSetup } from "#/hooks/use-start-automation-setup";
@@ -360,7 +360,7 @@ export default function AutomationsList() {
   const [isImportOpen, setIsImportOpen] = useState(false);
 
   const active = useActiveBackend();
-  const { governed: isBackendGoverned } = useGovernedBackend();
+  const surface = useAutomationSurface();
   const { navigate } = useNavigation();
   // Git Sync is org-level config, so its entry point requires
   // manage_automations (admins/owners) on every backend kind.
@@ -774,8 +774,8 @@ export default function AutomationsList() {
         visible.length === 0 &&
         visibleSavedDrafts.length === 0));
 
-  // Show loading state while checking health
-  if (isHealthLoading) {
+  // Show loading state while checking health or the governed capability gate.
+  if (isHealthLoading || surface.state === "pending") {
     return renderShell(
       <div>
         <h1 className="text-xl font-medium text-content">
@@ -791,9 +791,22 @@ export default function AutomationsList() {
     );
   }
 
-  // A governed backend can never serve automations, so its refusal is
-  // permanent: no retry, and it names the backend the user is on.
-  if (isBackendGoverned) {
+  // A failed capability request is transient: Retry asks again. A successful
+  // response without a target for this backend is permanent, so it names the
+  // backend and offers no retry.
+  if (surface.state === "error") {
+    return renderShell(
+      <div>
+        <h1 className="text-xl font-medium text-content">
+          {interfaceCopy.listTitle}
+        </h1>
+        <p className="mt-1 text-sm text-muted">{interfaceCopy.listSubtitle}</p>
+        <BackendNotConfigured onRetry={surface.retry} />
+      </div>,
+    );
+  }
+
+  if (surface.state === "refused") {
     return renderShell(
       <div>
         <h1 className="text-xl font-medium text-content">

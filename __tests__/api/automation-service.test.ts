@@ -367,6 +367,46 @@ describe("AutomationService", () => {
       });
       expect(result).toEqual(updated);
     });
+
+    it("sends an explicit null target for the deployment default", async () => {
+      const updated = { ...mockAutomation, target_id: null };
+      mockPatch.mockResolvedValue({ data: updated });
+
+      const result = await AutomationService.updateAutomation("1", {
+        target_id: null,
+      });
+
+      expect(mockPatch).toHaveBeenCalledWith("/api/automation/v1/1", {
+        target_id: null,
+      });
+      expect(result).toEqual(updated);
+    });
+  });
+
+  describe("getCapabilities", () => {
+    it("exposes the allowed execution targets", async () => {
+      const capabilities = {
+        ready: true,
+        features: ["governedTargets"],
+        triggerKinds: ["cron", "event"],
+        eventSources: [],
+        eventTypes: [],
+        triggers: {},
+        targets: [
+          {
+            id: "pilot",
+            name: "Pilot sandbox",
+            origin: "https://oh.uk1.example",
+          },
+        ],
+      };
+      mockGet.mockResolvedValue({ data: capabilities });
+
+      const result = await AutomationService.getCapabilities();
+
+      expect(mockGet).toHaveBeenCalledWith("/api/automation/v1/capabilities");
+      expect(result.targets).toEqual(capabilities.targets);
+    });
   });
 
   describe("changeRunAs", () => {

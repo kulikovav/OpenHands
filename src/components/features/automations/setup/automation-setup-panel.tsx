@@ -103,10 +103,18 @@ import { Divider } from "#/ui/divider";
 import { cn } from "#/utils/utils";
 import { useDeploymentCapabilities } from "#/hooks/query/use-manifest-capabilities";
 import {
+  useAutomationRuns,
+  AUTOMATION_DETAIL_QUERY_KEY,
+} from "#/hooks/query/use-automation-detail";
+import {
+  AUTOMATION_DEFAULT_TARGET,
+  getAutomationTargetFieldError,
+  hasLiveAutomationRun,
+} from "#/utils/automation-targets";
+import {
   useServiceAccountRunAsEnabled,
   useServiceAccounts,
 } from "#/hooks/query/use-service-accounts";
-import { AUTOMATION_DETAIL_QUERY_KEY } from "#/hooks/query/use-automation-detail";
 import { AUTOMATIONS_QUERY_KEY } from "#/hooks/query/use-automations";
 import {
   invalidateConversationQueries,
@@ -237,6 +245,7 @@ const AUTOMATION_SETUP_FIELD_RENDER_ORDER: AutomationSetupField[] = [
   "eventFilter",
   "model",
   "agentProfileId",
+  "targetId",
   "showTimeout",
   "timeoutSeconds",
 ];
@@ -261,6 +270,7 @@ const DEFAULT_CUSTOM_WEBHOOK_SIGNATURE_SCHEME: CustomWebhookSignatureScheme =
 const NON_CHARACTER_STREAM_FIELDS = new Set<AutomationSetupField>([
   "kind",
   "runAsUserId",
+  "targetId",
   "triggerKind",
   "frequency",
   "weekday",
@@ -494,6 +504,7 @@ function buildInitialForm(
     kind,
     name: form.name ?? deriveName(prompt),
     runAsUserId: form.runAsUserId ?? "",
+    targetId: form.targetId ?? draft.targetId ?? AUTOMATION_DEFAULT_TARGET,
     prompt,
     repository: form.repository ?? "",
     pluginSource: pluginEntries[0]?.source ?? "",
@@ -859,6 +870,9 @@ export function AutomationSetupPanel({
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
+  // Server-refused target field (target_unavailable), shown on the selector
+  // instead of only as a toast.
+  const [targetError, setTargetError] = useState<string | null>(null);
   // Request body from the last successful save. Compared with the form so
   // Test stays inactive while there are unsaved edits, even if the service
   // returns a normalized draft that does not byte-match the request.
@@ -886,6 +900,15 @@ export function AutomationSetupPanel({
     getAutomationEditIdFromTags(conversationTags) ||
     "";
   const isEditingExisting = editingAutomationId.length > 0;
+  const targetOptions = deploymentCapabilities.data?.targets ?? [];
+  const showTargetPicker = targetOptions.length > 0;
+  // The service refuses a target change while one of the automation's runs is
+  // still pending or running, so the selector locks with an inline reason.
+  const editingRuns = useAutomationRuns({
+    id: editingAutomationId,
+    enabled: isEditingExisting && showTargetPicker,
+  });
+  const isTargetLocked = hasLiveAutomationRun(editingRuns.data?.runs);
   const [existingPluginSpec, setExistingPluginSpec] = useState(
     draft.existingPluginSpec,
   );
@@ -1120,6 +1143,7 @@ export function AutomationSetupPanel({
     kind,
     name,
     runAsUserId,
+    targetId,
     prompt,
     repository,
     pluginSource,
@@ -1367,6 +1391,7 @@ export function AutomationSetupPanel({
     clearQueuedStreams();
     setStatusMessage(null);
     setSaveState("idle");
+    if (field === "targetId") setTargetError(null);
     setForm((previous) => ({ ...previous, [field]: value }));
     if (!conversationId) return;
     patchAutomationFormSession(
@@ -1496,6 +1521,9 @@ export function AutomationSetupPanel({
     if (selectedAgentProfileId) body.agent_profile_id = selectedAgentProfileId;
     else if (model.trim()) body.model = model.trim();
     if (newAutomationRunAsId) body.run_as_user_id = newAutomationRunAsId;
+    // An explicit null keeps a target-less deployment on its default backend;
+    // the service never falls back to another target for a governed one.
+    if (showTargetPicker) body.target_id = targetId || null;
     return body;
   };
   const buildCustomBody = (
@@ -1519,6 +1547,7 @@ export function AutomationSetupPanel({
         ? { timeout: Number(timeoutSeconds) }
         : {}),
       ...(newAutomationRunAsId ? { run_as_user_id: newAutomationRunAsId } : {}),
+      ...(showTargetPicker ? { target_id: targetId || null } : {}),
     }) as SetupRequestBody;
   /**
    * The request body sent to a server-backed draft. Custom drafts reference a
@@ -1600,6 +1629,8 @@ export function AutomationSetupPanel({
       showTimeout,
       timeoutSeconds,
       newAutomationRunAsId,
+      showTargetPicker,
+      targetId,
     ],
   );
   const isDraftDirty = savedDraftRequestKey
@@ -1961,6 +1992,12 @@ export function AutomationSetupPanel({
       if (typeof created.id === "string")
         navigate(automationDetailPath(created.id));
     } catch (error) {
+      const targetMessage = getAutomationTargetFieldError(error);
+      if (targetMessage) {
+        setTargetError(targetMessage);
+        setSaveState("error");
+        return;
+      }
       displayErrorToast(
         getApiErrorMessage(error, t(I18nKey.SETUP$SUBMIT_FAILED)),
       );
@@ -2019,6 +2056,9 @@ export function AutomationSetupPanel({
       timeout:
         showTimeout && timeoutSeconds.trim() ? Number(timeoutSeconds) : null,
     };
+    // Without a selector (the capability no longer lists targets), omit the
+    // field so an edit preserves the stored target instead of clearing it.
+    if (showTargetPicker) body.target_id = targetId || null;
     if (existingPluginSpec) {
       delete body.model;
       body.config = parsePluginConfig(form.pluginConfig);
@@ -2080,6 +2120,11 @@ export function AutomationSetupPanel({
       toast.success(t(I18nKey.AUTOMATIONS$EDIT_SUCCESS));
     } catch (error) {
       setSaveState("error");
+      const targetMessage = getAutomationTargetFieldError(error);
+      if (targetMessage) {
+        setTargetError(targetMessage);
+        return;
+      }
       displayErrorToast(
         getApiErrorMessage(error, t(I18nKey.AUTOMATIONS$EDIT_ERROR)),
       );
@@ -2846,6 +2891,53 @@ export function AutomationSetupPanel({
                       className={formControlFieldClassName}
                     />
                   </Field>
+                  {showTargetPicker ? (
+                    <Field
+                      label={t(I18nKey.AUTOMATION_SETUP$TARGET)}
+                      errorText={targetError ?? fieldError("target_id")}
+                    >
+                      <div className="relative">
+                        <select
+                          data-testid="automation-setup-target"
+                          aria-label={t(I18nKey.AUTOMATION_SETUP$TARGET)}
+                          value={targetId}
+                          disabled={isTargetLocked}
+                          onChange={(event) =>
+                            updateField("targetId", event.target.value)
+                          }
+                          className={cn(
+                            formControlFieldClassName,
+                            "appearance-none pr-8",
+                          )}
+                        >
+                          <option value={AUTOMATION_DEFAULT_TARGET}>
+                            {t(
+                              I18nKey.AUTOMATION_SETUP$TARGET_DEPLOYMENT_DEFAULT,
+                            )}
+                          </option>
+                          {targetOptions.map((target) => (
+                            <option key={target.id} value={target.id}>
+                              {target.name}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown
+                          className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted"
+                          aria-hidden
+                        />
+                      </div>
+                      <span
+                        data-testid="automation-setup-target-reason"
+                        className="mt-1 block text-sm text-muted"
+                      >
+                        {t(
+                          isTargetLocked
+                            ? I18nKey.AUTOMATION_SETUP$TARGET_LOCKED
+                            : I18nKey.AUTOMATION_SETUP$TARGET_HELP,
+                        )}
+                      </span>
+                    </Field>
+                  ) : null}
                   {showRunAsPicker ? (
                     <Field label={t(I18nKey.AUTOMATION_SETUP$RUN_AS)}>
                       <div className="relative">

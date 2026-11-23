@@ -61,4 +61,29 @@ describe("SettingsSection", () => {
       screen.queryByText("AUTOMATIONS$DETAIL$TIMEOUT"),
     ).not.toBeInTheDocument();
   });
+
+  it("renders a removed target's snapshot name", () => {
+    render(
+      <SettingsSection
+        automation={{
+          ...automation,
+          target_id: "removed-target",
+          target_name: "Retired pilot",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Retired pilot")).toBeInTheDocument();
+    expect(
+      screen.getByText("AUTOMATIONS$DETAIL$RUNS_ON"),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the target field for a deployment-default automation", () => {
+    render(<SettingsSection automation={{ ...automation, target_id: null }} />);
+
+    expect(
+      screen.queryByText("AUTOMATIONS$DETAIL$RUNS_ON"),
+    ).not.toBeInTheDocument();
+  });
 });

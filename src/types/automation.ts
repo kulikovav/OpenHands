@@ -178,6 +178,17 @@ export interface Automation {
    */
   preset_metadata?: Record<string, unknown> | null;
   /**
+   * Execution target the automation dispatches to, or null for this
+   * deployment's default backend. Absent from an automation service older
+   * than target support.
+   */
+  target_id?: string | null;
+  /**
+   * The target's name as snapshotted when the automation was saved. Shown
+   * even after the target is removed from the deployment.
+   */
+  target_name?: string | null;
+  /**
    * Labels the creator groups automations by, normalized by the automation
    * service. Absent from an automation service older than tag support.
    */
@@ -314,6 +325,13 @@ export interface AutomationRun {
    * service older than phase reporting.
    */
   current_phase?: string | null;
+  /**
+   * Execution target the run dispatched to, snapshotted when the run row was
+   * created. Null for the deployment default; `target_name` keeps a removed
+   * target's name readable in history.
+   */
+  target_id?: string | null;
+  target_name?: string | null;
   started_at: string;
   completed_at: string | null;
 }

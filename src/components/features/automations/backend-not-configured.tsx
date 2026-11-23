@@ -42,10 +42,11 @@ interface GovernedBackendNoticeProps {
 /**
  * The permanent Automations refusal for a governed backend.
  *
- * A governed sandbox cannot run the automation service, so this state offers
- * no retry: it names the active backend and points the user at an ungoverned
- * one. The transient {@link BackendUnavailable} state stays in charge of
- * health failures, which a retry can fix.
+ * The automation service decides this: a successful capability response that
+ * names no target at the active backend's origin is permanent, so this state
+ * offers no retry and points the user at an ungoverned one. The transient
+ * {@link BackendUnavailable} state stays in charge of a failed capability or
+ * health request, which a retry can fix.
  */
 export function GovernedBackendNotice({
   backendName,

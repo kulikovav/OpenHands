@@ -3,6 +3,8 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { HttpError } from "@openhands/typescript-client";
+import { http, HttpResponse } from "msw";
+import { server } from "#/mocks/node";
 
 import { I18nKey } from "#/i18n/declaration";
 import AutomationService from "#/api/automation-service/automation-service.api";
@@ -23,6 +25,7 @@ vi.mock("#/api/automation-service/automation-service.api", () => ({
     updateGitSyncConfig: vi.fn(),
     triggerGitSync: vi.fn(),
     checkHealth: vi.fn(),
+    getCapabilities: vi.fn(),
   },
 }));
 
@@ -116,6 +119,16 @@ beforeEach(() => {
   vi.mocked(AutomationService.triggerGitSync).mockReset();
   vi.mocked(AutomationService.triggerGitSync).mockResolvedValue({
     triggered: true,
+  });
+  vi.mocked(AutomationService.getCapabilities).mockReset();
+  vi.mocked(AutomationService.getCapabilities).mockResolvedValue({
+    ready: true,
+    features: ["governedTargets"],
+    triggerKinds: ["cron", "event"],
+    eventSources: [],
+    eventTypes: [],
+    triggers: {},
+    targets: [{ id: "pilot", name: "Pilot sandbox", origin: localBackend.host }],
   });
   displayErrorToast.mockReset();
   displaySuccessToast.mockReset();
@@ -326,5 +339,76 @@ describe("AutomationGitSync — sync progress", () => {
       I18nKey.AUTOMATIONS$GIT_SYNC$SYNC_DISABLED_ERROR,
     );
     expect(activityRow()).not.toBeInTheDocument();
+  });
+});
+
+describe("AutomationGitSync — governed capability gate", () => {
+  const governedBackend: Backend = {
+    id: "governed-git-sync",
+    name: "Governed pilot",
+    host: window.location.origin,
+    apiKey: "session-key",
+    kind: "local",
+  };
+
+  beforeEach(() => {
+    // Same origin as the test page, so the /server_info probe needs no CORS
+    // preflight.
+    server.use(
+      http.get("*/server_info", () =>
+        HttpResponse.json({
+          version: "1.62.0",
+          conversation_runtime: "docker",
+          available_conversation_runtimes: [],
+          capabilities: ["governed_conversation_runtime_v1"],
+        }),
+      ),
+    );
+    setRegisteredBackends([governedBackend, localBackend, cloudBackend]);
+    setActiveSelection({ backendId: governedBackend.id });
+  });
+
+  it("refuses when the capability names no target for this backend", async () => {
+    vi.mocked(AutomationService.getCapabilities).mockResolvedValue({
+      ready: true,
+      features: ["governedTargets"],
+      triggerKinds: ["cron", "event"],
+      eventSources: [],
+      eventTypes: [],
+      triggers: {},
+      targets: [],
+    });
+
+    renderGitSync();
+
+    expect(
+      await screen.findByTestId("automations-governed-backend"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("git-sync-repo-link")).not.toBeInTheDocument();
+  });
+
+  it("renders the org status when a target matches the backend", async () => {
+    vi.mocked(AutomationService.getCapabilities).mockResolvedValue({
+      ready: true,
+      features: ["governedTargets"],
+      triggerKinds: ["cron", "event"],
+      eventSources: [],
+      eventTypes: [],
+      triggers: {},
+      targets: [
+        {
+          id: "pilot",
+          name: "Pilot sandbox",
+          origin: `${window.location.origin}/`,
+        },
+      ],
+    });
+
+    renderGitSync();
+
+    expect(await screen.findByTestId("git-sync-repo-link")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("automations-governed-backend"),
+    ).not.toBeInTheDocument();
   });
 });

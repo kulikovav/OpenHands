@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   getAutomationRunBadgeLabelKey,
   getAutomationRunDisplay,
+  getAutomationRunGovernance,
+  getAutomationRunGovernanceLabelKey,
   getAutomationRunTaskOutcome,
   getAutomationRunTaskSummary,
 } from "#/utils/automation-run-display";
@@ -196,5 +198,48 @@ describe("automation run display", () => {
     expect(display.summary).toBe("Posted 4 of 6 items.");
     expect(display.customTaskMetadataText).toContain('"posted_count": 4');
     expect(display.customTaskMetadataText).toContain('"feed-a"');
+  });
+});
+
+describe("automation run governance state", () => {
+  it.each([
+    ["transcript_pending", false, I18nKey.AUTOMATIONS$DETAIL$TRANSCRIPT_PENDING],
+    ["policy_denied", true, I18nKey.AUTOMATIONS$DETAIL$POLICY_DENIED],
+    ["runtime_missing", true, I18nKey.AUTOMATIONS$DETAIL$RUNTIME_MISSING],
+    [
+      "transcript_retained",
+      true,
+      I18nKey.AUTOMATIONS$DETAIL$TRANSCRIPT_RETAINED,
+    ],
+    [
+      "transcript_unavailable",
+      false,
+      I18nKey.AUTOMATIONS$DETAIL$TRANSCRIPT_UNAVAILABLE,
+    ],
+    [
+      "target_unavailable",
+      false,
+      I18nKey.AUTOMATIONS$DETAIL$TARGET_UNAVAILABLE,
+    ],
+  ] as const)(
+    "reads %s from the existing status detail",
+    (code, transcriptLink, labelKey) => {
+      const run = makeRun({ status_detail: { code } });
+
+      const governance = getAutomationRunGovernance(run);
+
+      expect(governance).toEqual({ state: code, transcriptLink });
+      expect(getAutomationRunGovernanceLabelKey(governance!.state)).toBe(
+        labelKey,
+      );
+    },
+  );
+
+  it("has no governance state for another status detail code", () => {
+    const run = makeRun({
+      status_detail: { phase: "dispatch", kind: "rate_limited" },
+    });
+
+    expect(getAutomationRunGovernance(run)).toBeNull();
   });
 });

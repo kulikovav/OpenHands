@@ -110,6 +110,12 @@ vi.mock("#/hooks/query/use-governed-backend", () => ({
   useGovernedBackend: () => ({ governed: false, known: true }),
 }));
 
+// The list is ungoverned, so the surface never reads the capability response;
+// the stub keeps the query out of a harness that has no QueryClient.
+vi.mock("#/hooks/query/use-manifest-capabilities", () => ({
+  useDeploymentCapabilities: () => ({ data: null, isLoading: false }),
+}));
+
 vi.mock("#/hooks/mutation/use-create-conversation", () => ({
   useCreateConversation: () => ({
     mutate: mocks.createConversation,

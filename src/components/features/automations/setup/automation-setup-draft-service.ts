@@ -183,6 +183,7 @@ export function formFromServerDraft(
     kind: endpointKind,
     name: saved.name ?? getStringField(body, "name") ?? base.name,
     runAsUserId: getStringField(body, "run_as_user_id") ?? "",
+    targetId: getStringField(body, "target_id") ?? base.targetId,
     prompt: getStringField(body, "prompt") ?? base.prompt,
     repository: getRepositoryField(body) ?? base.repository,
     pluginSource: savedPlugins[0]?.source ?? "",

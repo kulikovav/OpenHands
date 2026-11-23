@@ -14,6 +14,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpError } from "@openhands/typescript-client";
 import { AxiosError } from "axios";
+import { I18nKey } from "#/i18n/declaration";
 import {
   NavigationProvider,
   type NavigationContextValue,
@@ -52,7 +53,7 @@ import type { Backend } from "#/api/backend-registry/types";
 import { server } from "#/mocks/node";
 import { http, HttpResponse } from "msw";
 import type { AutomationDraftApiResponse } from "#/manifests/types";
-import type { Automation } from "#/types/automation";
+import { AutomationRunStatus, type Automation } from "#/types/automation";
 import type { Provider } from "#/types/settings";
 
 const mockInstanceConfig = vi.hoisted(() => vi.fn());
@@ -183,6 +184,7 @@ vi.mock("#/api/automation-service/automation-service.api", () => ({
     deleteServerDraft: vi.fn(),
     listServerDrafts: vi.fn(),
     listAutomationRuns: vi.fn().mockResolvedValue({ runs: [], total: 0 }),
+    getAutomationRuns: vi.fn().mockResolvedValue({ runs: [], total: 0 }),
     dispatchServerDraft: vi.fn(),
     dispatchAutomation: vi.fn(),
     updateAutomation: vi.fn(),
@@ -4547,5 +4549,151 @@ describe("AutomationSetupPanel", () => {
     ).not.toEqual(
       expect.objectContaining({ setup_script_path: expect.anything() }),
     );
+  });
+
+  describe("execution targets", () => {
+    const targetCapabilities = {
+      ready: true,
+      features: ["governedTargets"],
+      triggerKinds: ["cron", "event"],
+      eventSources: [],
+      eventTypes: [],
+      triggers: {},
+      targets: [
+        { id: "pilot", name: "Pilot sandbox", origin: "https://oh.uk1.example" },
+      ],
+    };
+
+    beforeEach(() => {
+      vi.mocked(useDeploymentCapabilities).mockReturnValue({
+        data: targetCapabilities,
+        isLoading: false,
+      } as never);
+    });
+
+    it("offers the allowed target and the deployment default", async () => {
+      // Arrange / Act
+      renderPanel({ prompt: "Review every pull request", kind: "prompt" });
+      const picker = screen.getByTestId("automation-setup-target");
+
+      // Assert
+      expect(
+        within(picker).getByRole("option", {
+          name: I18nKey.AUTOMATION_SETUP$TARGET_DEPLOYMENT_DEFAULT,
+        }),
+      ).toBeInTheDocument();
+      expect(
+        within(picker).getByRole("option", { name: "Pilot sandbox" }),
+      ).toBeInTheDocument();
+    });
+
+    it("sends the selected target on create", async () => {
+      // Arrange
+      vi.mocked(AutomationService.createAutomationDraft).mockResolvedValue({
+        id: "automation-1",
+      });
+      const user = userEvent.setup();
+      renderPanel({ prompt: "Review every pull request", kind: "prompt" });
+
+      // Act
+      await user.selectOptions(
+        screen.getByTestId("automation-setup-target"),
+        "pilot",
+      );
+      await user.click(screen.getByTestId("automation-setup-create"));
+
+      // Assert
+      await waitFor(() =>
+        expect(AutomationService.createAutomationDraft).toHaveBeenCalledWith(
+          expect.objectContaining({ target_id: "pilot" }),
+          expect.anything(),
+        ),
+      );
+    });
+
+    it("sends an explicit null target for the deployment default", async () => {
+      // Arrange
+      vi.mocked(AutomationService.createAutomationDraft).mockResolvedValue({
+        id: "automation-1",
+      });
+      const user = userEvent.setup();
+      renderPanel({ prompt: "Review every pull request", kind: "prompt" });
+
+      // Act
+      await user.click(screen.getByTestId("automation-setup-create"));
+
+      // Assert
+      await waitFor(() =>
+        expect(AutomationService.createAutomationDraft).toHaveBeenCalledWith(
+          expect.objectContaining({ target_id: null }),
+          expect.anything(),
+        ),
+      );
+    });
+
+    it("locks the target while a run is pending", async () => {
+      // Arrange — an existing automation with one live run.
+      vi.mocked(AutomationService.getAutomationRuns).mockResolvedValue({
+        runs: [
+          {
+            id: "run-live",
+            status: AutomationRunStatus.RUNNING,
+            conversation_id: "conv-1",
+            bash_command_id: null,
+            error_detail: null,
+            started_at: "2026-01-01T00:00:00Z",
+            completed_at: null,
+          },
+        ],
+        total: 1,
+      });
+
+      // Act
+      renderPanel({
+        prompt: "Review every pull request",
+        kind: "prompt",
+        editingAutomationId: "auto-1",
+        form: {
+          kind: "prompt",
+          name: "Existing automation",
+          prompt: "Review every pull request",
+        },
+      });
+
+      // Assert
+      const picker = screen.getByTestId("automation-setup-target");
+      await waitFor(() => expect(picker).toBeDisabled());
+      expect(
+        screen.getByTestId("automation-setup-target-reason"),
+      ).toHaveTextContent(I18nKey.AUTOMATION_SETUP$TARGET_LOCKED);
+    });
+
+    it("shows a refused target on the field", async () => {
+      // Arrange — the service refuses the removed target on create.
+      vi.mocked(AutomationService.createAutomationDraft).mockRejectedValue(
+        axiosResponseError(422, {
+          detail: {
+            message: "The draft is invalid.",
+            errors: [
+              {
+                field: "target_id",
+                code: "target_unavailable",
+                message: "That target is no longer available.",
+              },
+            ],
+          },
+        }),
+      );
+      const user = userEvent.setup();
+      renderPanel({ prompt: "Review every pull request", kind: "prompt" });
+
+      // Act
+      await user.click(screen.getByTestId("automation-setup-create"));
+
+      // Assert
+      expect(
+        await screen.findByText("That target is no longer available."),
+      ).toBeInTheDocument();
+    });
   });
 });
