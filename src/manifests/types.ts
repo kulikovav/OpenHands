@@ -253,6 +253,12 @@ export interface DeploymentCapabilities {
     event?: { filterLanguage: string; filterFunctions: string[] };
   };
   features: string[];
+  /**
+   * Execution targets this deployment allows, when it advertises the
+   * `governedTargets` feature. The origin is the Agent Server a target
+   * dispatches to; it carries no secret. Older services omit the list.
+   */
+  targets?: AutomationTarget[];
   /** Providers whose repositories a run clones with the user's token; older services omit it. */
   repoProviders?: string[];
   /**
@@ -260,6 +266,16 @@ export interface DeploymentCapabilities {
    * here accepts any key. Older services omit it and list GitHub's in `eventTypes`.
    */
   eventTypesBySource?: Record<string, string[]>;
+}
+
+/** One automation execution target the deployment allows. */
+export interface AutomationTarget {
+  /** Stable id the create/update body sends as `target_id`. */
+  id: string;
+  /** Display name, snapshotted onto runs as `target_name`. */
+  name: string;
+  /** Origin of the Agent Server the target dispatches to. */
+  origin: string;
 }
 
 /** A single problem with a draft, addressed to the field that caused it. */

@@ -9,7 +9,11 @@ import {
   type AutomationRun,
 } from "#/types/automation";
 import { isInvalidTimestamp } from "#/utils/format-relative-time";
-import { getAutomationRunDisplay } from "#/utils/automation-run-display";
+import {
+  getAutomationRunDisplay,
+  getAutomationRunGovernance,
+  getAutomationRunGovernanceLabelKey,
+} from "#/utils/automation-run-display";
 import { RunStatusBadge } from "./run-status-badge";
 import { RunPhase, shouldShowRunPhase } from "./run-phase";
 import { RunLogsModal } from "./run-logs-modal";
@@ -61,14 +65,19 @@ function formatRunCost(cost: number | null | undefined): string | null {
 
 export function ActivityLogItem({ run, automation }: ActivityLogItemProps) {
   const { t, i18n } = useTranslation("openhands");
-  const hasConversation = !!run.conversation_id;
+  // A target-related state comes from the run's existing status detail. A
+  // pending or removed transcript has no page to open, so the row loses its
+  // conversation link instead of offering one that fails.
+  const governance = getAutomationRunGovernance(run);
+  const hasConversation =
+    !!run.conversation_id && governance?.transcriptLink !== false;
   const hasBashCommand = !!run.bash_command_id;
   // Only surface "Conversation not created" when the run has reached a
   // terminal status without a conversation — i.e. the conversation truly
   // will not be created (e.g. sandbox provisioning failed). While
   // PENDING/RUNNING the conversation may still be in the process of being
   // created, and the status badge already communicates the in-progress
-  // state.
+  // state. A governance state explains the absence instead.
   const isTerminal =
     run.status === AutomationRunStatus.COMPLETED ||
     run.status === AutomationRunStatus.FAILED ||
@@ -77,7 +86,7 @@ export function ActivityLogItem({ run, automation }: ActivityLogItemProps) {
   // Script runs never have a conversation; the runs section says so once
   // instead of on every row.
   const showNoConversationLabel =
-    !hasConversation && !hasBashCommand && isTerminal;
+    !hasConversation && !hasBashCommand && isTerminal && !governance;
   const showPhase = shouldShowRunPhase(run.status);
   const [logsOpen, setLogsOpen] = useState(false);
   // The backend leaves started_at unset (epoch/zero) while a run is Pending
@@ -141,8 +150,25 @@ export function ActivityLogItem({ run, automation }: ActivityLogItemProps) {
         {display.summary ? (
           <p className="mt-1 truncate text-xs text-muted">{display.summary}</p>
         ) : null}
+        {governance ? (
+          <p
+            data-testid="run-governance-state"
+            className="mt-1 text-xs text-muted"
+          >
+            {t(getAutomationRunGovernanceLabelKey(governance.state))}
+          </p>
+        ) : null}
       </div>
       <div className="flex min-w-0 items-center gap-2">
+        {run.target_name ? (
+          <span
+            data-testid="run-target-name"
+            title={t(I18nKey.AUTOMATIONS$DETAIL$RUNS_ON)}
+            className="max-w-40 truncate rounded-md bg-surface-raised px-1.5 py-0.5 text-xs text-muted"
+          >
+            {run.target_name}
+          </span>
+        ) : null}
         {formattedCost && (
           <span
             data-testid="run-cost"

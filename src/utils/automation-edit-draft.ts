@@ -113,6 +113,7 @@ export function setupDraftFromAutomation(
   const form: AutomationSetupFormPatch = {
     kind,
     name: automation.name,
+    targetId: automation.target_id ?? "",
     prompt,
     repository:
       formatAutomationRepositories(automation.repositories) ||
@@ -149,6 +150,7 @@ export function setupDraftFromAutomation(
     prompt,
     kind,
     editingAutomationId: automation.id,
+    targetId: automation.target_id ?? "",
     ...(automation.plugin_spec
       ? { existingPluginSpec: automation.plugin_spec }
       : {}),

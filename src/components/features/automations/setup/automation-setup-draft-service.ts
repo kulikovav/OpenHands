@@ -190,6 +190,7 @@ export function formFromServerDraft(
     // Sent only for a private automation, so a draft without it keeps the
     // form's value: an edited automation's own visibility, or the default.
     visibility: body.visibility === "private" ? "private" : base.visibility,
+    targetId: getStringField(body, "target_id") ?? base.targetId,
     prompt: getStringField(body, "prompt") ?? base.prompt,
     repository: getRepositoryField(body) ?? base.repository,
     pluginSource: savedPlugins[0]?.source ?? "",
