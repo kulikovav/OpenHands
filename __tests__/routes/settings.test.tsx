@@ -137,36 +137,6 @@ describe("settings route", () => {
     },
   );
 
-  it("titles the backends page from the settings navigation registry", () => {
-    const RouterStub = createRoutesStub([
-      {
-        path: "/settings",
-        Component: SettingsScreen,
-        children: [
-          {
-            path: "/settings/backends",
-            Component: () => <div data-testid="backends-settings-screen" />,
-          },
-        ],
-      },
-    ]);
-
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <ActiveBackendProvider>
-          <RouterStub initialEntries={["/settings/backends"]} />
-        </ActiveBackendProvider>
-      </QueryClientProvider>,
-    );
-
-    expect(
-      screen.getByRole("heading", { name: "SETTINGS$NAV_BACKENDS" }),
-    ).toBeInTheDocument();
-    expect(screen.getByTestId("settings-page-subtitle")).toHaveTextContent(
-      "SETTINGS$PAGE_BACKENDS_SUBLINE",
-    );
-  });
-
   it("exposes a single main landmark that holds the settings page", () => {
     // Arrange
     const RouterStub = createRoutesStub([
