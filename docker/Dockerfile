@@ -259,10 +259,7 @@ COPY --from=frontend-build /build/node_modules/totalist /opt/agent-canvas/node_m
 # (EXTENSIONS_PATH in entrypoint.sh) instead of cloning the extensions repo.
 COPY --from=frontend-build /build/node_modules/@openhands/extensions /opt/agent-canvas/node_modules/@openhands/extensions
 
-# A governed conversation is a sandbox built from this image, and the outer
-# persistence tree is not visible there. The skill therefore has to arrive in
-# the extensions package above; a pin that dropped it would leave every
-# governed run without memory, so assert it at build time.
+# Fail the build if the extensions pin drops the agent-memory skill.
 COPY docker/patches/memory-skill-selfcheck.py /tmp/memory-skill-selfcheck.py
 RUN python /tmp/memory-skill-selfcheck.py /opt/agent-canvas/node_modules/@openhands/extensions \
     && rm -f /tmp/memory-skill-selfcheck.py

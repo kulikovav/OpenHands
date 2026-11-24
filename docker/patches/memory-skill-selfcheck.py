@@ -5,6 +5,9 @@ persistence tree is not visible there. The skill must arrive inside the
 extensions package the image copies, so a package pin that lacks it fails the
 build instead of leaving the sandbox without memory.
 
+Failures are explicit, not asserts, because ``python -O`` strips asserts and
+would let a broken image print "passed".
+
 Run: python memory-skill-selfcheck.py [catalog-root]
 """
 
@@ -19,6 +22,8 @@ REQUIRED = (
     "skills/agent-memory/scripts/memory.py",
     "skills/agent-memory/scripts/idempotency.py",
     "skills/agent-memory/references/api.md",
+    "skills/agent-memory/commands/recall.md",
+    "skills/agent-memory/commands/remember.md",
 )
 
 
@@ -28,16 +33,20 @@ def main() -> None:
         if len(sys.argv) > 1
         else os.environ.get("EXTENSIONS_PATH") or DEFAULT_ROOT
     )
-    assert root.is_dir(), f"the extensions catalog is missing: {root}"
+    if not root.is_dir():
+        raise SystemExit(f"the extensions catalog is missing: {root}")
 
     missing = [relative for relative in REQUIRED if not (root / relative).is_file()]
-    assert not missing, "the conversation image is missing the agent-memory skill: " + (
-        ", ".join(missing)
-    )
+    if missing:
+        raise SystemExit(
+            "the conversation image is missing the agent-memory skill: "
+            + ", ".join(missing)
+        )
 
     skill = (root / "skills" / "agent-memory" / "SKILL.md").read_text(encoding="utf-8")
     for trigger in ("/remember", "/recall"):
-        assert trigger in skill, f"agent-memory does not advertise {trigger}"
+        if trigger not in skill:
+            raise SystemExit(f"agent-memory does not advertise {trigger}")
 
     print("memory skill self-check passed")
 
