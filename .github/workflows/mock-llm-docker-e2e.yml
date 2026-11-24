@@ -5,7 +5,7 @@ name: Mock-LLM Docker E2E Tests
 #
 # Trigger chain:
 #   1. workflow_run — fires automatically after the "Docker" workflow
-#      completes on main. The image is already built/pushed to GHCR.
+#      completes on main. The image is already built and pushed to Docker Hub.
 #   2. workflow_dispatch — manual trigger with a custom image tag.
 
 on:
@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       docker_image:
-        description: "Docker image to test (e.g., ghcr.io/openhands/agent-canvas:sha-abc1234)"
+        description: "Docker image to test (e.g., avkanavt/openhands:sha-abc1234)"
         type: string
         default: ""
 
@@ -91,7 +91,7 @@ jobs:
           else
             SHORT_SHA=$(echo "${{ steps.ctx.outputs.sha }}" | cut -c1-7)
             # Use the plain tag the Docker workflow pushes for this commit.
-            echo "tag=ghcr.io/openhands/agent-canvas:sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+            echo "tag=avkanavt/openhands:sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Log in to GHCR
