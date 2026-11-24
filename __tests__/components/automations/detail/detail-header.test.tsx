@@ -167,6 +167,84 @@ describe("DetailHeader — keep sandbox alive", () => {
   });
 });
 
+describe("DetailHeader — keep run transcript", () => {
+  const governedAutomation: Automation = {
+    ...disabledAutomation,
+    enabled: true,
+    target_id: "target-1",
+  };
+
+  it.each([
+    {
+      retainTranscript: false,
+      label: I18nKey.AUTOMATIONS$KEEP_RUN_TRANSCRIPT,
+    },
+    {
+      retainTranscript: true,
+      label: I18nKey.AUTOMATIONS$STOP_KEEPING_RUN_TRANSCRIPT,
+    },
+  ])(
+    "lists $label when retain_transcript is $retainTranscript",
+    async ({ retainTranscript, label }) => {
+      // Arrange
+      const user = userEvent.setup();
+      const onToggleRetainTranscript = vi.fn();
+      renderHeader({
+        automation: {
+          ...governedAutomation,
+          retain_transcript: retainTranscript,
+        },
+        onToggleRetainTranscript,
+      });
+      await user.click(screen.getByLabelText(I18nKey.AUTOMATIONS$ACTIONS_MENU));
+
+      // Act
+      await user.click(screen.getByRole("button", { name: label }));
+
+      // Assert
+      expect(onToggleRetainTranscript).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("disables the item while a retain_transcript save is pending", async () => {
+    // Arrange
+    const user = userEvent.setup();
+    renderHeader({
+      automation: { ...governedAutomation, retain_transcript: false },
+      onToggleRetainTranscript: vi.fn(),
+      isRetainTranscriptPending: true,
+    });
+
+    // Act
+    await user.click(screen.getByLabelText(I18nKey.AUTOMATIONS$ACTIONS_MENU));
+
+    // Assert
+    expect(
+      screen.getByRole("button", {
+        name: I18nKey.AUTOMATIONS$KEEP_RUN_TRANSCRIPT,
+      }),
+    ).toBeDisabled();
+  });
+
+  it("leaves the item out when onToggleRetainTranscript is omitted", async () => {
+    // Arrange
+    const user = userEvent.setup();
+    renderHeader({
+      automation: { ...governedAutomation, retain_transcript: false },
+    });
+
+    // Act
+    await user.click(screen.getByLabelText(I18nKey.AUTOMATIONS$ACTIONS_MENU));
+
+    // Assert
+    expect(
+      screen.queryByRole("button", {
+        name: I18nKey.AUTOMATIONS$KEEP_RUN_TRANSCRIPT,
+      }),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe("DetailHeader — edit gating", () => {
   it("hides Edit when canEdit is false but keeps Delete", async () => {
     // Arrange — a manager viewing a automation that runs as a person.

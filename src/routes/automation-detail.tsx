@@ -15,6 +15,7 @@ import {
   useDispatchAutomation,
   useUpdateAutomationKeepAlive,
   useChangeAutomationFactory,
+  useUpdateAutomationRetainTranscript,
   useChangeRunAs,
 } from "#/hooks/query/use-automations";
 import {
@@ -164,6 +165,7 @@ export default function AutomationDetail() {
   const deleteMutation = useDeleteAutomation();
   const dispatchMutation = useDispatchAutomation();
   const keepAliveMutation = useUpdateAutomationKeepAlive();
+  const retainTranscriptMutation = useUpdateAutomationRetainTranscript();
   const changeRunAsMutation = useChangeRunAs();
   const changeFactoryMutation = useChangeAutomationFactory();
   const { isSupported: isFactoriesSupported } = useFactoriesSupported();
@@ -355,6 +357,24 @@ export default function AutomationDetail() {
     );
   };
 
+  const handleToggleRetainTranscript = () => {
+    const retainTranscript = automation.retain_transcript !== true;
+    retainTranscriptMutation.mutate(
+      { id: automation.id, retainTranscript },
+      {
+        onSuccess: () => {
+          displaySuccessToast(
+            t(
+              retainTranscript
+                ? I18nKey.AUTOMATIONS$KEEP_RUN_TRANSCRIPT_ON_SUCCESS
+                : I18nKey.AUTOMATIONS$KEEP_RUN_TRANSCRIPT_OFF_SUCCESS,
+            ),
+          );
+        },
+      },
+    );
+  };
+
   const handleChangeRunAs = (body: ChangeRunAsRequest) => {
     changeRunAsMutation.mutate(
       { id: automation.id, body },
@@ -420,6 +440,14 @@ export default function AutomationDetail() {
     !isDraft &&
     automation.keep_alive !== undefined &&
     !isKeepAliveForced(automation);
+  // `retain_transcript` applies to a governed target only. Cloud-only
+  // automations keep `keep_alive` as their sandbox control, so a missing
+  // target hides this item.
+  const canToggleRetainTranscript =
+    canEdit &&
+    !isDraft &&
+    Boolean(automation.target_id) &&
+    typeof automation.retain_transcript === "boolean";
   // An automation that runs as a service account shows the account's name
   // from the enterprise service account list (managers only). A manager falls
   // back to the raw id when the list is unavailable. A member sees a generic
@@ -450,6 +478,10 @@ export default function AutomationDetail() {
         }
         isKeepAlivePending={keepAliveMutation.isPending}
         backTo={backPath}
+        onToggleRetainTranscript={
+          canToggleRetainTranscript ? handleToggleRetainTranscript : undefined
+        }
+        isRetainTranscriptPending={retainTranscriptMutation.isPending}
         onEdit={() => openEditor(automation)}
         onDelete={() => setShowDeleteModal(true)}
         onChangeFactory={

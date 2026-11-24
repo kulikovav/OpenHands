@@ -1,4 +1,4 @@
-import { ArrowRightLeft, Database, Factory, Server } from "lucide-react";
+import { ArrowRightLeft, Database, Factory, FileText, Server } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import type { Automation } from "#/types/automation";
@@ -23,6 +23,13 @@ interface DetailHeaderProps {
    */
   onToggleKeepAlive?: () => void;
   isKeepAlivePending?: boolean;
+  /**
+   * When provided, the kebab menu offers flipping `retain_transcript`. Omit
+   * it when the setting does not apply or cannot be changed (no governed
+   * target, no edit permission, draft, or the service does not return it).
+   */
+  onToggleRetainTranscript?: () => void;
+  isRetainTranscriptPending?: boolean;
   /** When provided (and the user can edit), the header shows an Edit button. */
   onEdit?: () => void;
   /** Where the back link goes. Defaults to the automations list. */
@@ -57,6 +64,8 @@ export function DetailHeader({
   onToggle,
   onToggleKeepAlive,
   isKeepAlivePending = false,
+  onToggleRetainTranscript,
+  isRetainTranscriptPending = false,
   onEdit,
   backTo,
   onDelete,
@@ -116,6 +125,18 @@ export function DetailHeader({
             label: t(I18nKey.AUTOMATIONS$CHANGE_FACTORY),
             icon: <Factory className="size-4" aria-hidden />,
             onClick: onChangeFactory,
+          },
+        ]
+      : []),
+    ...(onToggleRetainTranscript
+      ? [
+          {
+            label: automation.retain_transcript
+              ? t(I18nKey.AUTOMATIONS$STOP_KEEPING_RUN_TRANSCRIPT)
+              : t(I18nKey.AUTOMATIONS$KEEP_RUN_TRANSCRIPT),
+            icon: <FileText className="size-4" aria-hidden />,
+            onClick: onToggleRetainTranscript,
+            disabled: isRetainTranscriptPending,
           },
         ]
       : []),
