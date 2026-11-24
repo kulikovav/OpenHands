@@ -41,7 +41,7 @@ env:
 
 jobs:
   # ═══════════════════════════════════════════════════════════════════════════
-  # Build & Push (per-architecture, native runners)
+  # Build & Push (amd64, native runner)
   # ═══════════════════════════════════════════════════════════════════════════
   build-and-push-image:
     name: Build & Push (${{ matrix.arch }})
@@ -58,14 +58,10 @@ jobs:
           - arch: amd64
             runner: ubuntu-24.04
             platform: linux/amd64
-          - arch: arm64
-            runner: ubuntu-24.04-arm
-            platform: linux/arm64
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
 
     env:
-      ARCH: ${{ matrix.arch }}
       PLATFORM: ${{ matrix.platform }}
 
     steps:
@@ -125,9 +121,10 @@ jobs:
             echo "automation_version=$DEFAULT_AUTOMATION_VERSION" >> "$GITHUB_OUTPUT"
           fi
 
-          # Build arch-suffixed tags (e.g., sha-abc1234-amd64)
+          # Build the tag list: sha, branch, PR, and release tags. The build
+          # pushes only a digest; the step after the smoke test applies these.
           TAGS=""
-          add_tag() { TAGS="${TAGS:+${TAGS},}${IMAGE}:${1}-${ARCH}"; }
+          add_tag() { TAGS="${TAGS:+${TAGS},}${IMAGE}:${1}"; }
 
           # SHA tags (always)
           add_tag "sha-${SHORT_SHA}"
@@ -188,15 +185,16 @@ jobs:
           echo "Tags: $TAGS"
           echo "===================="
 
-      - name: Build & Push (${{ matrix.arch }})
+      - name: Build and push by digest (${{ matrix.arch }})
         id: build
         uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile
           platforms: ${{ matrix.platform }}
-          push: true
-          tags: ${{ steps.prep.outputs.tags }}
+          # Push the image only by digest. Plain tags are applied after the
+          # smoke test, so a broken image never carries a release tag.
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true
           build-args: |
             AGENT_SERVER_IMAGE=${{ steps.prep.outputs.agent_server_image }}
             AGENT_SERVER_VERSION=${{ steps.config.outputs.agent_server_version }}
@@ -215,24 +213,35 @@ jobs:
           provenance: true
           sbom: true
 
-      # A browser for the smoke test's Canvas page check. The page is the same
-      # on both arches, so only amd64 pays for the install.
+      # A browser for the smoke test's Canvas page check.
       - name: Install Playwright for the page check
-        if: matrix.arch == 'amd64'
         run: |
           PLAYWRIGHT_VERSION=$(node -p "require('./package.json').devDependencies['@playwright/test']")
           npm install --prefix "$RUNNER_TEMP/playwright" --no-save --no-package-lock "playwright@${PLAYWRIGHT_VERSION}"
           "$RUNNER_TEMP/playwright/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/playwright/node_modules" >> "$GITHUB_ENV"
 
-      # Boot the image before merge-manifests publishes the multi-arch tags
-      # (including `latest`): a missing COPY only shows up at runtime (#18342).
+      # Boot the pushed digest before any plain tag exists: a missing COPY only
+      # shows up at runtime (#18342), and a failed boot must leave the release
+      # tags unpublished.
       - name: Smoke test (${{ matrix.arch }})
         env:
           # An explicit agent_server_image override may ship another version.
           EXPECTED_AGENT_SERVER_VERSION: ${{ inputs.agent_server_image == '' && steps.config.outputs.agent_server_version || '' }}
-          SMOKE_CANVAS_BASE_PATH: ${{ matrix.arch == 'amd64' && steps.config.outputs.canvas_base_path || '' }}
+          SMOKE_CANVAS_BASE_PATH: ${{ steps.config.outputs.canvas_base_path }}
         run: docker/smoke-test.sh "${IMAGE}@${{ steps.build.outputs.digest }}"
+
+      - name: Apply tags (${{ matrix.arch }})
+        env:
+          TAGS: ${{ steps.prep.outputs.tags }}
+        run: |
+          # Apply every tag to the digest that just passed the smoke test.
+          TAG_ARGS=()
+          IFS=',' read -ra IMAGE_TAGS <<< "$TAGS"
+          for IMAGE_TAG in "${IMAGE_TAGS[@]}"; do
+            TAG_ARGS+=(-t "$IMAGE_TAG")
+          done
+          docker buildx imagetools create "${TAG_ARGS[@]}" "${IMAGE}@${{ steps.build.outputs.digest }}"
 
       - name: Summary (${{ matrix.arch }})
         env:
@@ -274,125 +283,11 @@ jobs:
           retention-days: 1
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # Merge Multi-Arch Manifests
-  # ═══════════════════════════════════════════════════════════════════════════
-  merge-manifests:
-    name: Merge Multi-Arch Manifests
-    needs: build-and-push-image
-    if: >
-      github.event_name == 'push' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' &&
-       !github.event.pull_request.head.repo.fork)
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Download build info artifacts
-        uses: actions/download-artifact@v8
-        with:
-          pattern: build-info-*
-          merge-multiple: true
-          path: build-info
-
-      - name: Extract SHORT_SHA from build info
-        id: get_sha
-        run: |
-          SHORT_SHA=$(jq -r '.short_sha' build-info/amd64.json)
-          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
-          echo "Using SHORT_SHA: $SHORT_SHA"
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v4.8.0
-        with:
-          username: ${{ secrets.CI_DOCKERHUB_USERNAME }}
-          password: ${{ secrets.CI_DOCKERHUB_PASSWORD }}
-
-      - name: Create and push multi-arch manifests
-        id: create_manifests
-        run: |
-          # Validate both architectures built successfully
-          if [[ ! -f build-info/amd64.json ]] || [[ ! -f build-info/arm64.json ]]; then
-            echo "::error::Missing architecture builds (need both amd64.json and arm64.json)"
-            echo "Available: $(ls -1 build-info/*.json 2>/dev/null || echo 'none')"
-            exit 1
-          fi
-
-          SHORT_SHA=${{ steps.get_sha.outputs.short_sha }}
-          AMD64_TAGS_CSV=$(jq -r '.tags' build-info/amd64.json)
-          declare -A SEEN_MANIFEST_TAGS=()
-          MANIFEST_TAGS=()
-
-          create_manifest() {
-            local manifest_tag=$1
-            local source_tag=${2:-$1}
-
-            echo "Creating multi-arch manifest: ${IMAGE}:${manifest_tag}"
-            docker buildx imagetools create -t "${IMAGE}:${manifest_tag}" \
-              "${IMAGE}:${source_tag}-amd64" \
-              "${IMAGE}:${source_tag}-arm64"
-
-            echo "Inspecting multi-arch manifest:"
-            docker buildx imagetools inspect "${IMAGE}:${manifest_tag}"
-            echo "✓ Multi-arch manifest created: ${IMAGE}:${manifest_tag}"
-          }
-
-          IFS=',' read -ra AMD64_TAGS <<< "$AMD64_TAGS_CSV"
-          for AMD64_IMAGE_TAG in "${AMD64_TAGS[@]}"; do
-            if [ -z "$AMD64_IMAGE_TAG" ]; then
-              continue
-            fi
-
-            TAG_NAME=${AMD64_IMAGE_TAG#${IMAGE}:}
-            if [ "$TAG_NAME" = "$AMD64_IMAGE_TAG" ] || [[ ! "$TAG_NAME" == *-amd64 ]]; then
-              echo "Skipping unexpected architecture tag: $AMD64_IMAGE_TAG"
-              continue
-            fi
-
-            MANIFEST_TAG=${TAG_NAME%-amd64}
-            if [ -n "${SEEN_MANIFEST_TAGS[$MANIFEST_TAG]+x}" ]; then
-              continue
-            fi
-
-            SEEN_MANIFEST_TAGS[$MANIFEST_TAG]=1
-            MANIFEST_TAGS+=("$MANIFEST_TAG")
-            create_manifest "$MANIFEST_TAG"
-          done
-
-          # `latest` multi-arch manifest is created automatically above when a
-          # stable version tag is pushed (the per-arch build adds `latest-{arch}`
-          # tags for non-pre-release tags, and the loop above merges them into a
-          # `latest` manifest). We intentionally do NOT alias main to latest here
-          # so that `latest` always points at the highest stable tagged release,
-          # not at unreleased main-branch code.
-
-          MANIFEST_TAG_CSV=$(IFS=,; echo "${MANIFEST_TAGS[*]}")
-          echo "manifest_tags=$MANIFEST_TAG_CSV" >> "$GITHUB_OUTPUT"
-
-          # Save manifest info for consolidation
-          mkdir -p manifest-info
-          jq -n \
-            --arg image "$IMAGE" \
-            --arg short_sha "$SHORT_SHA" \
-            --arg manifest_tags "$MANIFEST_TAG_CSV" \
-            '{image: $image, short_sha: $short_sha, manifest_tags: $manifest_tags}' \
-            > manifest-info/manifests.json
-          cat manifest-info/manifests.json
-
-      - name: Upload manifest info artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: manifest-info
-          path: manifest-info/manifests.json
-          retention-days: 1
-
-  # ═══════════════════════════════════════════════════════════════════════════
   # Consolidate Build Information
   # ═══════════════════════════════════════════════════════════════════════════
   consolidate-build-info:
     name: Consolidate Build Information
-    needs: [build-and-push-image, merge-manifests]
+    needs: build-and-push-image
     if: github.event_name == 'pull_request' && always() && (needs.build-and-push-image.result == 'success' || needs.build-and-push-image.result == 'failure')
     runs-on: ubuntu-24.04
     outputs:
@@ -405,13 +300,6 @@ jobs:
           pattern: build-info-*
           merge-multiple: true
           path: build-info
-
-      - name: Download manifest info artifacts
-        uses: actions/download-artifact@v8
-        with:
-          name: manifest-info
-          path: manifest-info
-        continue-on-error: true
 
       - name: Consolidate build information from artifacts
         id: consolidate
@@ -458,14 +346,6 @@ jobs:
             fi
           done
 
-          # Add manifest tags
-          if [[ -f "manifest-info/manifests.json" ]]; then
-            MANIFEST_TAG_CSV=$(jq -r '.manifest_tags' manifest-info/manifests.json)
-            MANIFEST_TAG_LIST=$(echo "$MANIFEST_TAG_CSV" | tr ',' '\n' | sed "s|^|${IMAGE}:|")
-            ALL_TAGS="${ALL_TAGS:+${ALL_TAGS}
-          }${MANIFEST_TAG_LIST}"
-          fi
-
           BUILD_SUMMARY=$(jq -n \
             --arg image "$IMAGE" \
             --arg short_sha "$SHORT_SHA" \
@@ -475,8 +355,8 @@ jobs:
             --arg automation_version "$AUTOMATION_VERSION" \
             --arg git_sha "$GIT_SHA" \
             --arg git_ref "$GIT_REF" \
-            --arg ghcr_url "https://github.com/OpenHands/OpenHands/pkgs/container/agent-canvas" \
-            '{image: $image, short_sha: $short_sha, all_tags: $all_tags, architectures: $archs, agent_server_image: $agent_server_image, automation_version: $automation_version, git_sha: $git_sha, git_ref: $git_ref, ghcr_package_url: $ghcr_url}')
+            --arg dockerhub_url "https://hub.docker.com/r/${IMAGE}" \
+            '{image: $image, short_sha: $short_sha, all_tags: $all_tags, architectures: $archs, agent_server_image: $agent_server_image, automation_version: $automation_version, git_sha: $git_sha, git_ref: $git_ref, dockerhub_package_url: $dockerhub_url}')
 
           echo "Consolidated build summary:"
           echo "$BUILD_SUMMARY" | jq .
@@ -510,7 +390,7 @@ jobs:
 
           IMAGE=$(echo "$BUILD_SUMMARY" | jq -r '.image')
           SHORT_SHA=$(echo "$BUILD_SUMMARY" | jq -r '.short_sha')
-          GHCR_URL=$(echo "$BUILD_SUMMARY" | jq -r '.ghcr_package_url')
+          DOCKERHUB_URL=$(echo "$BUILD_SUMMARY" | jq -r '.dockerhub_package_url')
           ALL_TAGS=$(echo "$BUILD_SUMMARY" | jq -r '.all_tags')
           ARCHS=$(echo "$BUILD_SUMMARY" | jq -r '.architectures')
           AGENT_SERVER_IMAGE=$(echo "$BUILD_SUMMARY" | jq -r '.agent_server_image')
@@ -523,7 +403,7 @@ jobs:
           ---
           **🐳 Docker images for this PR**
 
-          • **GHCR package:** ${GHCR_URL}
+          • **Docker Hub package:** ${DOCKERHUB_URL}
 
           | Component | Value |
           |---|---|
@@ -533,9 +413,8 @@ jobs:
           | **Automation** | \`openhands-automation==${AUTOMATION_VERSION}\` |
           | **Commit** | \`${GIT_SHA}\` |
 
-          **Pull (multi-arch manifest)**
+          **Pull**
           \`\`\`bash
-          # Multi-arch manifest — Docker automatically pulls the correct architecture
           docker pull ${IMAGE}:sha-${SHORT_SHA}
           \`\`\`
 
@@ -550,11 +429,6 @@ jobs:
           \`\`\`
           ${ALL_TAGS}
           \`\`\`
-
-          **About Multi-Architecture Support**
-          - Each tag (e.g., \`sha-${SHORT_SHA}\`) is a **multi-arch manifest** supporting both **amd64** and **arm64**
-          - Docker automatically pulls the correct architecture for your platform
-          - Individual architecture tags (e.g., \`sha-${SHORT_SHA}-amd64\`) are also available if needed
           <!-- AGENT_CANVAS_DOCKER_END -->
           EOF
           )
