@@ -26,6 +26,7 @@ import {
   SIDEBAR_RAIL_COLLAPSE_MAX_WIDTH,
   useBreakpoint,
 } from "#/hooks/use-breakpoint";
+import { useSyncProfileSkills } from "#/hooks/use-sync-profile-skills";
 
 import { useTelemetryIdentity } from "#/hooks/use-telemetry-identity";
 import { useSyncDocumentLanguage } from "#/hooks/use-sync-document-language";
@@ -174,6 +175,8 @@ function MainAppContent() {
   useMigrateEnabledSkills();
   // One-shot move of global agent behavior into the `default` profile.
   useMigrateDefaultAgentProfile();
+  // Carry the Skills page selection to every profile a launch can resolve.
+  useSyncProfileSkills();
 
   React.useEffect(() => {
     if (settings?.language) {
