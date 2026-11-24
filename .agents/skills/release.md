@@ -20,7 +20,7 @@ workflows in [`OpenHands/release-actions`](https://github.com/OpenHands/release-
 2. On every push to `main`, `.github/workflows/release.yml` runs release-please, which maintains a **draft release PR** titled `chore(main): release X.Y.Z` accumulating everything merged since the last release.
 3. The release PR pre-stages **every version bump**: `package.json`, `package-lock.json`, `config/defaults.json` (`versions.agentCanvas`), and the Docker image pins in `README.md` / `README.windows.md` (lines annotated with `x-release-please-version`).
 4. Marking the release PR **Ready for review** is the explicit cut-a-release signal: `.github/workflows/release-ready.yml` notifies `#proj-agent-canvas` on Slack and labels the PR `release: ready`.
-5. Merging the release PR makes release-please push the `vX.Y.Z` tag (using the org release App token) and create the GitHub Release. The same tag push triggers `npm-publish.yml` (npm) and `docker.yml` (multi-arch GHCR images).
+5. Merging the release PR makes release-please push the `vX.Y.Z` tag (using the org release App token) and create the GitHub Release. The same tag push triggers `npm-publish.yml` (npm) and `docker.yml` (amd64 Docker Hub images).
 
 The next version is derived from the conventional-commit types merged since the last release: `fix` → patch, `feat` → minor, any `!` suffix or `BREAKING CHANGE` footer → major. Other types (`docs`, `chore`, `refactor`, …) appear in the release notes but do not by themselves produce a release PR. Release notes are grouped by the `type:` labels via `.github/release.yml`; there is no `CHANGELOG.md` file — GitHub Releases are the changelog.
 
@@ -56,7 +56,7 @@ Open the release PR and confirm:
 
 ## Step 3: Cut the Release
 
-**STOP HERE and confirm with the user before proceeding.** Marking the PR ready and merging it publishes to npm and GHCR.
+**STOP HERE and confirm with the user before proceeding.** Marking the PR ready and merging it publishes to npm and Docker Hub.
 
 ```bash
 gh pr ready <release-pr-number>

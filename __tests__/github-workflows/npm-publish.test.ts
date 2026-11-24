@@ -31,9 +31,7 @@ describe("npm publish workflow", () => {
     expect(dockerfile).toContain(
       'LABEL org.opencontainers.image.source="https://github.com/OpenHands/OpenHands"',
     );
-    expect(dockerWorkflow).toContain(
-      "https://github.com/OpenHands/OpenHands/pkgs/container/agent-canvas",
-    );
+    expect(dockerWorkflow).toContain("https://hub.docker.com/r/${IMAGE}");
   });
 
   it("does not let electron-builder auto-publish during desktop builds", () => {

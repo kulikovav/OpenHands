@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       docker_image:
-        description: "Docker image to test (e.g., ghcr.io/openhands/agent-canvas:sha-abc1234-amd64)"
+        description: "Docker image to test (e.g., ghcr.io/openhands/agent-canvas:sha-abc1234)"
         type: string
         default: ""
 
@@ -90,8 +90,8 @@ jobs:
             echo "tag=$DOCKER_IMAGE_INPUT" >> "$GITHUB_OUTPUT"
           else
             SHORT_SHA=$(echo "${{ steps.ctx.outputs.sha }}" | cut -c1-7)
-            # Use the amd64-specific tag (always pushed by the Docker workflow).
-            echo "tag=ghcr.io/openhands/agent-canvas:sha-${SHORT_SHA}-amd64" >> "$GITHUB_OUTPUT"
+            # Use the plain tag the Docker workflow pushes for this commit.
+            echo "tag=ghcr.io/openhands/agent-canvas:sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Log in to GHCR
