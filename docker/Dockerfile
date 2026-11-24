@@ -206,13 +206,19 @@ RUN if [ -n "${AGENT_SERVER_SDK_GIT_REF}" ]; then \
 #    through the settings carry the environment-variable spelling
 #    (`GITLAB_TOKEN`); the exact-name lookup missed the other convention and
 #    the automation clone went unauthenticated.
+# 4. Add the standing memory instructions to a governed run's composed prompt
+#    and tag the conversation with its automation and run id, so the memory
+#    token's claims give the skill one idempotency key per run.
 # Patches 1 and 2 are the fork's own commits, so a fork ref skips applying
 # them; the self-checks always run, so the installed package still proves the
-# behavior whether it came from PyPI or the fork.
+# behavior whether it came from PyPI or the fork. Governed dispatch exists
+# only in the fork, so patch 4 applies after either install and is skipped
+# when the installed package has no governed backend.
 # --fuzz=0 makes a version bump fail the build when the patched context
 # changed, so the fixes cannot be dropped silently.
 COPY docker/patches/automation-1.34.1-dispatch-retry.patch /tmp/bleenk-patches/automation-dispatch-retry.patch
 COPY docker/patches/automation-1.34.1-interrupt-on-sigterm.patch /tmp/bleenk-patches/automation-interrupt-on-sigterm.patch
+COPY docker/patches/automation-1.34.1-memory-prompt.patch /tmp/bleenk-patches/automation-memory-prompt.patch
 COPY docker/patches/agent-server-1.63.1-token-case-insensitive.patch /tmp/bleenk-patches/agent-server-token-case-insensitive.patch
 COPY docker/patches/automation-dispatch-retry-selfcheck.py /tmp/bleenk-patches/automation-dispatch-retry-selfcheck.py
 COPY docker/patches/automation-sigterm-selfcheck.py /tmp/bleenk-patches/automation-sigterm-selfcheck.py
@@ -224,6 +230,9 @@ RUN python -c "import openhands.automation as m; assert m.__version__ == '${AUTO
          && patch -p1 -d "${SITE_PACKAGES}" --forward --fuzz=0 < /tmp/bleenk-patches/automation-interrupt-on-sigterm.patch; \
        fi \
     && patch -p1 -d "${SITE_PACKAGES}" --forward --fuzz=0 < /tmp/bleenk-patches/agent-server-token-case-insensitive.patch \
+    && if [ -f "${SITE_PACKAGES}/openhands/automation/backends/governed.py" ]; then \
+         patch -p1 -d "${SITE_PACKAGES}" --forward --fuzz=0 < /tmp/bleenk-patches/automation-memory-prompt.patch; \
+       fi \
     && python /tmp/bleenk-patches/automation-dispatch-retry-selfcheck.py "${SITE_PACKAGES}" \
     && python /tmp/bleenk-patches/automation-sigterm-selfcheck.py "${SITE_PACKAGES}" \
     && python /tmp/bleenk-patches/agent-server-token-case-selfcheck.py "${SITE_PACKAGES}" \
@@ -263,6 +272,14 @@ COPY --from=frontend-build /build/node_modules/@openhands/extensions /opt/agent-
 COPY docker/patches/memory-skill-selfcheck.py /tmp/memory-skill-selfcheck.py
 RUN python /tmp/memory-skill-selfcheck.py /opt/agent-canvas/node_modules/@openhands/extensions \
     && rm -f /tmp/memory-skill-selfcheck.py
+
+# Fail the build when a governed run's prompt loses the memory instructions or
+# its start stops tagging the automation and run. Runs here, after the
+# extensions copy, because it loads the skill's own idempotency derivation.
+COPY docker/patches/automation-memory-prompt-selfcheck.py /tmp/automation-memory-prompt-selfcheck.py
+RUN SITE_PACKAGES="$(python -c 'import openhands.automation as m, pathlib; print(pathlib.Path(m.__file__).resolve().parents[2])')" \
+    && python /tmp/automation-memory-prompt-selfcheck.py "${SITE_PACKAGES}" /opt/agent-canvas/node_modules/@openhands/extensions \
+    && rm -f /tmp/automation-memory-prompt-selfcheck.py
 
 # Copy the runtime-services-info builder (entrypoint.sh runs it as a CLI to
 # emit the agent's <RUNTIME_SERVICES> block; same builder the dev stack uses).
