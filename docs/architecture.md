@@ -30,7 +30,7 @@ Optional runtime services include:
 
 Agent Canvas stack launchers expose runtime service information through the backend `/server_info.runtime_services` field. The frontend forwards that backend-provided information into new conversations as an agent context suffix so agents can use the correct URLs instead of guessing ports.
 
-The automation key-value store and the shared memory service keep different state. The automation key-value store holds control state the automation service reads: cursors, last-seen ids, and small scalars. The memory service holds facts an agent writes for future agents, including a run's outcome summary. A run records its outcome in the memory service, not in the key-value store. Version 1 needs no migration between the two stores.
+The automation key-value store and the shared memory service keep different state. The automation key-value store holds control state the automation service reads: cursors, last-seen ids, and small scalars. The memory service holds facts an agent writes for future agents, including a run's outcome summary. A run records its outcome in the memory service, not in the key-value store. A build-time self-check fails the image when the composed prompt names the key-value store as the outcome store.
 
 ## Frontend modules
 
