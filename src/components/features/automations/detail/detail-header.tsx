@@ -1,4 +1,10 @@
-import { ArrowRightLeft, Database, Factory, FileText, Server } from "lucide-react";
+import {
+  ArrowRightLeft,
+  Database,
+  Factory,
+  FileText,
+  Server,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import type { Automation } from "#/types/automation";

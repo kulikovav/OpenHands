@@ -137,7 +137,11 @@ describe("ConversationName", () => {
 
     await waitFor(() =>
       expect(updateConversationMock).toHaveBeenCalledWith(
-        { conversationId: "conversation-1", newTitle: "Saved Title" },
+        {
+          conversationId: "conversation-1",
+          newTitle: "Saved Title",
+          conversationUrl: null,
+        },
         expect.any(Object),
       ),
     );
@@ -156,7 +160,11 @@ describe("ConversationName", () => {
 
     await waitFor(() =>
       expect(updateConversationMock).toHaveBeenCalledWith(
-        { conversationId: "conversation-1", newTitle: "Blurred Title" },
+        {
+          conversationId: "conversation-1",
+          newTitle: "Blurred Title",
+          conversationUrl: null,
+        },
         expect.any(Object),
       ),
     );
@@ -182,7 +190,11 @@ describe("ConversationName", () => {
 
     await waitFor(() =>
       expect(updateConversationMock).toHaveBeenCalledWith(
-        { conversationId: "conversation-1", newTitle: "Saved After Cancel" },
+        {
+          conversationId: "conversation-1",
+          newTitle: "Saved After Cancel",
+          conversationUrl: null,
+        },
         expect.any(Object),
       ),
     );
