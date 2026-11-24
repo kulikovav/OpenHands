@@ -208,12 +208,16 @@ RUN if [ -n "${AGENT_SERVER_SDK_GIT_REF}" ]; then \
 #    the automation clone went unauthenticated.
 # 4. Add the standing memory instructions to a governed run's composed prompt
 #    and tag the conversation with its automation and run id, so the memory
-#    token's claims give the skill one idempotency key per run.
+#    token's claims give the skill one idempotency key per run. It needs
+#    shared-memory token support beyond what openhands-sdk v1.63.1 provides.
 # Patches 1 and 2 are the fork's own commits, so a fork ref skips applying
-# them; the self-checks always run, so the installed package still proves the
-# behavior whether it came from PyPI or the fork. Governed dispatch exists
-# only in the fork, so patch 4 applies after either install and is skipped
-# when the installed package has no governed backend.
+# them; their self-checks still prove the installed package, whether it came
+# from PyPI or the fork. Governed dispatch exists only in the fork, so patch 4
+# applies to the fork install alone. With a fork ref set, the self-check fails
+# the build when the governed backend or the composed memory section is
+# missing, so a fork refactor cannot drop delivery and proof together. When
+# the fork absorbs this change upstream, delete this patch in the same change,
+# or --forward makes the already-applied hunk fail the build.
 # --fuzz=0 makes a version bump fail the build when the patched context
 # changed, so the fixes cannot be dropped silently.
 COPY docker/patches/automation-1.34.1-dispatch-retry.patch /tmp/bleenk-patches/automation-dispatch-retry.patch
@@ -273,12 +277,13 @@ COPY docker/patches/memory-skill-selfcheck.py /tmp/memory-skill-selfcheck.py
 RUN python /tmp/memory-skill-selfcheck.py /opt/agent-canvas/node_modules/@openhands/extensions \
     && rm -f /tmp/memory-skill-selfcheck.py
 
-# Fail the build when a governed run's prompt loses the memory instructions or
-# its start stops tagging the automation and run. Runs here, after the
-# extensions copy, because it loads the skill's own idempotency derivation.
+# Fail the build when a fork install lacks the governed backend or the memory
+# instructions, or when a governed run's start stops tagging the automation
+# and run. A PyPI install skips: it has no governed dispatch. Runs here, after
+# the extensions copy, because it loads the skill's own idempotency derivation.
 COPY docker/patches/automation-memory-prompt-selfcheck.py /tmp/automation-memory-prompt-selfcheck.py
 RUN SITE_PACKAGES="$(python -c 'import openhands.automation as m, pathlib; print(pathlib.Path(m.__file__).resolve().parents[2])')" \
-    && python /tmp/automation-memory-prompt-selfcheck.py "${SITE_PACKAGES}" /opt/agent-canvas/node_modules/@openhands/extensions \
+    && python /tmp/automation-memory-prompt-selfcheck.py "${SITE_PACKAGES}" /opt/agent-canvas/node_modules/@openhands/extensions "${AUTOMATION_GIT_REF}" \
     && rm -f /tmp/automation-memory-prompt-selfcheck.py
 
 # Copy the runtime-services-info builder (entrypoint.sh runs it as a CLI to
