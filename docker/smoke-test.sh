@@ -57,6 +57,18 @@ done
 curl -fsS -o /dev/null --max-time 5 "$HEALTH_URL" ||
   fail "${HEALTH_URL} stopped answering"
 
+# The base image ships a frozen openhands-agent-server binary that embeds
+# upstream and ignores the fork package. Only fork code reports this capability,
+# so the release fails here when that binary comes back in front of the fork.
+capabilities=$(docker exec "$NAME" python -c 'import json, urllib.request
+print(" ".join(json.load(urllib.request.urlopen("http://127.0.0.1:8000/server_info"))["capabilities"]))') ||
+  fail "could not read the agent-server capabilities from /server_info"
+case " ${capabilities} " in
+  *" conversation_repositories_v1 "*) ;;
+  *) fail "served agent-server lacks conversation_repositories_v1: ${capabilities}" ;;
+esac
+echo "Agent Server: serves the fork package (conversation_repositories_v1)"
+
 # The served agent-server comes from the base image, while system Python gets
 # its own copy as a dependency of openhands-workspace; a resolver conflict once
 # downgraded that copy silently (#17531). Check both against the release pin.
