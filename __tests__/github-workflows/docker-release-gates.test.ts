@@ -44,13 +44,22 @@ describe("docker release gates", () => {
     expect(tags.body).toContain("steps.build.outputs.digest");
   });
 
-  it("pushes the image by digest with no tags output", () => {
+  it("pushes the digest so the smoke test can pull it", () => {
     const build = step("Build and push by digest");
+    const outputs = build.body.match(/^\s*outputs:\s*(.+)$/m)?.[1];
 
-    expect(build.body).toMatch(
-      /outputs:\s*type=image\b[^\n]*push-by-digest=true/,
-    );
-    expect(build.body).not.toMatch(/\btags=/);
+    expect(outputs, "the build step has no outputs value").toBeDefined();
+    const entries = (outputs ?? "").split(",").map((entry) => entry.trim());
+
+    expect(entries).toContain("type=image");
+    // push-by-digest alone leaves the digest on the runner: buildx defaults
+    // push to false, and the smoke test then pulls a manifest that never left.
+    expect(entries).toContain("push=true");
+    expect(entries).toContain("push-by-digest=true");
+    expect(entries.some((entry) => entry.startsWith("tags="))).toBe(false);
     expect(build.body).not.toMatch(/^\s*tags:/m);
+    // The action-level input emits --push beside --output and conflicts with
+    // the digest-only output.
+    expect(build.body).not.toMatch(/^\s*push:\s*true\s*$/m);
   });
 });
