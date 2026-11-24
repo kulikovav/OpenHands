@@ -605,9 +605,11 @@ trap 'exit 0' SIGINT SIGTERM
 # ── 1. Start Agent Server ────────────────────────────────────────────────────
 log "Starting agent-server on port $AGENT_SERVER_PORT..."
 
-if command -v openhands-agent-server >/dev/null 2>&1; then
-  # Binary build (production image)
-  openhands-agent-server --port "$AGENT_SERVER_PORT" \
+if python -c 'import openhands.agent_server' >/dev/null 2>&1; then
+  # The base image also installs a frozen `openhands-agent-server` binary that
+  # embeds upstream and ignores the fork package. Run the installed package
+  # itself, or the fork's server behavior never reaches the served process.
+  python -m openhands.agent_server --port "$AGENT_SERVER_PORT" \
     --import-modules "$AGENT_SERVER_IMPORT_MODULES" &
 elif [ -x /agent-server/.venv/bin/python ]; then
   # Source build (development image)
