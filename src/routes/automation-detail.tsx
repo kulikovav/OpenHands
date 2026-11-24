@@ -127,7 +127,6 @@ export default function AutomationDetail() {
   const backPath = factoryContext
     ? factoryPath(factoryContext)
     : automationListPath();
-  const { governed: isBackendGoverned } = useGovernedBackend();
   const surface = useAutomationSurface();
 
   const {

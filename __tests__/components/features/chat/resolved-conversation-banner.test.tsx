@@ -194,12 +194,7 @@ describe("ResolvedConversationBanner", () => {
 
     await userEvent.click(reopenButton());
 
-    expect(updateTagFlags).toHaveBeenCalledWith(
-      CONVERSATION_ID,
-      { resolved: "user", project: "abc", turn: "answered" },
-      { resolved: false },
-      undefined,
-    );
+    expect(setResolved).toHaveBeenCalledWith("abc", CONVERSATION_ID, false);
     await waitFor(() => {
       expect(
         screen.queryByTestId("resolved-conversation-banner"),
@@ -245,7 +240,9 @@ describe("ResolvedConversationBanner", () => {
   });
 
   it("keeps the banner when the server still reports it resolved after a message", async () => {
-    batchGet.mockResolvedValue([conversationWith({ resolved: "auto" })]);
+    batchGet.mockResolvedValue([
+      conversationWith({ project: "abc", resolved: "auto" }),
+    ]);
     renderBanner({ resolved: "auto" });
 
     act(() => {

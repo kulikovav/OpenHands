@@ -118,7 +118,6 @@ import {
 } from "#/hooks/query/use-service-accounts";
 import { useAutomationPermissions } from "#/hooks/use-automation-permissions";
 import { useActiveBackend } from "#/contexts/active-backend-context";
-import { AUTOMATION_DETAIL_QUERY_KEY } from "#/hooks/query/use-automation-detail";
 import {
   AUTOMATIONS_QUERY_KEY,
   invalidateAutomationLists,
