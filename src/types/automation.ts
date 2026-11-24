@@ -139,6 +139,14 @@ export interface Automation {
    * does not expose it.
    */
   keep_alive?: boolean | null;
+  /**
+   * Keep the run's conversation and transcript after its sandbox stops, for
+   * the governed deployment's retention window, instead of deleting the
+   * conversation at terminal state. Independent of `keep_alive`, which stays
+   * the cloud sandbox cleanup flag. Absent from an automation service that
+   * does not expose it; the service defaults it to true.
+   */
+  retain_transcript?: boolean | null;
 
   created_at: string;
   updated_at: string;

@@ -204,6 +204,27 @@ export function useUpdateAutomationKeepAlive() {
   });
 }
 
+/** Retain (or stop retaining) a governed run's transcript after its sandbox stops. */
+export function useUpdateAutomationRetainTranscript() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      retainTranscript,
+    }: {
+      id: string;
+      retainTranscript: boolean;
+    }) =>
+      AutomationService.updateAutomation(id, {
+        retain_transcript: retainTranscript,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: AUTOMATIONS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: AUTOMATION_DETAIL_QUERY_KEY });
+    },
+  });
+}
+
 interface UseToggleAutomationOptions {
   /**
    * Skip the global error toast, for a caller that shows its own. Dashboard

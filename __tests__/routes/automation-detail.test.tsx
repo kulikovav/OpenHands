@@ -1233,3 +1233,138 @@ describe("AutomationDetail — keep sandbox alive", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("AutomationDetail — keep run transcript", () => {
+  beforeEach(() => {
+    vi.mocked(AutomationService.updateAutomation).mockReset();
+  });
+
+  it.each([
+    {
+      saved: false,
+      label: I18nKey.AUTOMATIONS$KEEP_RUN_TRANSCRIPT,
+      next: true,
+      toast: I18nKey.AUTOMATIONS$KEEP_RUN_TRANSCRIPT_ON_SUCCESS,
+    },
+    {
+      saved: true,
+      label: I18nKey.AUTOMATIONS$STOP_KEEPING_RUN_TRANSCRIPT,
+      next: false,
+      toast: I18nKey.AUTOMATIONS$KEEP_RUN_TRANSCRIPT_OFF_SUCCESS,
+    },
+  ])(
+    "saves retain_transcript $next from the actions menu and confirms with a toast",
+    async ({ saved, label, next, toast }) => {
+      // Arrange
+      vi.mocked(AutomationService.getAutomation).mockResolvedValue({
+        ...automation,
+        target_id: "target-1",
+        retain_transcript: saved,
+      });
+      vi.mocked(AutomationService.updateAutomation).mockResolvedValue({
+        ...automation,
+        target_id: "target-1",
+        retain_transcript: next,
+      });
+      displaySuccessToast.mockClear();
+      const user = userEvent.setup();
+      renderDetail();
+      await user.click(
+        await screen.findByLabelText(I18nKey.AUTOMATIONS$ACTIONS_MENU),
+      );
+
+      // Act
+      await user.click(screen.getByRole("button", { name: label }));
+
+      // Assert
+      expect(AutomationService.updateAutomation).toHaveBeenCalledWith(
+        automation.id,
+        { retain_transcript: next },
+      );
+      await waitFor(() =>
+        expect(displaySuccessToast).toHaveBeenCalledWith(toast),
+      );
+    },
+  );
+
+  it.each([
+    {
+      reason: "a cloud-only automation",
+      backendId: cloudBackend.id,
+      overrides: { retain_transcript: true },
+    },
+    {
+      reason: "a draft",
+      overrides: {
+        state: "DRAFT",
+        target_id: "target-1",
+        retain_transcript: true,
+      },
+    },
+    {
+      reason: "an automation without a governed target",
+      overrides: { retain_transcript: true },
+    },
+    {
+      reason: "a service without the field",
+      overrides: { target_id: "target-1" },
+    },
+  ])(
+    "leaves the item out of the menu for $reason",
+    async ({ backendId, overrides }) => {
+      // Arrange
+      if (backendId) setActiveSelection({ backendId });
+      vi.mocked(AutomationService.getAutomation).mockResolvedValue({
+        ...automation,
+        ...overrides,
+      });
+      const user = userEvent.setup();
+      renderDetail();
+
+      // Act
+      await user.click(
+        await screen.findByLabelText(I18nKey.AUTOMATIONS$ACTIONS_MENU),
+      );
+
+      // Assert
+      expect(
+        screen.getByRole("button", { name: I18nKey.AUTOMATIONS$DELETE }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", {
+          name: I18nKey.AUTOMATIONS$KEEP_RUN_TRANSCRIPT,
+        }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", {
+          name: I18nKey.AUTOMATIONS$STOP_KEEPING_RUN_TRANSCRIPT,
+        }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("leaves the item out for a view-only user", async () => {
+    // Arrange
+    permissionMocks.canManage = false;
+    permissionMocks.isOwner = false;
+    vi.mocked(AutomationService.getAutomation).mockResolvedValue({
+      ...automation,
+      target_id: "target-1",
+      retain_transcript: false,
+    });
+    const user = userEvent.setup();
+    renderDetail();
+
+    // Act
+    await user.click(
+      await screen.findByLabelText(I18nKey.AUTOMATIONS$ACTIONS_MENU),
+    );
+
+    // Assert
+    expect(
+      screen.queryByRole("button", {
+        name: I18nKey.AUTOMATIONS$KEEP_RUN_TRANSCRIPT,
+      }),
+    ).not.toBeInTheDocument();
+  });
+});
