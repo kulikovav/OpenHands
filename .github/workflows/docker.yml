@@ -194,7 +194,10 @@ jobs:
           platforms: ${{ matrix.platform }}
           # Push the image only by digest. Plain tags are applied after the
           # smoke test, so a broken image never carries a release tag.
-          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true
+          # push=true must stay inside outputs: the action's push input emits
+          # --push beside --output, and without it buildx keeps the digest on
+          # the runner.
+          outputs: type=image,name=${{ env.IMAGE }},push=true,push-by-digest=true
           build-args: |
             AGENT_SERVER_IMAGE=${{ steps.prep.outputs.agent_server_image }}
             AGENT_SERVER_VERSION=${{ steps.config.outputs.agent_server_version }}
