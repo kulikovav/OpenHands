@@ -53,7 +53,8 @@ function RuntimeSettingsScreen() {
         testId="runtime-settings-screen"
       />
       {/* The backend list seeds from a deployment discovery document, which
-          only a local deployment publishes. */}
+          only a local deployment publishes, so a cloud backend keeps its own
+          backend management and renders no section here. */}
       {backend.kind === "local" && <BackendsSettingsSection />}
     </div>
   );
