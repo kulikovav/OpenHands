@@ -160,6 +160,39 @@ RUN set -eu; \
     && rm -rf "/tmp/${FILE}" /tmp/glab-checksums.txt /tmp/bin \
     && glab --version
 
+# Go, protoc, and the Go-installed protoc plugins live at a read-only system
+# path because /sandbox is writable and disposable; the OpenShell policy binary
+# globs name these paths. The image CI builds linux/amd64 only, so the assets
+# are pinned to amd64.
+ARG GO_VERSION=1.27.4
+ARG GO_SHA256=7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840
+ARG PROTOC_VERSION=36.2
+ARG PROTOC_SHA256=121f6c7afe1d4d0e3ea6aab9432038599250134cbf4474cb1167d2c7decd4278
+ARG PROTOC_GEN_GO_VERSION=v1.36.12
+ARG PROTOC_GEN_GO_GRPC_VERSION=v1.6.2
+RUN set -eu; \
+    mkdir -p /opt/agent-tools/go /opt/agent-tools/protoc /opt/agent-tools/bin /tmp/agent-tools-build; \
+    GO_FILE="go${GO_VERSION}.linux-amd64.tar.gz"; \
+    curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused "https://go.dev/dl/${GO_FILE}" -o "/tmp/agent-tools-build/${GO_FILE}"; \
+    echo "${GO_SHA256}  /tmp/agent-tools-build/${GO_FILE}" | sha256sum -c -; \
+    tar -C /opt/agent-tools/go --strip-components=1 -xzf "/tmp/agent-tools-build/${GO_FILE}"; \
+    PROTOC_FILE="protoc-${PROTOC_VERSION}-linux-x86_64.zip"; \
+    curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_FILE}" -o "/tmp/agent-tools-build/${PROTOC_FILE}"; \
+    echo "${PROTOC_SHA256}  /tmp/agent-tools-build/${PROTOC_FILE}" | sha256sum -c -; \
+    python -m zipfile -e "/tmp/agent-tools-build/${PROTOC_FILE}" /opt/agent-tools/protoc; \
+    export GOBIN=/opt/agent-tools/bin GOPATH=/tmp/agent-tools-build/gopath GOCACHE=/tmp/agent-tools-build/gocache; \
+    /opt/agent-tools/go/bin/go install "google.golang.org/protobuf/cmd/protoc-gen-go@${PROTOC_GEN_GO_VERSION}"; \
+    /opt/agent-tools/go/bin/go install "google.golang.org/grpc/cmd/protoc-gen-go-grpc@${PROTOC_GEN_GO_GRPC_VERSION}"; \
+    ln -s /opt/agent-tools/protoc/bin/protoc /opt/agent-tools/bin/protoc; \
+    chmod -R a+rX /opt/agent-tools; \
+    chmod 0755 /opt/agent-tools/protoc/bin/protoc; \
+    /opt/agent-tools/go/bin/go version; \
+    /opt/agent-tools/protoc/bin/protoc --version; \
+    /opt/agent-tools/bin/protoc-gen-go --version; \
+    /opt/agent-tools/bin/protoc-gen-go-grpc --version; \
+    rm -rf /tmp/agent-tools-build
+ENV PATH=/opt/agent-tools/go/bin:/opt/agent-tools/protoc/bin:/opt/agent-tools/bin:${PATH}
+
 # Install automation server and the tool models its SDK clients deserialize.
 # Match openhands-tools to the SDK already provided by the agent-server image,
 # just as the local Canvas launcher does. Pin openhands-agent-server too: it
