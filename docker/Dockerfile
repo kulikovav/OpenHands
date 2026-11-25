@@ -160,8 +160,9 @@ RUN set -eu; \
 
 # Go, protoc, and the Go-installed protoc plugins live at a read-only system
 # path because /sandbox is writable and disposable; the OpenShell policy binary
-# globs name these paths. The image CI builds linux/amd64 only, so the assets
-# are pinned to amd64.
+# globs name these paths. Symlinks in /usr/local/bin make the same tools
+# reachable by name under the sandbox supervisor's PATH. The image CI builds
+# linux/amd64 only, so the assets are pinned to amd64.
 ARG GO_VERSION=1.27.4
 ARG GO_SHA256=7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840
 ARG PROTOC_VERSION=36.2
@@ -188,6 +189,12 @@ RUN set -eu; \
     /opt/agent-tools/protoc/bin/protoc --version; \
     /opt/agent-tools/bin/protoc-gen-go --version; \
     /opt/agent-tools/bin/protoc-gen-go-grpc --version; \
+    ln -s /opt/agent-tools/go/bin/go /usr/local/bin/go; \
+    ln -s /opt/agent-tools/go/bin/gofmt /usr/local/bin/gofmt; \
+    ln -s /opt/agent-tools/protoc/bin/protoc /usr/local/bin/protoc; \
+    ln -s /opt/agent-tools/bin/protoc-gen-go /usr/local/bin/protoc-gen-go; \
+    ln -s /opt/agent-tools/bin/protoc-gen-go-grpc /usr/local/bin/protoc-gen-go-grpc; \
+    env PATH=/usr/local/bin:/usr/bin:/bin sh -c 'for name in go gofmt protoc protoc-gen-go protoc-gen-go-grpc; do command -v "$name" >/dev/null || exit 1; done'; \
     rm -rf /tmp/agent-tools-build
 ENV PATH=/opt/agent-tools/go/bin:/opt/agent-tools/protoc/bin:/opt/agent-tools/bin:${PATH}
 
