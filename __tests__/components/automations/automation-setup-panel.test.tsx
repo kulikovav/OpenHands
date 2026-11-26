@@ -4924,5 +4924,115 @@ describe("AutomationSetupPanel", () => {
         await screen.findByText("That target is no longer available."),
       ).toBeInTheDocument();
     });
+
+    describe("creation paths", () => {
+      const renderWithKinds = (kinds?: string[]) => {
+        vi.mocked(useDeploymentCapabilities).mockReturnValue({
+          data: {
+            ...targetCapabilities,
+            targets: [
+              {
+                id: "pilot",
+                name: "Pilot sandbox",
+                origin: "https://oh.uk1.example",
+                ...(kinds ? { kinds } : {}),
+              },
+            ],
+          },
+          isLoading: false,
+        } as never);
+      };
+
+      const selectPilotTarget = async (user: ReturnType<typeof userEvent.setup>) => {
+        await user.selectOptions(
+          screen.getByTestId("automation-setup-target"),
+          "pilot",
+        );
+      };
+
+      it("offers every creation path a target that runs all four kinds", async () => {
+        // Arrange
+        renderWithKinds(["prompt", "script", "plugin", "custom_tarball"]);
+        const user = userEvent.setup();
+        renderPanel();
+
+        // Act
+        await selectPilotTarget(user);
+
+        // Assert
+        expect(screen.getByTestId("automation-setup-kind-custom")).toBeEnabled();
+        expect(screen.getByTestId("automation-setup-add-plugin")).toBeEnabled();
+        expect(
+          screen.queryByTestId("automation-setup-kind-unavailable"),
+        ).not.toBeInTheDocument();
+      });
+
+      it("keeps every path on the deployment default", async () => {
+        // Arrange — a prompt-only target exists but none is selected.
+        renderWithKinds(["prompt"]);
+        renderPanel();
+
+        // Assert
+        expect(screen.getByTestId("automation-setup-kind-custom")).toBeEnabled();
+        expect(screen.getByTestId("automation-setup-add-plugin")).toBeEnabled();
+        expect(
+          screen.queryByTestId("automation-setup-kind-unavailable"),
+        ).not.toBeInTheDocument();
+      });
+
+      it("labels and disables a path a prompt-only target does not run", async () => {
+        // Arrange
+        renderWithKinds(["prompt"]);
+        const user = userEvent.setup();
+        renderPanel();
+
+        // Act
+        await selectPilotTarget(user);
+
+        // Assert
+        const customPath = screen.getByTestId("automation-setup-kind-custom");
+        expect(customPath).toBeDisabled();
+        expect(customPath).toHaveTextContent(
+          I18nKey.AUTOMATION_SETUP$KIND_UNAVAILABLE,
+        );
+        const addPlugin = screen.getByTestId("automation-setup-add-plugin");
+        expect(addPlugin).toBeDisabled();
+        expect(addPlugin).toHaveTextContent(
+          I18nKey.AUTOMATION_SETUP$KIND_UNAVAILABLE,
+        );
+        expect(screen.getByTestId("automation-setup-prompt")).toBeEnabled();
+      });
+
+      it("treats a target without kinds as prompt only", async () => {
+        // Arrange
+        renderWithKinds();
+        const user = userEvent.setup();
+        renderPanel();
+
+        // Act
+        await selectPilotTarget(user);
+
+        // Assert
+        expect(screen.getByTestId("automation-setup-kind-custom")).toBeDisabled();
+        expect(screen.getByTestId("automation-setup-add-plugin")).toBeDisabled();
+      });
+
+      it("refuses to create a custom automation on a prompt-only target", async () => {
+        // Arrange
+        renderWithKinds(["prompt"]);
+        const user = userEvent.setup();
+        renderPanel({ prompt: "Review every pull request", kind: "custom" });
+
+        // Act
+        await selectPilotTarget(user);
+        await user.click(screen.getByTestId("automation-setup-create"));
+
+        // Assert
+        expect(AutomationService.createAutomationDraft).not.toHaveBeenCalled();
+        expect(displayErrorToast).toHaveBeenCalledWith(
+          I18nKey.AUTOMATION_SETUP$KIND_UNAVAILABLE,
+        );
+      });
+    });
   });
 });

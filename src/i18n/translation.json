@@ -40031,6 +40031,24 @@
     "zh-TW": "Custom",
     "id": "Khusus"
   },
+  "AUTOMATION_SETUP$KIND_UNAVAILABLE": {
+    "ar": "غير متاح على هذا الهدف",
+    "ca": "No disponible en aquest destí",
+    "de": "Für dieses Ziel nicht verfügbar",
+    "en": "Not available on this target",
+    "es": "No disponible en este destino",
+    "fr": "Non disponible sur cette cible",
+    "id": "Tidak tersedia di target ini",
+    "it": "Non disponibile su questa destinazione",
+    "ja": "このターゲットでは利用できません",
+    "ko-KR": "이 대상에서 사용할 수 없습니다",
+    "no": "Ikke tilgjengelig på dette målet",
+    "pt": "Não disponível neste destino",
+    "tr": "Bu hedefte kullanılamaz",
+    "uk": "Недоступно для цієї цілі",
+    "zh-CN": "此目标不可用",
+    "zh-TW": "此目標不可用"
+  },
   "AUTOMATION_SETUP$NAME_PLACEHOLDER": {
     "ar": "Standup digest",
     "ca": "Standup digest",

@@ -58,6 +58,7 @@ import type {
   AutomationSetupField,
   AutomationSetupFormPatch,
   AutomationSetupFormValues,
+  AutomationSetupKind,
 } from "#/api/automation-setup-types";
 import {
   DEFAULT_AUTOMATION_PLUGIN_REF,
@@ -111,6 +112,7 @@ import {
   AUTOMATION_DEFAULT_TARGET,
   getAutomationTargetFieldError,
   hasLiveAutomationRun,
+  targetRunsCreationPath,
 } from "#/utils/automation-targets";
 import {
   useServiceAccountRunAsEnabled,
@@ -1442,6 +1444,22 @@ export function AutomationSetupPanel({
     return [{ source, ...(ref ? { ref } : {}) }];
   });
   const pluginEndpointSource = configuredPlugins[0]?.source ?? "";
+  // The selected target decides the creation paths. With no target the run
+  // uses the deployment default, whose kinds are not reported, so every path
+  // stays available as before.
+  const creationTarget = targetOptions.find((option) => option.id === targetId);
+  const pathAvailable = (path: AutomationSetupKind) =>
+    targetRunsCreationPath(creationTarget, path);
+  // Plugin sources make a preset a plugin automation whatever the kind toggle
+  // says, so the path that decides is the one the draft endpoint resolves to.
+  const creationPathAvailable = pathAvailable(
+    presetKindForEndpoint(kind, pluginEndpointSource),
+  );
+  const kindAvailable = pathAvailable(kind);
+  const togglePath: AutomationSetupKind =
+    kind === "custom" ? "prompt" : "custom";
+  const togglePathAvailable = pathAvailable(togglePath);
+  const pluginPathAvailable = pathAvailable("plugin");
 
   const writePlugins = (entries: AutomationSetupPluginEntry[]) => {
     const nextList =
@@ -1825,6 +1843,13 @@ export function AutomationSetupPanel({
     });
   };
   const validateRequiredFields = (): boolean => {
+    if (!creationPathAvailable) {
+      setStatusMessage({
+        kind: "error",
+        text: t(I18nKey.AUTOMATION_SETUP$KIND_UNAVAILABLE),
+      });
+      return false;
+    }
     if (existingPluginSpec)
       return (
         pluginConfigEditable && parsePluginConfig(form.pluginConfig) !== null
@@ -2624,6 +2649,14 @@ export function AutomationSetupPanel({
                                 )}
                               </span>
                             ) : null}
+                            {kindAvailable ? null : (
+                              <span
+                                data-testid="automation-setup-kind-unavailable"
+                                className="font-normal text-muted"
+                              >
+                                {t(I18nKey.AUTOMATION_SETUP$KIND_UNAVAILABLE)}
+                              </span>
+                            )}
                           </span>
                           <button
                             type="button"
@@ -2632,15 +2665,13 @@ export function AutomationSetupPanel({
                                 ? "automation-setup-kind-prompt"
                                 : "automation-setup-kind-custom"
                             }
-                            onClick={() =>
-                              updateField(
-                                "kind",
-                                kind === "custom" ? "prompt" : "custom",
-                              )
-                            }
+                            disabled={!togglePathAvailable}
+                            onClick={() => updateField("kind", togglePath)}
                             className={cn(
                               addOptionButtonClassName,
                               "ml-auto gap-1.5",
+                              !togglePathAvailable &&
+                                "disabled:cursor-not-allowed disabled:opacity-60",
                               streamingHighlightClassName(
                                 streamingField === "kind",
                               ),
@@ -2654,6 +2685,11 @@ export function AutomationSetupPanel({
                             {kind === "custom"
                               ? t(I18nKey.AUTOMATIONS$PROMPT)
                               : t(I18nKey.AUTOMATION_SETUP$TYPE_CUSTOM)}
+                            {togglePathAvailable ? null : (
+                              <span className="text-xs font-normal text-muted">
+                                {t(I18nKey.AUTOMATION_SETUP$KIND_UNAVAILABLE)}
+                              </span>
+                            )}
                           </button>
                         </div>
                         <SetupKindCrossfade
@@ -2888,15 +2924,23 @@ export function AutomationSetupPanel({
                           <button
                             type="button"
                             data-testid="automation-setup-add-plugin"
+                            disabled={!pluginPathAvailable}
                             onClick={addPlugin}
                             className={cn(
                               addOptionButtonClassName,
+                              !pluginPathAvailable &&
+                                "gap-1.5 disabled:cursor-not-allowed disabled:opacity-60",
                               streamingHighlightClassName(
                                 streamingField === "pluginSource",
                               ),
                             )}
                           >
                             {`${t(I18nKey.BUTTON$ADD)} ${t(I18nKey.AUTOMATION_SETUP$TYPE_PLUGIN)}`}
+                            {pluginPathAvailable ? null : (
+                              <span className="text-xs font-normal text-muted">
+                                {t(I18nKey.AUTOMATION_SETUP$KIND_UNAVAILABLE)}
+                              </span>
+                            )}
                           </button>
                         </div>
                       ) : kind !== "custom" ? (
@@ -2904,15 +2948,23 @@ export function AutomationSetupPanel({
                           <button
                             type="button"
                             data-testid="automation-setup-add-plugin"
+                            disabled={!pluginPathAvailable}
                             onClick={addPlugin}
                             className={cn(
                               addOptionButtonClassName,
+                              !pluginPathAvailable &&
+                                "gap-1.5 disabled:cursor-not-allowed disabled:opacity-60",
                               streamingHighlightClassName(
                                 streamingField === "pluginSource",
                               ),
                             )}
                           >
                             {`${t(I18nKey.BUTTON$ADD)} ${t(I18nKey.AUTOMATION_SETUP$TYPE_PLUGIN)}`}
+                            {pluginPathAvailable ? null : (
+                              <span className="text-xs font-normal text-muted">
+                                {t(I18nKey.AUTOMATION_SETUP$KIND_UNAVAILABLE)}
+                              </span>
+                            )}
                           </button>
                         </div>
                       ) : null}
