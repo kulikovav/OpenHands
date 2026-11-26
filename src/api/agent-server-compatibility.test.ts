@@ -81,28 +81,33 @@ describe("agent-server version compatibility", () => {
     });
   });
 
-  it.each(["0.99.99", "1.27.999", "1.62.0", "1.63.0", "1.63.1-rc.1"])(
-    "rejects older version %s",
-    (version) => {
-      const error = getThrownError(() =>
-        assertAgentServerVersionIsSupported(serverInfo(version)),
-      );
+  it.each([
+    "0.99.99",
+    "1.27.999",
+    "1.62.0",
+    "1.63.0",
+    "1.63.1",
+    "1.64.0",
+    "1.64.1-rc.1",
+  ])("rejects older version %s", (version) => {
+    const error = getThrownError(() =>
+      assertAgentServerVersionIsSupported(serverInfo(version)),
+    );
 
-      expect(error).toBeInstanceOf(AgentServerUnsupportedVersionError);
-      expect(error).toMatchObject({
-        actualVersion: version,
-        code: AGENT_SERVER_UNSUPPORTED_VERSION_ERROR_CODE,
-        requiredVersion: MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
-      });
-    },
-  );
+    expect(error).toBeInstanceOf(AgentServerUnsupportedVersionError);
+    expect(error).toMatchObject({
+      actualVersion: version,
+      code: AGENT_SERVER_UNSUPPORTED_VERSION_ERROR_CODE,
+      requiredVersion: MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
+    });
+  });
 
   it.each([
     MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
-    "1.63.2",
-    "1.64.0",
+    "1.64.2",
+    "1.65.0",
     "2.0.0",
-    " v1.63.1+build.7 ",
+    " v1.64.1+build.7 ",
   ])("accepts compatible version %s", (version) => {
     expect(() =>
       assertAgentServerVersionIsSupported(serverInfo(version)),
