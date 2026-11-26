@@ -1,5 +1,5 @@
 diff --git a/openhands/automation/presets/plugin/sdk_main.py b/openhands/automation/presets/plugin/sdk_main.py
-index 071ab28..4c21b17 100644
+index 99d10e2..2a8574d 100644
 --- a/openhands/automation/presets/plugin/sdk_main.py
 +++ b/openhands/automation/presets/plugin/sdk_main.py
 @@ -87,6 +87,7 @@ import inspect
@@ -10,7 +10,7 @@ index 071ab28..4c21b17 100644
  import sys
  import threading
  import time
-@@ -899,6 +900,33 @@ More activity arrived on the same subject while this run was queued:
+@@ -910,6 +911,33 @@ More activity arrived on the same subject while this run was queued:
      report_phase("Agent is working on the task")
      threading.Thread(target=_phase_poster, name="phase-poster", daemon=True).start()
  
@@ -42,10 +42,10 @@ index 071ab28..4c21b17 100644
 +    signal.signal(signal.SIGTERM, _interrupt_on_sigterm)
 +
      cost = None
+ 
      try:
-         print(f"  sending prompt: {USER_PROMPT[:80]}...")
 diff --git a/openhands/automation/presets/prompt/sdk_main.py b/openhands/automation/presets/prompt/sdk_main.py
-index 372f49f..a926a66 100644
+index 0eab11e..e0cb3f9 100644
 --- a/openhands/automation/presets/prompt/sdk_main.py
 +++ b/openhands/automation/presets/prompt/sdk_main.py
 @@ -91,6 +91,7 @@ Runtime-injected secrets (via conversation.update_secrets after Conversation cre
@@ -56,7 +56,7 @@ index 372f49f..a926a66 100644
  import sys
  import threading
  import time
-@@ -849,6 +850,33 @@ More activity arrived on the same subject while this run was queued:
+@@ -860,6 +861,33 @@ More activity arrived on the same subject while this run was queued:
      report_phase("Agent is working on the task")
      threading.Thread(target=_phase_poster, name="phase-poster", daemon=True).start()
  
@@ -88,5 +88,5 @@ index 372f49f..a926a66 100644
 +    signal.signal(signal.SIGTERM, _interrupt_on_sigterm)
 +
      cost = None
+ 
      try:
-         print(f"  sending prompt: {USER_PROMPT[:80]}...")

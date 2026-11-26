@@ -251,7 +251,7 @@ RUN if [ -n "${AGENT_SERVER_SDK_GIT_REF}" ]; then \
 # 4. Add the standing memory instructions to a governed run's composed prompt
 #    and tag the conversation with its automation and run id, so the memory
 #    token's claims give the skill one idempotency key per run. It needs
-#    shared-memory token support beyond what openhands-sdk v1.63.1 provides.
+#    shared-memory token support beyond what openhands-sdk v1.64.1 provides.
 # Patches 1 and 2 are the fork's own commits, so a fork ref skips applying
 # them; their self-checks still prove the installed package, whether it came
 # from PyPI or the fork. Governed dispatch exists only in the fork, so patch 4
@@ -262,10 +262,10 @@ RUN if [ -n "${AGENT_SERVER_SDK_GIT_REF}" ]; then \
 # or --forward makes the already-applied hunk fail the build.
 # --fuzz=0 makes a version bump fail the build when the patched context
 # changed, so the fixes cannot be dropped silently.
-COPY docker/patches/automation-1.34.1-dispatch-retry.patch /tmp/bleenk-patches/automation-dispatch-retry.patch
-COPY docker/patches/automation-1.34.1-interrupt-on-sigterm.patch /tmp/bleenk-patches/automation-interrupt-on-sigterm.patch
-COPY docker/patches/automation-1.34.1-memory-prompt.patch /tmp/bleenk-patches/automation-memory-prompt.patch
-COPY docker/patches/agent-server-1.63.1-token-case-insensitive.patch /tmp/bleenk-patches/agent-server-token-case-insensitive.patch
+COPY docker/patches/automation-1.36.0-dispatch-retry.patch /tmp/bleenk-patches/automation-dispatch-retry.patch
+COPY docker/patches/automation-1.36.0-interrupt-on-sigterm.patch /tmp/bleenk-patches/automation-interrupt-on-sigterm.patch
+COPY docker/patches/automation-1.36.0-memory-prompt.patch /tmp/bleenk-patches/automation-memory-prompt.patch
+COPY docker/patches/agent-server-1.64.1-token-case-insensitive.patch /tmp/bleenk-patches/agent-server-token-case-insensitive.patch
 COPY docker/patches/automation-dispatch-retry-selfcheck.py /tmp/bleenk-patches/automation-dispatch-retry-selfcheck.py
 COPY docker/patches/automation-sigterm-selfcheck.py /tmp/bleenk-patches/automation-sigterm-selfcheck.py
 COPY docker/patches/agent-server-token-case-selfcheck.py /tmp/bleenk-patches/agent-server-token-case-selfcheck.py
