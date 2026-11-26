@@ -6,6 +6,7 @@
  * the scheme and trailing slashes: the service stores the deployment's public
  * origin while Canvas may hold the same host over either scheme.
  */
+import type { AutomationSetupKind } from "#/api/automation-setup-types";
 import type { AutomationTarget } from "#/manifests/types";
 import { AutomationRunStatus, type AutomationRun } from "#/types/automation";
 import { getApiErrorBody } from "#/utils/api-error-message";
@@ -15,6 +16,38 @@ export const AUTOMATION_GOVERNED_TARGETS_FEATURE = "governedTargets";
 
 /** The form value that means "no target": the deployment's default backend. */
 export const AUTOMATION_DEFAULT_TARGET = "";
+
+/**
+ * The automation kinds behind each setup creation path. A custom upload is a
+ * plain script tarball or a bundle that templates one.
+ */
+const CREATION_PATH_KINDS: Record<AutomationSetupKind, readonly string[]> = {
+  prompt: ["prompt"],
+  plugin: ["plugin"],
+  custom: ["custom_tarball", "script"],
+};
+
+/**
+ * The kinds a target runs. A target without the list runs prompts only, which
+ * is what a service older than the kinds field reports.
+ */
+export function getAutomationTargetKinds(target: AutomationTarget): string[] {
+  return target.kinds ?? ["prompt"];
+}
+
+/**
+ * Whether a target runs the kinds one setup creation path creates. No target
+ * means the deployment default, whose kinds this deployment does not report,
+ * so every path stays available.
+ */
+export function targetRunsCreationPath(
+  target: AutomationTarget | null | undefined,
+  path: AutomationSetupKind,
+): boolean {
+  if (!target) return true;
+  const kinds = getAutomationTargetKinds(target);
+  return CREATION_PATH_KINDS[path].some((kind) => kinds.includes(kind));
+}
 
 export function normalizeAutomationOrigin(origin: string): string {
   return origin

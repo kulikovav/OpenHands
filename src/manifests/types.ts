@@ -276,6 +276,12 @@ export interface AutomationTarget {
   name: string;
   /** Origin of the Agent Server the target dispatches to. */
   origin: string;
+  /**
+   * The automation kinds this target runs. A target without the list runs
+   * prompts only. Kept as strings, not a closed union, so a newer service can
+   * add a kind without breaking this build.
+   */
+  kinds?: string[];
 }
 
 /** A single problem with a draft, addressed to the field that caused it. */

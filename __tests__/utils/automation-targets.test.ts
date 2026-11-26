@@ -3,10 +3,13 @@ import { AxiosError } from "axios";
 import {
   findAutomationTarget,
   getAutomationTargetFieldError,
+  getAutomationTargetKinds,
   hasLiveAutomationRun,
   normalizeAutomationOrigin,
+  targetRunsCreationPath,
 } from "#/utils/automation-targets";
 import { AutomationRunStatus, type AutomationRun } from "#/types/automation";
+import type { AutomationTarget } from "#/manifests/types";
 
 const targets = [
   {
@@ -48,6 +51,49 @@ describe("automation target matching", () => {
       findAutomationTarget(targets, "https://unlisted.example"),
     ).toBeNull();
     expect(findAutomationTarget([], "https://oh.uk1.example")).toBeNull();
+  });
+});
+
+describe("automation target kinds", () => {
+  const target = (kinds?: string[]): AutomationTarget => ({
+    id: "pilot",
+    name: "Pilot sandbox",
+    origin: "https://oh.uk1.example",
+    ...(kinds ? { kinds } : {}),
+  });
+
+  it("treats an absent list as prompt only", () => {
+    expect(getAutomationTargetKinds(target())).toEqual(["prompt"]);
+    expect(targetRunsCreationPath(target(), "prompt")).toBe(true);
+    expect(targetRunsCreationPath(target(), "plugin")).toBe(false);
+    expect(targetRunsCreationPath(target(), "custom")).toBe(false);
+  });
+
+  it("offers every creation path a target that runs all four kinds", () => {
+    const all = target(["prompt", "script", "plugin", "custom_tarball"]);
+    expect(targetRunsCreationPath(all, "prompt")).toBe(true);
+    expect(targetRunsCreationPath(all, "plugin")).toBe(true);
+    expect(targetRunsCreationPath(all, "custom")).toBe(true);
+  });
+
+  it("runs the upload path from either bundle kind", () => {
+    expect(targetRunsCreationPath(target(["script"]), "custom")).toBe(true);
+    expect(
+      targetRunsCreationPath(target(["custom_tarball"]), "custom"),
+    ).toBe(true);
+  });
+
+  it("keeps an unknown kind from widening another path", () => {
+    const future = target(["prompt", "future_kind"]);
+    expect(targetRunsCreationPath(future, "prompt")).toBe(true);
+    expect(targetRunsCreationPath(future, "plugin")).toBe(false);
+    expect(targetRunsCreationPath(future, "custom")).toBe(false);
+  });
+
+  it("keeps every path for a deployment without a target", () => {
+    expect(targetRunsCreationPath(null, "prompt")).toBe(true);
+    expect(targetRunsCreationPath(undefined, "plugin")).toBe(true);
+    expect(targetRunsCreationPath(null, "custom")).toBe(true);
   });
 });
 
