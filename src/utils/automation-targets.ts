@@ -19,12 +19,13 @@ export const AUTOMATION_DEFAULT_TARGET = "";
 
 /**
  * The automation kinds behind each setup creation path. A custom upload is a
- * plain script tarball or a bundle that templates one.
+ * bundle created without a template, so the service classifies it as
+ * `custom_tarball`; this path never creates a `script` automation.
  */
 const CREATION_PATH_KINDS: Record<AutomationSetupKind, readonly string[]> = {
   prompt: ["prompt"],
   plugin: ["plugin"],
-  custom: ["custom_tarball", "script"],
+  custom: ["custom_tarball"],
 };
 
 /**

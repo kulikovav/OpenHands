@@ -76,11 +76,11 @@ describe("automation target kinds", () => {
     expect(targetRunsCreationPath(all, "custom")).toBe(true);
   });
 
-  it("runs the upload path from either bundle kind", () => {
-    expect(targetRunsCreationPath(target(["script"]), "custom")).toBe(true);
-    expect(
-      targetRunsCreationPath(target(["custom_tarball"]), "custom"),
-    ).toBe(true);
+  it("runs the upload path only from custom_tarball", () => {
+    expect(targetRunsCreationPath(target(["custom_tarball"]), "custom")).toBe(true);
+    // The custom body sends no template, so the service creates
+    // custom_tarball and a script-only target would answer 422.
+    expect(targetRunsCreationPath(target(["script"]), "custom")).toBe(false);
   });
 
   it("keeps an unknown kind from widening another path", () => {
