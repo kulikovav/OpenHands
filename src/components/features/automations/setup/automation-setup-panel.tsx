@@ -135,6 +135,7 @@ import { factoryPath, withFactoryContext } from "#/constants/factories";
 import { useFactoryContext } from "#/hooks/use-factory-context";
 import type {
   AutomationDraftApiResponse,
+  AutomationTarget,
   DeploymentCapabilities,
   SetupRequestBody,
 } from "#/manifests/types";
@@ -470,6 +471,106 @@ function eventTypeMatches(pattern: string, eventKey: string): boolean {
   return pattern.endsWith(".*")
     ? eventKey.startsWith(pattern.slice(0, -1))
     : pattern === eventKey;
+}
+
+interface AutomationSetupAvailability {
+  creationPath: boolean;
+  kind: boolean;
+  togglePath: boolean;
+  pluginPath: boolean;
+  repositories: boolean;
+  agentProfile: boolean;
+}
+
+/**
+ * What the selected target and the deployment's features allow. The selected
+ * target decides the creation paths; with no target the run uses the
+ * deployment default, whose kinds are not reported, so every path stays
+ * available.
+ */
+function automationSetupAvailability({
+  target,
+  kind,
+  pluginEndpointSource,
+  isEditingExisting,
+  canUpdateRepositories,
+  features,
+  agentProfilesEnabled,
+}: {
+  target: AutomationTarget | undefined;
+  kind: AutomationSetupKind;
+  pluginEndpointSource: string;
+  isEditingExisting: boolean;
+  canUpdateRepositories: boolean;
+  features: readonly string[];
+  agentProfilesEnabled: boolean;
+}): AutomationSetupAvailability {
+  const pathAvailable = (path: AutomationSetupKind) =>
+    targetRunsCreationPath(target, path);
+  return {
+    // Plugin sources make a preset a plugin automation whatever the kind
+    // toggle says, so the path that decides is the one its endpoint resolves
+    // to.
+    creationPath: pathAvailable(
+      presetKindForEndpoint(kind, pluginEndpointSource),
+    ),
+    kind: pathAvailable(kind),
+    togglePath: pathAvailable(kind === "custom" ? "prompt" : "custom"),
+    pluginPath: pathAvailable("plugin"),
+    // A new automation sends its repositories on create. An existing one can
+    // change them only when the service can rebuild it with them.
+    repositories:
+      !isEditingExisting ||
+      (canUpdateRepositories && features.includes(REPO_UPDATE_FEATURE)),
+    // Services that run scripts from an agent profile may still refuse one on
+    // a prompt or plugin preset; those advertise a feature of their own.
+    agentProfile:
+      agentProfilesEnabled &&
+      features.includes(
+        kind === "custom"
+          ? AGENT_PROFILES_FEATURE
+          : PRESET_AGENT_PROFILES_FEATURE,
+      ),
+  };
+}
+
+function PathButton({
+  testId,
+  available,
+  isStreaming,
+  onClick,
+  className,
+  children,
+}: {
+  testId: string;
+  available: boolean;
+  isStreaming: boolean;
+  onClick: () => void;
+  className?: string;
+  children: ReactNode;
+}) {
+  const { t } = useTranslation("openhands");
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      disabled={!available}
+      onClick={onClick}
+      className={cn(
+        addOptionButtonClassName,
+        !available && "gap-1.5 disabled:cursor-not-allowed disabled:opacity-60",
+        streamingHighlightClassName(isStreaming),
+        className,
+      )}
+    >
+      {children}
+      {available ? null : (
+        <span className="text-xs font-normal text-muted">
+          {t(I18nKey.AUTOMATION_SETUP$KIND_UNAVAILABLE)}
+        </span>
+      )}
+    </button>
+  );
 }
 
 function buildDefaultEventTestPayload(
@@ -954,14 +1055,6 @@ export function AutomationSetupPanel({
   const [canUpdateRepositories, setCanUpdateRepositories] = useState(
     draft.canUpdateRepositories ?? false,
   );
-  // A new automation sends its repositories on create. An existing one can
-  // change them only when the service can rebuild it with them.
-  const repositoriesEditable =
-    !isEditingExisting ||
-    (canUpdateRepositories &&
-      (deploymentCapabilities.data?.features ?? []).includes(
-        REPO_UPDATE_FEATURE,
-      ));
   const streamQueueRef = useRef<
     {
       field: AutomationSetupField;
@@ -1206,15 +1299,6 @@ export function AutomationSetupPanel({
   // Services that run scripts from an agent profile may still refuse one on
   // a prompt or plugin preset; those advertise a feature of their own.
   const agentProfilesAvailable = useAgentProfileAvailability();
-  const canSelectAgentProfile =
-    agentProfilesAvailable &&
-    (deploymentCapabilities.data?.features ?? []).includes(
-      kind === "custom"
-        ? AGENT_PROFILES_FEATURE
-        : PRESET_AGENT_PROFILES_FEATURE,
-    );
-  const selectedAgentProfileId =
-    (canSelectAgentProfile && agentProfileId.trim()) || null;
 
   useEffect(() => {
     if (isEventTestPayloadDirty) return;
@@ -1444,22 +1528,19 @@ export function AutomationSetupPanel({
     return [{ source, ...(ref ? { ref } : {}) }];
   });
   const pluginEndpointSource = configuredPlugins[0]?.source ?? "";
-  // The selected target decides the creation paths. With no target the run
-  // uses the deployment default, whose kinds are not reported, so every path
-  // stays available as before.
-  const creationTarget = targetOptions.find((option) => option.id === targetId);
-  const pathAvailable = (path: AutomationSetupKind) =>
-    targetRunsCreationPath(creationTarget, path);
-  // Plugin sources make a preset a plugin automation whatever the kind toggle
-  // says, so the path that decides is the one the draft endpoint resolves to.
-  const creationPathAvailable = pathAvailable(
-    presetKindForEndpoint(kind, pluginEndpointSource),
-  );
-  const kindAvailable = pathAvailable(kind);
+  const availability = automationSetupAvailability({
+    target: targetOptions.find((option) => option.id === targetId),
+    kind,
+    pluginEndpointSource,
+    isEditingExisting,
+    canUpdateRepositories,
+    features: deploymentCapabilities.data?.features ?? [],
+    agentProfilesEnabled: agentProfilesAvailable,
+  });
   const togglePath: AutomationSetupKind =
     kind === "custom" ? "prompt" : "custom";
-  const togglePathAvailable = pathAvailable(togglePath);
-  const pluginPathAvailable = pathAvailable("plugin");
+  const selectedAgentProfileId =
+    (availability.agentProfile && agentProfileId.trim()) || null;
 
   const writePlugins = (entries: AutomationSetupPluginEntry[]) => {
     const nextList =
@@ -1843,7 +1924,7 @@ export function AutomationSetupPanel({
     });
   };
   const validateRequiredFields = (): boolean => {
-    if (!creationPathAvailable) {
+    if (!availability.creationPath) {
       setStatusMessage({
         kind: "error",
         text: t(I18nKey.AUTOMATION_SETUP$KIND_UNAVAILABLE),
@@ -2140,9 +2221,9 @@ export function AutomationSetupPanel({
       body.config = parsePluginConfig(form.pluginConfig);
       return body as AutomationUpdate;
     }
-    if (kind === "custom" || canSelectAgentProfile) {
+    if (kind === "custom" || availability.agentProfile) {
       // Without the capability the picker is hidden; keep the stored profile.
-      body.agent_profile_id = canSelectAgentProfile
+      body.agent_profile_id = availability.agentProfile
         ? selectedAgentProfileId
         : agentProfileId.trim() || null;
       // Clear a saved model when a profile replaces it.
@@ -2150,7 +2231,7 @@ export function AutomationSetupPanel({
     }
     if (kind !== "custom") body.prompt = prompt.trim();
     const repositories = parseAutomationSetupRepositories(repository);
-    if (repositoriesEditable) {
+    if (availability.repositories) {
       // An entry saved without a provider is rebuilt with one when its host
       // became known, so saving the form repairs its clone authentication. A
       // cleared list still sends `repos: []`, so the automation stops
@@ -2649,7 +2730,7 @@ export function AutomationSetupPanel({
                                 )}
                               </span>
                             ) : null}
-                            {kindAvailable ? null : (
+                            {availability.kind ? null : (
                               <span
                                 data-testid="automation-setup-kind-unavailable"
                                 className="font-normal text-muted"
@@ -2658,24 +2739,16 @@ export function AutomationSetupPanel({
                               </span>
                             )}
                           </span>
-                          <button
-                            type="button"
-                            data-testid={
+                          <PathButton
+                            testId={
                               kind === "custom"
                                 ? "automation-setup-kind-prompt"
                                 : "automation-setup-kind-custom"
                             }
-                            disabled={!togglePathAvailable}
+                            available={availability.togglePath}
+                            isStreaming={streamingField === "kind"}
                             onClick={() => updateField("kind", togglePath)}
-                            className={cn(
-                              addOptionButtonClassName,
-                              "ml-auto gap-1.5",
-                              !togglePathAvailable &&
-                                "disabled:cursor-not-allowed disabled:opacity-60",
-                              streamingHighlightClassName(
-                                streamingField === "kind",
-                              ),
-                            )}
+                            className="ml-auto"
                           >
                             {kind === "custom" ? (
                               <FileText className="size-4" aria-hidden />
@@ -2685,12 +2758,7 @@ export function AutomationSetupPanel({
                             {kind === "custom"
                               ? t(I18nKey.AUTOMATIONS$PROMPT)
                               : t(I18nKey.AUTOMATION_SETUP$TYPE_CUSTOM)}
-                            {togglePathAvailable ? null : (
-                              <span className="text-xs font-normal text-muted">
-                                {t(I18nKey.AUTOMATION_SETUP$KIND_UNAVAILABLE)}
-                              </span>
-                            )}
-                          </button>
+                          </PathButton>
                         </div>
                         <SetupKindCrossfade
                           view={kind === "custom" ? "custom" : "prompt"}
@@ -2712,14 +2780,14 @@ export function AutomationSetupPanel({
                               onRepositoryChange={(value) =>
                                 updateField("repository", value)
                               }
-                              repositoryReadOnly={!repositoriesEditable}
+                              repositoryReadOnly={!availability.repositories}
                               model={model}
                               onModelChange={(value) =>
                                 updateField("model", value)
                               }
                               agentProfileId={agentProfileId}
                               onAgentProfileChange={
-                                canSelectAgentProfile
+                                availability.agentProfile
                                   ? (value) =>
                                       updateField("agentProfileId", value)
                                   : undefined
@@ -2758,7 +2826,7 @@ export function AutomationSetupPanel({
                             />
                           )}
                         </SetupKindCrossfade>
-                        {kind === "custom" && canSelectAgentProfile ? (
+                        {kind === "custom" && availability.agentProfile ? (
                           <SetupProfilePickers
                             model={model}
                             onModelChange={(value) =>
@@ -2770,7 +2838,7 @@ export function AutomationSetupPanel({
                             }
                           />
                         ) : null}
-                        {kind === "custom" && !canSelectAgentProfile ? (
+                        {kind === "custom" && !availability.agentProfile ? (
                           <SetupModelPill
                             value={model}
                             onChange={(value) => updateField("model", value)}
@@ -2921,51 +2989,25 @@ export function AutomationSetupPanel({
                               </div>
                             </div>
                           ))}
-                          <button
-                            type="button"
-                            data-testid="automation-setup-add-plugin"
-                            disabled={!pluginPathAvailable}
+                          <PathButton
+                            testId="automation-setup-add-plugin"
+                            available={availability.pluginPath}
+                            isStreaming={streamingField === "pluginSource"}
                             onClick={addPlugin}
-                            className={cn(
-                              addOptionButtonClassName,
-                              !pluginPathAvailable &&
-                                "gap-1.5 disabled:cursor-not-allowed disabled:opacity-60",
-                              streamingHighlightClassName(
-                                streamingField === "pluginSource",
-                              ),
-                            )}
                           >
                             {`${t(I18nKey.BUTTON$ADD)} ${t(I18nKey.AUTOMATION_SETUP$TYPE_PLUGIN)}`}
-                            {pluginPathAvailable ? null : (
-                              <span className="text-xs font-normal text-muted">
-                                {t(I18nKey.AUTOMATION_SETUP$KIND_UNAVAILABLE)}
-                              </span>
-                            )}
-                          </button>
+                          </PathButton>
                         </div>
                       ) : kind !== "custom" ? (
                         <div className="flex">
-                          <button
-                            type="button"
-                            data-testid="automation-setup-add-plugin"
-                            disabled={!pluginPathAvailable}
+                          <PathButton
+                            testId="automation-setup-add-plugin"
+                            available={availability.pluginPath}
+                            isStreaming={streamingField === "pluginSource"}
                             onClick={addPlugin}
-                            className={cn(
-                              addOptionButtonClassName,
-                              !pluginPathAvailable &&
-                                "gap-1.5 disabled:cursor-not-allowed disabled:opacity-60",
-                              streamingHighlightClassName(
-                                streamingField === "pluginSource",
-                              ),
-                            )}
                           >
                             {`${t(I18nKey.BUTTON$ADD)} ${t(I18nKey.AUTOMATION_SETUP$TYPE_PLUGIN)}`}
-                            {pluginPathAvailable ? null : (
-                              <span className="text-xs font-normal text-muted">
-                                {t(I18nKey.AUTOMATION_SETUP$KIND_UNAVAILABLE)}
-                              </span>
-                            )}
-                          </button>
+                          </PathButton>
                         </div>
                       ) : null}
                     </div>
