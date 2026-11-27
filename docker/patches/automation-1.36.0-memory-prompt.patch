@@ -1,7 +1,7 @@
 diff --git a/openhands/automation/backends/governed.py b/openhands/automation/backends/governed.py
 --- a/openhands/automation/backends/governed.py
 +++ b/openhands/automation/backends/governed.py
-@@ -49,6 +49,7 @@
+@@ -51,6 +51,7 @@
      make_run_status_detail,
  )
  from openhands.automation.utils.time import ensure_utc, utcnow
@@ -9,7 +9,7 @@ diff --git a/openhands/automation/backends/governed.py b/openhands/automation/ba
  from openhands.workspace import RepoSource
  
  
-@@ -270,13 +271,27 @@
+@@ -276,13 +277,27 @@
  
      The preset's composition lives in its shipped script, which cannot be
      imported safely here, so the same text is composed from the automation
@@ -38,7 +38,7 @@ diff --git a/openhands/automation/backends/governed.py b/openhands/automation/ba
      event_context = dict(run.event_payload or {})
      follow_up_turns = event_context.pop(COALESCED_TURNS_KEY, None)
      context_sections: list[str] = []
-@@ -305,12 +320,16 @@
+@@ -311,12 +326,16 @@
          )
      if context_sections:
          context_block = "\n\n".join(context_sections)
@@ -57,7 +57,7 @@ diff --git a/openhands/automation/backends/governed.py b/openhands/automation/ba
  
  
  @dataclass(frozen=True)
-@@ -512,6 +531,12 @@
+@@ -628,6 +647,12 @@
                  "content": [{"type": "text", "text": task}],
                  "run": True,
              },
@@ -69,4 +69,4 @@ diff --git a/openhands/automation/backends/governed.py b/openhands/automation/ba
 +            },
          }
          # The configured secrets (by reference), and the repositories their
-         # provider tokens can clone. A server from before the clone field
+         # provider tokens can clone.
