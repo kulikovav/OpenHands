@@ -132,7 +132,11 @@ def check_start_payload(module, models, tags) -> tuple[dict, str]:
         origin=TARGET_URL,
     )
     client = RecordingClient()
-    outcome = asyncio.run(backend.start_conversation(client, automation, run, claim))
+    start = module.ConversationStart()
+    prepared = module.PreparedStart(secrets={}, repositories=[])
+    outcome = asyncio.run(
+        backend.start_conversation(client, automation, run, claim, start, prepared)
+    )
     if not outcome.confirmed:
         fail(f"the governed start was not confirmed: {outcome.error}")
     payload = client.started or {}
