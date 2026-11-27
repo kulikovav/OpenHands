@@ -41,9 +41,9 @@ describe("automation target matching", () => {
   });
 
   it("matches the target at the active backend origin", () => {
-    expect(
-      findAutomationTarget(targets, "http://oh.uk1.example")?.id,
-    ).toBe("pilot");
+    expect(findAutomationTarget(targets, "http://oh.uk1.example")?.id).toBe(
+      "pilot",
+    );
   });
 
   it("returns null when no target has that origin", () => {
@@ -77,7 +77,9 @@ describe("automation target kinds", () => {
   });
 
   it("runs the upload path only from custom_tarball", () => {
-    expect(targetRunsCreationPath(target(["custom_tarball"]), "custom")).toBe(true);
+    expect(targetRunsCreationPath(target(["custom_tarball"]), "custom")).toBe(
+      true,
+    );
     // The custom body sends no template, so the service creates
     // custom_tarball and a script-only target would answer 422.
     expect(targetRunsCreationPath(target(["script"]), "custom")).toBe(false);
@@ -106,9 +108,7 @@ describe("hasLiveAutomationRun", () => {
       ]),
     ).toBe(true);
     expect(
-      hasLiveAutomationRun([
-        makeRun({ status: AutomationRunStatus.RUNNING }),
-      ]),
+      hasLiveAutomationRun([makeRun({ status: AutomationRunStatus.RUNNING })]),
     ).toBe(true);
   });
 

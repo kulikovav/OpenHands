@@ -4789,7 +4789,11 @@ describe("AutomationSetupPanel", () => {
       eventTypes: [],
       triggers: {},
       targets: [
-        { id: "pilot", name: "Pilot sandbox", origin: "https://oh.uk1.example" },
+        {
+          id: "pilot",
+          name: "Pilot sandbox",
+          origin: "https://oh.uk1.example",
+        },
       ],
     };
 
@@ -4943,7 +4947,9 @@ describe("AutomationSetupPanel", () => {
         } as never);
       };
 
-      const selectPilotTarget = async (user: ReturnType<typeof userEvent.setup>) => {
+      const selectPilotTarget = async (
+        user: ReturnType<typeof userEvent.setup>,
+      ) => {
         await user.selectOptions(
           screen.getByTestId("automation-setup-target"),
           "pilot",
@@ -4960,7 +4966,9 @@ describe("AutomationSetupPanel", () => {
         await selectPilotTarget(user);
 
         // Assert
-        expect(screen.getByTestId("automation-setup-kind-custom")).toBeEnabled();
+        expect(
+          screen.getByTestId("automation-setup-kind-custom"),
+        ).toBeEnabled();
         expect(screen.getByTestId("automation-setup-add-plugin")).toBeEnabled();
         expect(
           screen.queryByTestId("automation-setup-kind-unavailable"),
@@ -4973,7 +4981,9 @@ describe("AutomationSetupPanel", () => {
         renderPanel();
 
         // Assert
-        expect(screen.getByTestId("automation-setup-kind-custom")).toBeEnabled();
+        expect(
+          screen.getByTestId("automation-setup-kind-custom"),
+        ).toBeEnabled();
         expect(screen.getByTestId("automation-setup-add-plugin")).toBeEnabled();
         expect(
           screen.queryByTestId("automation-setup-kind-unavailable"),
@@ -5013,8 +5023,12 @@ describe("AutomationSetupPanel", () => {
         await selectPilotTarget(user);
 
         // Assert
-        expect(screen.getByTestId("automation-setup-kind-custom")).toBeDisabled();
-        expect(screen.getByTestId("automation-setup-add-plugin")).toBeDisabled();
+        expect(
+          screen.getByTestId("automation-setup-kind-custom"),
+        ).toBeDisabled();
+        expect(
+          screen.getByTestId("automation-setup-add-plugin"),
+        ).toBeDisabled();
       });
 
       it("refuses to create a custom automation on a prompt-only target", async () => {
